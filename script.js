@@ -13,6 +13,8 @@ class MarkdownEditor {
         this.currentFileName = 'Untitled.md';
         this.isModified = false;
         this.lastSavedContent = '';
+        this.imageWidgets = new Map(); // Store image widgets
+        this.showImageWidgets = true; // Toggle for widget view
         
         this.init();
     }
@@ -24,6 +26,7 @@ class MarkdownEditor {
         this.updateStats();
         this.updateCursorPosition();
         this.loadTheme();
+        this.scanExistingImages();
     }
     
     setupMarked() {
@@ -52,6 +55,11 @@ class MarkdownEditor {
             this.updatePreview();
             this.updateStats();
             this.setModified(true);
+            
+            // Update masked editor if in widget mode
+            if (this.showImageWidgets) {
+                this.updateMaskedEditor();
+            }
         });
         
         this.editor.addEventListener('scroll', () => {
@@ -91,6 +99,9 @@ class MarkdownEditor {
         
         // Drag and drop events
         this.setupDragAndDrop();
+        
+        // Image paste events
+        this.setupImagePaste();
         
         // Window events
         window.addEventListener('beforeunload', (e) => {
@@ -588,6 +599,439 @@ class MarkdownEditor {
             }
         }, 3000);
     }
+    
+    setupImagePaste() {
+        // Listen for paste events on the editor
+        this.editor.addEventListener('paste', (e) => {
+            this.handlePaste(e);
+        });
+    }
+    
+    async handlePaste(e) {
+        // Check if clipboard contains files (images)
+        const items = Array.from(e.clipboardData.items);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        
+        if (imageItems.length === 0) {
+            // No images in clipboard, let default paste behavior happen
+            return;
+        }
+        
+        // Prevent default paste behavior for images
+        e.preventDefault();
+        
+        try {
+            // Process each image
+            for (const item of imageItems) {
+                await this.processImagePaste(item);
+            }
+        } catch (error) {
+            console.error('Error processing pasted image:', error);
+            this.showNotification('Error processing pasted image', 'error');
+        }
+    }
+    
+    async processImagePaste(item) {
+        return new Promise((resolve, reject) => {
+            const file = item.getAsFile();
+            if (!file) {
+                reject(new Error('Could not get file from clipboard item'));
+                return;
+            }
+            
+            // Show visual feedback
+            const editorPane = document.querySelector('.editor-pane');
+            editorPane.classList.add('processing-image');
+            this.showNotification('Processing pasted image...', 'info');
+            
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const dataUrl = e.target.result;
+                    const fileName = this.generateImageFileName(file.type);
+                    
+                    // Insert markdown image syntax at cursor position
+                    this.insertImageAtCursor(fileName, dataUrl);
+                    
+                    // Remove processing state
+                    const editorPane = document.querySelector('.editor-pane');
+                    editorPane.classList.remove('processing-image');
+                    
+                    this.showNotification('Image pasted successfully!', 'success');
+                    resolve();
+                } catch (error) {
+                    // Remove processing state on error
+                    const editorPane = document.querySelector('.editor-pane');
+                    editorPane.classList.remove('processing-image');
+                    reject(error);
+                }
+            };
+            
+            reader.onerror = () => {
+                // Remove processing state on error
+                const editorPane = document.querySelector('.editor-pane');
+                editorPane.classList.remove('processing-image');
+                reject(new Error('Failed to read image file'));
+            };
+            
+            // Read the file as data URL
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    generateImageFileName(mimeType) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const extension = mimeType.split('/')[1] || 'png';
+        return `pasted-image-${timestamp}.${extension}`;
+    }
+    
+    insertImageAtCursor(fileName, dataUrl) {
+        const editor = this.editor;
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const value = editor.value;
+        
+        // Create markdown image syntax with data URL
+        const imageMarkdown = `![${fileName}](${dataUrl})`;
+        
+        // Insert at cursor position
+        const newValue = value.substring(0, start) + imageMarkdown + value.substring(end);
+        editor.value = newValue;
+        
+        // Move cursor to end of inserted text
+        const newCursorPos = start + imageMarkdown.length;
+        editor.setSelectionRange(newCursorPos, newCursorPos);
+        
+        // Update editor state
+        this.updatePreview();
+        this.updateStats();
+        this.updateCursorPosition();
+        this.setModified(true);
+        
+        // Focus back to editor
+        editor.focus();
+        
+        // Create image widget for the inserted image
+        this.createImageWidget(fileName, dataUrl, newCursorPos - imageMarkdown.length);
+        this.updateEditorDisplay();
+    }
+    
+    createImageWidget(fileName, dataUrl, position) {
+        const widgetId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        this.imageWidgets.set(widgetId, {
+            id: widgetId,
+            fileName: fileName,
+            dataUrl: dataUrl,
+            position: position,
+            markdown: `![${fileName}](${dataUrl})`
+        });
+    }
+    
+    updateEditorDisplay() {
+        const editorContainer = document.querySelector('.editor-pane');
+        
+        if (!this.showImageWidgets) {
+            // Remove widgets and show original text
+            editorContainer.querySelectorAll('.image-widget').forEach(widget => widget.remove());
+            const overlay = editorContainer.querySelector('.editor-overlay');
+            if (overlay) overlay.remove();
+            const mask = editorContainer.querySelector('.editor-mask');
+            if (mask) mask.remove();
+            
+            // Remove widget mode class
+            editorContainer.classList.remove('widget-mode');
+            return;
+        }
+        
+        // Remove existing widgets
+        editorContainer.querySelectorAll('.image-widget').forEach(widget => widget.remove());
+        
+        // Create overlay for widgets
+        let overlay = editorContainer.querySelector('.editor-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'editor-overlay';
+            editorContainer.appendChild(overlay);
+        }
+        
+        // Add widget mode class
+        editorContainer.classList.add('widget-mode');
+        
+        // Create masked editor content
+        this.createMaskedEditor();
+        
+        const editorValue = this.editor.value;
+        
+        // Find and create widgets for each image
+        for (const [widgetId, widget] of this.imageWidgets) {
+            const imageRegex = new RegExp(`!\\[${this.escapeRegex(widget.fileName)}\\]\\(data:image/[^)]+\\)`, 'g');
+            let match;
+            
+            while ((match = imageRegex.exec(editorValue)) !== null) {
+                const matchStart = match.index;
+                
+                // Calculate line and position
+                const beforeMatch = editorValue.substring(0, matchStart);
+                const lineNumber = beforeMatch.split('\n').length;
+                
+                // Create widget element
+                this.createImageWidgetElement(widget, lineNumber, overlay);
+                break; // Only create one widget per image
+            }
+        }
+    }
+    
+    createMaskedEditor() {
+        const editorContainer = document.querySelector('.editor-pane');
+        
+        // Remove existing masked editor
+        const existingMask = editorContainer.querySelector('.editor-mask');
+        if (existingMask) existingMask.remove();
+        
+        // Create masked version of editor content
+        const maskedContent = this.createMaskedContent();
+        
+        const maskedEditor = document.createElement('div');
+        maskedEditor.className = 'editor-mask';
+        maskedEditor.innerHTML = maskedContent;
+        
+        // Position it over the real editor
+        editorContainer.appendChild(maskedEditor);
+    }
+    
+    createMaskedContent() {
+        let content = this.editor.value;
+        
+        // Replace each image with a placeholder
+        for (const [widgetId, widget] of this.imageWidgets) {
+            const imageRegex = new RegExp(`!\\[${this.escapeRegex(widget.fileName)}\\]\\(data:image/[^)]+\\)`, 'g');
+            content = content.replace(imageRegex, `![${widget.fileName}](...)`);
+        }
+        
+        // Convert to HTML with proper line breaks and syntax highlighting
+        const lines = content.split('\n');
+        return lines.map((line, index) => {
+            // Escape HTML first
+            let escapedLine = line
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            
+            // Simple markdown syntax highlighting
+            let highlightedLine = escapedLine
+                .replace(/^(#{1,6})\s+(.*)/, '<span class="md-header">$1 $2</span>')
+                .replace(/\*\*(.*?)\*\*/g, '<span class="md-bold">**$1**</span>')
+                .replace(/\*(.*?)\*/g, '<span class="md-italic">*$1*</span>')
+                .replace(/`(.*?)`/g, '<span class="md-code">`$1`</span>')
+                .replace(/!\[([^\]]*)\]\(\.\.\.+\)/g, '<span class="md-image">![$1](...)</span>');
+            
+            return `<div class="editor-line" data-line="${index + 1}">${highlightedLine || '&nbsp;'}</div>`;
+        }).join('');
+    }
+    
+    updateMaskedEditor() {
+        const editorContainer = document.querySelector('.editor-pane');
+        const maskedEditor = editorContainer.querySelector('.editor-mask');
+        
+        if (maskedEditor) {
+            maskedEditor.innerHTML = this.createMaskedContent();
+        }
+    }
+    
+    createImageWidgetElement(widget, lineNumber, container) {
+        const widgetEl = document.createElement('div');
+        widgetEl.className = 'image-widget';
+        widgetEl.setAttribute('data-widget-id', widget.id);
+        widgetEl.style.top = `${(lineNumber - 1) * 1.5 + 1}rem`; // Approximate line height
+        
+        widgetEl.innerHTML = `
+            <div class="image-widget-content">
+                <div class="image-widget-preview">
+                    <img src="${widget.dataUrl}" alt="${widget.fileName}" />
+                </div>
+                <div class="image-widget-info">
+                    <span class="image-widget-name">${widget.fileName}</span>
+                    <div class="image-widget-controls">
+                        <button class="widget-btn" onclick="markdownEditor.expandWidget('${widget.id}')" title="Expand">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15,3 21,3 21,9"></polyline>
+                                <polyline points="9,21 3,21 3,15"></polyline>
+                                <line x1="21" y1="3" x2="14" y2="10"></line>
+                                <line x1="3" y1="21" x2="10" y2="14"></line>
+                            </svg>
+                        </button>
+                        <button class="widget-btn widget-btn-danger" onclick="markdownEditor.deleteWidget('${widget.id}')" title="Delete">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Make widget draggable
+        this.makeWidgetDraggable(widgetEl);
+        
+        container.appendChild(widgetEl);
+    }
+    
+    makeWidgetDraggable(widgetEl) {
+        let isDragging = false;
+        let startY = 0;
+        let startTop = 0;
+        
+        const handleMouseDown = (e) => {
+            if (e.target.closest('.image-widget-controls')) return; // Don't drag when clicking controls
+            
+            isDragging = true;
+            startY = e.clientY;
+            startTop = parseInt(widgetEl.style.top);
+            widgetEl.classList.add('dragging');
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            e.preventDefault();
+        };
+        
+        const handleMouseMove = (e) => {
+            if (!isDragging) return;
+            
+            const deltaY = e.clientY - startY;
+            const newTop = startTop + deltaY;
+            const lineHeight = 24; // Approximate line height in pixels
+            const lineNumber = Math.max(1, Math.round(newTop / lineHeight) + 1);
+            
+            widgetEl.style.top = `${(lineNumber - 1) * 1.5 + 1}rem`;
+        };
+        
+        const handleMouseUp = () => {
+            if (!isDragging) return;
+            
+            isDragging = false;
+            widgetEl.classList.remove('dragging');
+            
+            // Update widget position in markdown
+            this.updateWidgetPosition(widgetEl);
+            
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+        
+        widgetEl.addEventListener('mousedown', handleMouseDown);
+    }
+    
+    updateWidgetPosition(widgetEl) {
+        const widgetId = widgetEl.getAttribute('data-widget-id');
+        const widget = this.imageWidgets.get(widgetId);
+        if (!widget) return;
+        
+        const currentTop = parseInt(widgetEl.style.top);
+        const lineNumber = Math.round((currentTop - 16) / 24) + 1; // Convert back to line number
+        
+        // Remove the image from current position
+        let editorValue = this.editor.value;
+        const imageRegex = new RegExp(`!\\[${this.escapeRegex(widget.fileName)}\\]\\(data:image/[^)]+\\)`, 'g');
+        editorValue = editorValue.replace(imageRegex, '');
+        
+        // Insert at new position
+        const lines = editorValue.split('\n');
+        const targetLine = Math.min(lineNumber - 1, lines.length);
+        lines.splice(targetLine, 0, widget.markdown);
+        
+        this.editor.value = lines.join('\n');
+        this.updatePreview();
+        this.setModified(true);
+    }
+    
+    expandWidget(widgetId) {
+        // Toggle to raw markdown view
+        this.showImageWidgets = false;
+        this.updateEditorDisplay();
+        
+        // Find and select the markdown text for this widget
+        const widget = this.imageWidgets.get(widgetId);
+        if (widget) {
+            const imageRegex = new RegExp(`!\\[${this.escapeRegex(widget.fileName)}\\]\\(data:image/[^)]+\\)`, 'g');
+            const match = imageRegex.exec(this.editor.value);
+            if (match) {
+                this.editor.setSelectionRange(match.index, match.index + match[0].length);
+                this.editor.focus();
+            }
+        }
+        
+        // Add toggle button to switch back
+        this.showWidgetToggle();
+    }
+    
+    deleteWidget(widgetId) {
+        const widget = this.imageWidgets.get(widgetId);
+        if (!widget) return;
+        
+        if (confirm(`Delete image "${widget.fileName}"?`)) {
+            // Remove from editor
+            const imageRegex = new RegExp(`!\\[${this.escapeRegex(widget.fileName)}\\]\\(data:image/[^)]+\\)`, 'g');
+            this.editor.value = this.editor.value.replace(imageRegex, '');
+            
+            // Remove from widgets map
+            this.imageWidgets.delete(widgetId);
+            
+            // Update displays
+            this.updateEditorDisplay();
+            this.updatePreview();
+            this.setModified(true);
+        }
+    }
+    
+    showWidgetToggle() {
+        // Add a toggle button to switch back to widget view
+        let toggleBtn = document.querySelector('.widget-toggle-btn');
+        if (!toggleBtn) {
+            toggleBtn = document.createElement('button');
+            toggleBtn.className = 'btn btn-sm widget-toggle-btn';
+            toggleBtn.innerHTML = '🖼️ Widget View';
+            toggleBtn.onclick = () => this.toggleWidgetView();
+            
+            const editorHeader = document.querySelector('.editor-pane .pane-header');
+            editorHeader.appendChild(toggleBtn);
+        }
+    }
+    
+    toggleWidgetView() {
+        this.showImageWidgets = !this.showImageWidgets;
+        this.updateEditorDisplay();
+        
+        const toggleBtn = document.querySelector('.widget-toggle-btn');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = this.showImageWidgets ? '📝 Raw View' : '🖼️ Widget View';
+        }
+    }
+    
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    scanExistingImages() {
+        // Scan editor content for existing images and create widgets
+        const imageRegex = /!\[([^\]]*)\]\((data:image\/[^)]+)\)/g;
+        const editorValue = this.editor.value;
+        let match;
+        
+        while ((match = imageRegex.exec(editorValue)) !== null) {
+            const fileName = match[1] || 'Untitled Image';
+            const dataUrl = match[2];
+            
+            this.createImageWidget(fileName, dataUrl, match.index);
+        }
+        
+        if (this.imageWidgets.size > 0) {
+            this.updateEditorDisplay();
+            this.showWidgetToggle();
+        }
+    }
 }
 
 // Auto-resize functionality for split panes
@@ -638,7 +1082,7 @@ class PaneResizer {
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
-    const editor = new MarkdownEditor();
+    window.markdownEditor = new MarkdownEditor();
     const resizer = new PaneResizer();
     
     // Add some helpful console messages

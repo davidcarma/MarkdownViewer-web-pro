@@ -10,6 +10,8 @@ A fully-featured, modern Markdown editor with live preview built with HTML, CSS,
 - **Syntax Highlighting**: Code blocks are highlighted using highlight.js
 - **File Operations**: New, Open, and Save markdown files
 - **Drag & Drop Support**: Drop markdown files directly onto the editor
+- **Image Paste Support**: Paste images from clipboard as embedded inline images
+- **Image Widget System**: Collapse long data URLs into moveable image objects
 - **Auto-save Indication**: Visual feedback for unsaved changes
 
 ### Editor Features
@@ -32,7 +34,10 @@ A fully-featured, modern Markdown editor with live preview built with HTML, CSS,
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
 - **Modern Interface**: Clean, professional design with intuitive controls
 - **Smart File Handling**: Confirmation dialog for unsaved changes when dropping files
-- **Visual Feedback**: Drag-over effects and success/error notifications
+- **Visual Feedback**: Drag-over effects, image processing indicators, and success/error notifications
+- **Embedded Images**: Pasted images are converted to data URLs for self-contained documents
+- **Image Widgets**: Collapsible image objects that can be moved, deleted, and expanded
+- **Dual View Modes**: Switch between widget view and raw markdown view
 - **Copy HTML**: Export rendered HTML to clipboard
 - **Print Support**: Optimized print styles for preview content
 
@@ -56,6 +61,7 @@ A fully-featured, modern Markdown editor with live preview built with HTML, CSS,
 5. **Save Your Work**: Use Ctrl/Cmd+S or the save button
 6. **Open Files**: Use Ctrl/Cmd+O or the open button to load existing markdown files
 7. **Drag & Drop**: Simply drag a markdown file from your file system and drop it onto the editor pane
+8. **Paste Images**: Copy any image to clipboard and paste (Ctrl/Cmd+V) directly into the editor
 
 ## File Structure
 
@@ -119,6 +125,73 @@ The editor supports intuitive drag and drop functionality for opening markdown f
 - **Drag Over**: The editor pane highlights with a blue dashed border and shows "Drop markdown file here"
 - **Success**: Green notification confirms the file was loaded
 - **Error**: Red notification shows if there's an issue (wrong file type, read error, etc.)
+
+## Image Paste Feature
+
+The editor supports pasting images directly from your clipboard with automatic embedding:
+
+### How it Works
+1. **Copy Image**: Copy any image from anywhere (screenshots, web images, image files, etc.)
+2. **Paste in Editor**: Click in the editor and press `Ctrl/Cmd+V` (or right-click → Paste)
+3. **Automatic Processing**: The image is automatically converted to a data URL and embedded
+4. **Instant Preview**: See the image immediately in the preview pane
+
+### Supported Image Types
+- PNG images
+- JPEG/JPG images  
+- GIF images (including animated)
+- WebP images
+- BMP images
+- SVG images
+
+### Features
+- **Data URL Embedding**: Images are converted to base64 data URLs, making documents self-contained
+- **Automatic Naming**: Pasted images get timestamped filenames (e.g., `pasted-image-2024-08-15T07-04-32-123Z.png`)
+- **Visual Feedback**: Processing indicator shows while image is being converted
+- **Error Handling**: Clear notifications for any paste issues
+- **Multiple Images**: Paste multiple images at once - each will be inserted sequentially
+- **Cursor Positioning**: Images are inserted at your current cursor position
+
+### Visual Indicators
+- **Processing**: "📷 Processing image..." indicator appears while converting
+- **Success**: Green notification confirms successful paste
+- **Error**: Red notification shows if there's an issue with the image
+
+### Technical Details
+- Images are embedded as `![filename](data:image/type;base64,...)` markdown
+- No external dependencies - images are fully contained in the document
+- Works with any image source (clipboard, screenshots, copied web images)
+- Preserves original image quality and format
+
+## Image Widget System
+
+The editor features an innovative widget system that collapses long data URLs into manageable, interactive image objects:
+
+### Widget Features
+- **Collapsed Display**: Long base64 data URLs are hidden and replaced with compact image widgets
+- **Visual Preview**: Each widget shows a thumbnail of the image with filename
+- **Drag & Drop**: Move images around by dragging widgets to different lines
+- **Quick Actions**: Expand to raw markdown or delete images with one click
+- **Dual View**: Toggle between widget view and raw markdown view
+
+### Widget Controls
+- **🔍 Expand**: Click to switch to raw markdown view and select the image data
+- **🗑️ Delete**: Remove the image with confirmation dialog
+- **📝/🖼️ Toggle**: Switch between raw markdown and widget views
+
+### How Widgets Work
+1. **Automatic Detection**: When you paste an image or open a file with embedded images, widgets are created automatically
+2. **Clean Editor**: Instead of seeing long data URLs, you see compact, moveable image objects
+3. **Easy Management**: Drag widgets up/down to reposition images in your document
+4. **Non-Destructive**: Widgets are just a visual representation - the actual markdown is preserved
+
+### Widget Interaction
+- **Move Images**: Click and drag any widget to move it to a different line
+- **View Raw Data**: Click the expand button to see the full markdown syntax
+- **Delete Images**: Click the delete button to remove images entirely
+- **Toggle Views**: Use the toggle button in the editor header to switch between widget and raw views
+
+This system makes working with embedded images much more manageable, especially when dealing with multiple images or large documents.
 
 ## Markdown Syntax Support
 
