@@ -20,10 +20,7 @@ class FileOperations {
         this.editor.updatePreview();
         this.editor.updateStats();
         
-        // Refresh syntax highlighter to show help overlay
-        if (this.editor.syntaxHighlighter && this.editor.syntaxHighlighter.refresh) {
-            this.editor.syntaxHighlighter.refresh();
-        }
+
         
         this.editor.editor.focus();
     }
@@ -51,10 +48,7 @@ class FileOperations {
                 this.editor.imageCollapse.initialize();
             }
 
-            // Ensure syntax highlighter resets help overlay after programmatic load
-            if (this.editor.syntaxHighlighter && this.editor.syntaxHighlighter.refresh) {
-                this.editor.syntaxHighlighter.refresh();
-            }
+
             
             this.editor.editor.focus();
         };

@@ -93,10 +93,7 @@ class DragDropHandler {
                 this.editor.imageCollapse.initialize();
             }
 
-            // Ensure syntax highlighter resets help overlay after dropped file load
-            if (this.editor.syntaxHighlighter && this.editor.syntaxHighlighter.refresh) {
-                this.editor.syntaxHighlighter.refresh();
-            }
+
             
             this.editor.editor.focus();
             
