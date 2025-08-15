@@ -10,9 +10,9 @@ class EditorEvents {
     bindEvents() {
         // Additional editor events (basic events are handled in core)
         this.editor.editor.addEventListener('input', () => {
-            // Update original content if in image collapse mode
-            if (this.editor.imageCollapse) {
-                this.editor.imageCollapse.updateOriginalContent();
+            // Handle image collapse if needed
+            if (this.editor.imageCollapse && this.editor.imageCollapse.handleImagePasted) {
+                this.editor.imageCollapse.handleImagePasted();
             }
         });
         

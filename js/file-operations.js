@@ -19,6 +19,12 @@ class FileOperations {
         this.editor.setModified(false);
         this.editor.updatePreview();
         this.editor.updateStats();
+        
+        // Refresh syntax highlighter to show help overlay
+        if (this.editor.syntaxHighlighter && this.editor.syntaxHighlighter.refresh) {
+            this.editor.syntaxHighlighter.refresh();
+        }
+        
         this.editor.editor.focus();
     }
     
@@ -43,6 +49,11 @@ class FileOperations {
             // Auto-collapse images if collapse is enabled
             if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
                 this.editor.imageCollapse.initialize();
+            }
+
+            // Ensure syntax highlighter resets help overlay after programmatic load
+            if (this.editor.syntaxHighlighter && this.editor.syntaxHighlighter.refresh) {
+                this.editor.syntaxHighlighter.refresh();
             }
             
             this.editor.editor.focus();
