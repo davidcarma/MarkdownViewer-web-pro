@@ -170,10 +170,7 @@ class MarkdownEditor {
             this.updateStats();
             this.setModified(true);
             
-            // Update syntax highlighting and help overlay
-            if (this.syntaxHighlighter && this.syntaxHighlighter.refresh) {
-                this.syntaxHighlighter.refresh();
-            }
+
         });
         
         this.editor.addEventListener('scroll', () => {
@@ -183,10 +180,7 @@ class MarkdownEditor {
         this.editor.addEventListener('keyup', () => {
             this.updateCursorPosition();
             
-            // Update help overlay on key events
-            if (this.syntaxHighlighter && this.syntaxHighlighter.updateHelpOverlay) {
-                this.syntaxHighlighter.updateHelpOverlay();
-            }
+
         });
         
         this.editor.addEventListener('click', () => {

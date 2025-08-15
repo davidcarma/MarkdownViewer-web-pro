@@ -193,11 +193,17 @@ class MarkdownSyntaxHighlighter {
         // Strikethrough ~~text~~
         result = result.replace(/~~([^~\n]+)~~/g, '<span class="hl-strikethrough">$&</span>');
         
-        // Image placeholders (green)
-        result = result.replace(/!\[([^\]]*)\]\(\.\.\.([^)]+)\.\.\.\)/g, '<span class="hl-image-placeholder">$&</span>');
+        // Image placeholders (green) - collapsed images
+        result = result.replace(/!\[([^\]]*)\]\(\.\.\.([^)]+)\.\.\.\)/g, (match) => {
+            console.log('🖼️ Found image placeholder:', match);
+            return `<span class="hl-image-placeholder">${match}</span>`;
+        });
         
-        // Regular images
-        result = result.replace(/!\[([^\]]*)\]\((?!\.\.\.)[^)]+\)/g, '<span class="hl-image">$&</span>');
+        // Regular images - full data URLs or normal URLs
+        result = result.replace(/!\[([^\]]*)\]\((?!\.\.\.)[^)]+\)/g, (match) => {
+            console.log('🖼️ Found regular image:', match.substring(0, 50) + '...');
+            return `<span class="hl-image">${match}</span>`;
+        });
         
         // Links
         result = result.replace(/\[([^\]]*)\]\([^)]+\)/g, '<span class="hl-link">$&</span>');
