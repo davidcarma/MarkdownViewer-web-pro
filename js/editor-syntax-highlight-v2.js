@@ -6,6 +6,8 @@ class MarkdownSyntaxHighlighter {
         this.editor = editor;
         this.container = null;
         this.highlightDiv = null;
+        this.helpOverlay = null;
+        this.helpContent = null;
         this.textArea = null;
         this.init();
     }
@@ -14,6 +16,12 @@ class MarkdownSyntaxHighlighter {
         this.setupHighlightContainer();
         this.bindEvents();
         this.highlight();
+        
+        // Show help overlay after everything is set up
+        setTimeout(() => {
+            this.updateHelpOverlay();
+        }, 100);
+        
         console.log('🎨 Markdown syntax highlighter initialized');
     }
 
@@ -28,111 +36,55 @@ class MarkdownSyntaxHighlighter {
         // Create highlight div
         this.highlightDiv = document.createElement('div');
         this.highlightDiv.className = 'highlight-backdrop';
+
+        // Create help overlay (shown when editor is empty)
+        this.helpOverlay = document.createElement('div');
+        this.helpOverlay.className = 'editor-help-overlay';
+        this.helpContent = document.createElement('div');
+        this.helpContent.className = 'editor-help-content';
+        this.helpOverlay.appendChild(this.helpContent);
         
         // Insert wrapper before textarea
         textarea.parentNode.insertBefore(wrapper, textarea);
         
         // Move textarea into wrapper
         wrapper.appendChild(this.highlightDiv);
+        wrapper.appendChild(this.helpOverlay);
         wrapper.appendChild(textarea);
         
         this.textArea = textarea;
+        // Capture and remove native placeholder to avoid double rendering
+        this.originalPlaceholder = this.textArea.getAttribute('placeholder') || '';
+        this.textArea.setAttribute('data-placeholder', this.originalPlaceholder);
+        this.textArea.setAttribute('placeholder', '');
         
-        // Add styles
-        this.addStyles();
+        // Styles are defined in css/editor.css
     }
 
-    addStyles() {
-        const style = document.createElement('style');
-        style.textContent = `
-            .highlight-wrapper {
-                position: relative;
-                width: 100%;
-                height: 100%;
-            }
-            
-            .highlight-backdrop {
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                padding: 1rem;
-                font-family: var(--font-family-mono);
-                font-size: 16px;
-                line-height: 1.6;
-                white-space: pre-wrap;
-                overflow: hidden;
-                pointer-events: none;
-                z-index: 1;
-                color: var(--text-primary);
-                word-wrap: break-word;
-                overflow-wrap: break-word;
-                font-weight: 400;
-                min-height: 0;
-            }
-            
-            .highlight-wrapper #editor {
-                position: relative;
-                z-index: 2;
-                background: transparent;
-                color: transparent;
-                caret-color: var(--text-primary);
-                resize: none;
-                font-size: 16px;
-                line-height: 1.6;
-                font-weight: 400;
-            }
-            
-            /* When editor is empty, show placeholder normally */
-            .highlight-wrapper #editor:placeholder-shown {
-                color: var(--text-muted);
-                background: var(--bg-primary);
-            }
-            
-            .highlight-wrapper #editor::placeholder {
-                color: var(--text-muted);
-                opacity: 0.8;
-                font-size: 16px;
-                position: relative;
-                z-index: 10;
-                line-height: 1.6;
-                font-weight: 400;
-                white-space: pre-wrap;
-            }
-            
-            .highlight-wrapper #editor::selection {
-                background: rgba(0, 123, 255, 0.3);
-            }
-            
-            /* Markdown syntax colors */
-            .hl-header { color: var(--accent-color); font-weight: 700; font-size: 16px; }
-            .hl-bold { color: var(--text-primary); font-weight: 700; font-size: 16px; }
-            .hl-italic { color: var(--text-primary); font-style: italic; font-size: 16px; }
-            .hl-code { color: var(--danger-color); background: var(--bg-tertiary); padding: 0.125rem 0.25rem; border-radius: 3px; font-size: 16px; }
-            .hl-code-block { color: var(--danger-color); background: var(--bg-tertiary); display: block; padding: 0.5rem; margin: 0.25rem 0; border-radius: 3px; border-left: 3px solid var(--danger-color); font-size: 16px; }
-            .hl-link { color: var(--accent-color); font-size: 16px; }
-            .hl-image { color: var(--warning-color); font-size: 16px; }
-            .hl-image-placeholder { color: var(--success-color); font-weight: 600; background: rgba(25, 135, 84, 0.1); padding: 0.125rem 0.25rem; border-radius: 3px; font-size: 16px; }
-            .hl-list { color: var(--accent-color); font-weight: 600; font-size: 16px; }
-            .hl-quote { color: var(--text-secondary); font-style: italic; font-size: 16px; }
-            .hl-quote-marker { color: var(--accent-color); font-weight: 700; font-size: 16px; }
-            .hl-strikethrough { color: var(--text-secondary); text-decoration: line-through; font-size: 16px; }
-            .hl-hr { color: var(--text-muted); opacity: 0.6; font-size: 16px; }
-        `;
-        document.head.appendChild(style);
-    }
+
 
     bindEvents() {
-        this.textArea.addEventListener('input', () => this.highlight());
+        // Only handle scroll sync here - other events are handled by core.js
         this.textArea.addEventListener('scroll', () => this.syncScroll());
-        this.textArea.addEventListener('keyup', () => this.highlight());
+        
+        // Handle paste events for syntax highlighting
+        this.textArea.addEventListener('paste', () => { 
+            console.log('PASTE event triggered');
+            setTimeout(() => { 
+                this.highlight();
+                this.updateHelpOverlay(); 
+            }, 10); 
+        });
     }
 
     syncScroll() {
         if (this.highlightDiv && this.textArea) {
             this.highlightDiv.scrollTop = this.textArea.scrollTop;
             this.highlightDiv.scrollLeft = this.textArea.scrollLeft;
+            if (this.helpContent) {
+                const y = this.textArea.scrollTop;
+                this.helpContent.style.transform = `translateY(${-y}px)`;
+            }
         }
     }
 
@@ -141,14 +93,72 @@ class MarkdownSyntaxHighlighter {
         
         const text = this.textArea.value;
         
-        // If there's no text, clear the highlight div to avoid placeholder conflicts
+        // If there's no text, clear the highlight and show help
         if (!text || text.trim() === '') {
             this.highlightDiv.innerHTML = '';
+            this.updateHelpOverlay();
             return;
         }
         
         const highlighted = this.highlightMarkdown(text);
         this.highlightDiv.innerHTML = highlighted;
+        this.syncScroll();
+    }
+
+    showHelpOverlay() {
+        if (!this.helpOverlay) return;
+        
+        // Populate with help text
+        const helpText = this.originalPlaceholder || 'Start typing your markdown here...';
+        if (this.helpContent) {
+            this.helpContent.textContent = helpText;
+        }
+        
+        // Show the overlay
+        this.helpOverlay.style.display = 'block';
+        this.helpOverlay.style.opacity = '0.9';
+        this.helpOverlay.style.visibility = 'visible';
+        
+        console.log('✅ Help overlay SHOWN');
+    }
+    
+    hideHelpOverlay() {
+        if (!this.helpOverlay) return;
+        
+        this.helpOverlay.style.display = 'none';
+        this.helpOverlay.style.opacity = '0';
+        this.helpOverlay.style.visibility = 'hidden';
+        
+        console.log('❌ Help overlay HIDDEN');
+    }
+    
+    updateHelpOverlay() {
+        if (!this.textArea || !this.helpOverlay) {
+            console.log('❌ Missing textArea or helpOverlay');
+            return;
+        }
+        
+        const hasContent = this.textArea.value && this.textArea.value.trim().length > 0;
+        
+        console.log('🔍 Update help overlay:');
+        console.log('  - hasContent:', hasContent);
+        console.log('  - value length:', this.textArea.value.length);
+        console.log('  - current display:', this.helpOverlay.style.display);
+        console.log('  - current visibility:', this.helpOverlay.style.visibility);
+        
+        if (hasContent) {
+            console.log('  → Should HIDE overlay');
+            this.hideHelpOverlay();
+        } else {
+            console.log('  → Should SHOW overlay');
+            this.showHelpOverlay();
+        }
+    }
+
+    refresh() {
+        // Public method to recompute everything after programmatic content changes
+        this.highlight();
+        this.updateHelpOverlay();
         this.syncScroll();
     }
 
@@ -171,8 +181,14 @@ class MarkdownSyntaxHighlighter {
         // Bold **text**
         result = result.replace(/\*\*([^*\n]+)\*\*/g, '<span class="hl-bold">$&</span>');
         
-        // Italic *text*
-        result = result.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<span class="hl-italic">$&</span>');
+        // Italic *text* (avoid lookbehind for Safari compatibility)
+        result = result.replace(/\*([^*\n]+)\*/g, (match, p1, offset, str) => {
+            const before = str[offset - 1] || '';
+            const after = str[offset + match.length] || '';
+            // Skip if part of bold **text**
+            if (before === '*' || after === '*') return match;
+            return `<span class="hl-italic">${match}</span>`;
+        });
         
         // Strikethrough ~~text~~
         result = result.replace(/~~([^~\n]+)~~/g, '<span class="hl-strikethrough">$&</span>');
