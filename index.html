@@ -5,7 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Markdown Editor</title>
     <link rel="stylesheet" href="highlight.min.css">
-    <link rel="stylesheet" href="styles.css">
+    <!-- Modular CSS -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/buttons.css">
+    <link rel="stylesheet" href="css/toolbar.css">
+    <link rel="stylesheet" href="css/editor.css">
+    <link rel="stylesheet" href="css/preview.css">
+    <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
     <div class="app">
@@ -235,6 +243,16 @@ function hello() {
     <!-- Scripts -->
     <script src="marked.min.js"></script>
     <script src="highlight.min.js"></script>
-    <script src="script.js"></script>
+    <!-- Modular JavaScript -->
+    <script src="js/core.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/file-operations.js"></script>
+    <script src="js/drag-drop.js"></script>
+    <script src="js/image-paste.js"></script>
+    <script src="js/simple-image-collapse-v2.js"></script>
+    <script src="js/editor-syntax-highlight-v2.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/pane-resizer.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
