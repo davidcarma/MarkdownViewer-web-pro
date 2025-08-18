@@ -152,6 +152,15 @@
                         <polyline points="21,15 16,10 5,21"></polyline>
                     </svg>
                 </button>
+                <button class="btn btn-format" id="insertImage" title="Insert Image/SVG File">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21,15 16,10 5,21"></polyline>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                </button>
                 <button class="btn btn-format" data-format="table" title="Table">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"></path>
@@ -164,6 +173,9 @@
         <main class="main-content">
             <!-- File input for opening files -->
             <input type="file" id="fileInput" accept=".md,.txt" style="display: none;">
+            
+            <!-- Image/SVG input for inserting images -->
+            <input type="file" id="imageInput" accept="image/*,.svg" style="display: none;" multiple>
             
             <!-- Editor and preview panes -->
             <div class="editor-container">

@@ -89,6 +89,9 @@
     tab-size: 4;
     font-weight: 400;
     box-sizing: border-box;
+    /* Simple, clean styling */
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 #editor::placeholder {
@@ -112,6 +115,7 @@
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
+    overflow: hidden;
 }
 
 .syntax-backdrop {
@@ -130,11 +134,31 @@
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    overflow: hidden;
+    overflow: auto;
     pointer-events: none;
     z-index: 1;
     color: var(--text-primary);
     box-sizing: border-box;
+    /* Ensure exact alignment with textarea */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    /* Critical: Match textarea exactly */
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-indent: 0;
+    text-align: left;
+    text-transform: none;
+    text-decoration: none;
+    /* Prevent any text rendering differences */
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-feature-settings: normal;
+    font-feature-settings: normal;
+    font-variant: normal;
+    font-stretch: normal;
+}
+
+.syntax-backdrop::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
 }
 
 /* Syntax highlighting colors */
@@ -264,10 +288,27 @@
     caret-color: var(--text-primary);
 }
 
-/* Show selection */
+/* Show selection and improve cursor visibility */
 .editor-pane.has-syntax-highlight #editor::selection {
     background: var(--accent-color);
     color: white;
+}
+
+.editor-pane.has-syntax-highlight #editor::-moz-selection {
+    background: var(--accent-color);
+    color: white;
+}
+
+/* Ensure proper cursor and selection visibility */
+.syntax-wrapper #editor {
+    caret-color: var(--text-primary) !important;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 0 var(--text-primary);
+}
+
+.syntax-wrapper #editor:focus {
+    outline: none;
+    caret-color: var(--accent-color) !important;
 }
 
 /* Syntax highlighting styles */
