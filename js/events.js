@@ -39,6 +39,20 @@ class EditorEvents {
         // File input event
         this.editor.fileInput.addEventListener('change', (e) => this.editor.handleFileOpen(e));
         
+        // Image file input event
+        const imageInput = document.getElementById('imageInput');
+        if (imageInput) {
+            imageInput.addEventListener('change', (e) => this.handleImageFileInsert(e));
+        }
+        
+        // Insert image button event
+        const insertImageBtn = document.getElementById('insertImage');
+        if (insertImageBtn) {
+            insertImageBtn.addEventListener('click', () => {
+                document.getElementById('imageInput').click();
+            });
+        }
+        
         // Window events
         window.addEventListener('beforeunload', (e) => {
             if (this.editor.isModified) {
@@ -75,6 +89,156 @@ class EditorEvents {
                 }
             }
         });
+    }
+    
+    async handleImageFileInsert(e) {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        
+        try {
+            for (const file of files) {
+                await this.processImageFile(file);
+            }
+        } catch (error) {
+            console.error('Error processing image file:', error);
+            this.editor.showNotification('Error processing image file', 'error');
+        }
+        
+        // Clear the input so the same file can be selected again
+        e.target.value = '';
+    }
+    
+    async processImageFile(file) {
+        return new Promise((resolve, reject) => {
+            // Show visual feedback
+            const editorPane = document.querySelector('.editor-pane');
+            editorPane.classList.add('processing-image');
+            this.editor.showNotification(`Processing ${file.name}...`, 'info');
+            
+            if (file.type === 'image/svg+xml' || file.name.endsWith('.svg')) {
+                // Handle SVG files as text
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const svgText = e.target.result;
+                        
+                        // Clean SVG for embedding
+                        const cleanedSvg = this.cleanSvgForEmbedding(svgText);
+                        const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(cleanedSvg)))}`;
+                        
+                        // Insert at cursor position
+                        this.insertImageAtCursor(file.name, svgDataUrl);
+                        
+                        editorPane.classList.remove('processing-image');
+                        
+                        // Check for interactivity
+                        const hadInteractivity = svgText.includes('<script>') || svgText.includes('onclick') || svgText.includes('onmouseover');
+                        
+                        if (hadInteractivity) {
+                            this.editor.showNotification(`${file.name} inserted! Interactive elements removed for security`, 'info');
+                        } else {
+                            this.editor.showNotification(`${file.name} inserted successfully!`, 'success');
+                        }
+                        resolve();
+                    } catch (error) {
+                        editorPane.classList.remove('processing-image');
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => {
+                    editorPane.classList.remove('processing-image');
+                    reject(new Error('Failed to read SVG file'));
+                };
+                reader.readAsText(file);
+            } else {
+                // Handle regular image files
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const dataUrl = e.target.result;
+                        
+                        // Insert at cursor position
+                        this.insertImageAtCursor(file.name, dataUrl);
+                        
+                        editorPane.classList.remove('processing-image');
+                        this.editor.showNotification(`${file.name} inserted successfully!`, 'success');
+                        resolve();
+                    } catch (error) {
+                        editorPane.classList.remove('processing-image');
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => {
+                    editorPane.classList.remove('processing-image');
+                    reject(new Error('Failed to read image file'));
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    insertImageAtCursor(fileName, dataUrl) {
+        const editor = this.editor.editor;
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const value = editor.value;
+        
+        // Create markdown image syntax
+        const imageMarkdown = `![${fileName}](${dataUrl})`;
+        
+        // Insert at cursor position
+        const newValue = value.substring(0, start) + imageMarkdown + value.substring(end);
+        
+        // Use requestAnimationFrame to ensure proper sequence
+        requestAnimationFrame(() => {
+            editor.value = newValue;
+            
+            // Move cursor to end of inserted text
+            const newCursorPos = start + imageMarkdown.length;
+            
+            setTimeout(() => {
+                editor.setSelectionRange(newCursorPos, newCursorPos);
+                editor.focus();
+                
+                // Update editor state
+                this.editor.updatePreview();
+                this.editor.updateStats();
+                this.editor.updateCursorPosition();
+                this.editor.setModified(true);
+                
+                // Auto-collapse if enabled
+                if (this.editor.imageCollapse) {
+                    setTimeout(() => {
+                        this.editor.imageCollapse.handleImagePasted();
+                    }, 100);
+                }
+            }, 10);
+        });
+    }
+    
+    cleanSvgForEmbedding(svgText) {
+        let cleaned = svgText.trim();
+        
+        // Remove script tags and their content (security and compatibility)
+        cleaned = cleaned.replace(/<script[\s\S]*?<\/script>/gi, '');
+        
+        // Remove event handlers for security
+        cleaned = cleaned.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '');
+        
+        // Remove CDATA sections that might cause issues
+        cleaned = cleaned.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+        
+        // Ensure proper XML declaration if missing
+        if (!cleaned.startsWith('<?xml') && !cleaned.startsWith('<svg')) {
+            cleaned = '<?xml version="1.0" encoding="UTF-8"?>\n' + cleaned;
+        }
+        
+        // Add proper namespace if missing
+        if (cleaned.includes('<svg') && !cleaned.includes('xmlns=')) {
+            cleaned = cleaned.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        
+        return cleaned;
     }
     
     handleKeydown(e) {

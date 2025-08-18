@@ -22,13 +22,17 @@ class SimpleImageCollapseV2 {
         editorHeader.appendChild(toggleBtn);
     }
     
-    // Store an image and return a unique placeholder
+    // Store an image/SVG and return a unique placeholder
     storeImage(imageMarkdown) {
-        // Extract filename and data URL
+        // Extract filename and data URL (including SVG data URLs)
+        // More flexible regex to handle various data URL formats
         const match = imageMarkdown.match(/!\[([^\]]*)\]\((data:image\/[^)]+)\)/);
         if (!match) return imageMarkdown;
         
         const [fullMatch, alt, dataUrl] = match;
+        
+        // Log for debugging
+        console.log('Storing image:', { alt, dataUrlStart: dataUrl.substring(0, 50) + '...' });
         
         // Generate unique ID
         const imageId = `IMG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -79,43 +83,93 @@ class SimpleImageCollapseV2 {
         const toggleBtn = document.querySelector('.image-collapse-toggle');
         const currentContent = this.editor.editor.value;
         const cursorPos = this.editor.editor.selectionStart;
+        const cursorEnd = this.editor.editor.selectionEnd;
+        
+        // Calculate better cursor position preservation
+        const textBeforeCursor = currentContent.substring(0, cursorPos);
         
         if (this.isCollapsed) {
             // Show raw data - expand all placeholders
             const expandedContent = this.expandPlaceholders(currentContent);
+            const expandedTextBeforeCursor = this.expandPlaceholders(textBeforeCursor);
+            const newCursorPos = expandedTextBeforeCursor.length;
+            
             this.editor.editor.value = expandedContent;
             this.isCollapsed = false;
             toggleBtn.innerHTML = '🖼️ Collapse Images';
             toggleBtn.title = 'Collapse long image data URLs';
+            
+            // Restore cursor position with better accuracy
+            setTimeout(() => {
+                this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
+                this.editor.editor.focus();
+            }, 10);
         } else {
             // Collapse images
             const collapsedContent = this.collapseImages(currentContent);
+            const collapsedTextBeforeCursor = this.collapseImages(textBeforeCursor);
+            const newCursorPos = collapsedTextBeforeCursor.length;
+            
             this.editor.editor.value = collapsedContent;
             this.isCollapsed = true;
             toggleBtn.innerHTML = '📝 Show Raw Data';
             toggleBtn.title = 'Show full image data URLs';
+            
+            // Restore cursor position with better accuracy
+            setTimeout(() => {
+                this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
+                this.editor.editor.focus();
+            }, 10);
         }
         
-        // Restore cursor position (approximate)
-        this.editor.editor.setSelectionRange(cursorPos, cursorPos);
-        
-        // Update preview and stats
-        this.editor.updatePreview();
-        this.editor.updateStats();
-        this.editor.setModified(true);
+        // Update editor state
+        setTimeout(() => {
+            this.editor.updatePreview();
+            this.editor.updateStats();
+            this.editor.updateCursorPosition();
+            this.editor.setModified(true);
+            
+            // Refresh syntax highlighting if available
+            if (this.editor.syntaxHighlighter) {
+                this.editor.syntaxHighlighter.highlight();
+            }
+        }, 20);
     }
     
-    // Auto-collapse when new images are pasted
+    // Auto-collapse when new images/SVGs are pasted
     handleImagePasted() {
         if (this.isCollapsed) {
             setTimeout(() => {
                 const currentContent = this.editor.editor.value;
+                const cursorPos = this.editor.editor.selectionStart;
+                
                 if (currentContent.includes('data:image/')) {
                     const collapsedContent = this.collapseImages(currentContent);
+                    
+                    // Calculate new cursor position
+                    const textBeforeCursor = currentContent.substring(0, cursorPos);
+                    const collapsedTextBeforeCursor = this.collapseImages(textBeforeCursor);
+                    const newCursorPos = collapsedTextBeforeCursor.length;
+                    
                     this.editor.editor.value = collapsedContent;
-                    this.editor.updatePreview();
+                    
+                    // Restore cursor position
+                    setTimeout(() => {
+                        this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
+                        this.editor.editor.focus();
+                        
+                        // Update editor state
+                        this.editor.updatePreview();
+                        this.editor.updateStats();
+                        this.editor.updateCursorPosition();
+                        
+                        // Refresh syntax highlighting
+                        if (this.editor.syntaxHighlighter) {
+                            this.editor.syntaxHighlighter.highlight();
+                        }
+                    }, 10);
                 }
-            }, 50);
+            }, 100); // Slightly longer delay to ensure image paste is complete
         }
     }
     
