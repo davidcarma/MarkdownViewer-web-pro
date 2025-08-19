@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('   Ctrl/Cmd + N: New file');
     console.log('   Ctrl/Cmd + O: Open file');
     console.log('   Ctrl/Cmd + S: Save file');
+    console.log('   Ctrl/Cmd + P: Print file');
     console.log('   Ctrl/Cmd + B: Bold text');
     console.log('   Ctrl/Cmd + I: Italic text');
     console.log('   Tab: Indent');

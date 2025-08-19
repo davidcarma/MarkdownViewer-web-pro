@@ -19,8 +19,7 @@ class ImagePasteHandler {
         const items = Array.from(e.clipboardData.items);
         const imageItems = items.filter(item => 
             item.type.startsWith('image/') || 
-            item.type === 'image/svg+xml' ||
-            item.type === 'text/plain' // SVGs might come as text
+            item.type === 'image/svg+xml'
         );
         
         // Also check for SVG text content

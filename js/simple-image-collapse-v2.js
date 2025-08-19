@@ -8,6 +8,7 @@ class SimpleImageCollapseV2 {
         this.isCollapsed = true;
         this.imageStore = new Map(); // Global store for all image data
         this.setupToggle();
+        this.bindInputHandler();
     }
     
     setupToggle() {
@@ -17,6 +18,12 @@ class SimpleImageCollapseV2 {
         toggleBtn.className = 'btn btn-sm image-collapse-toggle';
         toggleBtn.innerHTML = '📝 Show Raw Data';
         toggleBtn.onclick = () => this.toggleCollapse();
+        
+        // Add right-click context menu for advanced options
+        toggleBtn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showAdvancedOptions(e);
+        });
         toggleBtn.title = 'Toggle between collapsed and raw image data view';
         
         editorHeader.appendChild(toggleBtn);
@@ -57,8 +64,13 @@ class SimpleImageCollapseV2 {
         
         // Replace all placeholders with actual image data
         for (const [imageId, imageData] of this.imageStore) {
+            // Try exact match first
             const placeholderRegex = new RegExp(`!\\[([^\\]]*)\\]\\(\\.\\.\\.${imageId}\\.\\.\\.\\)`, 'g');
             expandedContent = expandedContent.replace(placeholderRegex, imageData.fullMarkdown);
+            
+            // Also try to recover corrupted placeholders - match partial IDs
+            const corruptedRegex = new RegExp(`\\(\\.\\.\\.${imageId.substring(0, 15)}[^)]*\\.\\.\\.[^)]*\\)`, 'g');
+            expandedContent = expandedContent.replace(corruptedRegex, `(${imageData.dataUrl})`);
         }
         
         return expandedContent;
@@ -190,6 +202,141 @@ class SimpleImageCollapseV2 {
             this.editor.editor.value = collapsedContent;
             this.editor.updatePreview();
         }
+    }
+    
+    // Bind input handler to detect and restore corrupted placeholders
+    bindInputHandler() {
+        this.editor.editor.addEventListener('input', () => {
+            if (!this.isCollapsed) return; // Only active when collapsed
+            
+            // Debounce to avoid excessive processing
+            if (this.restoreTimeout) {
+                clearTimeout(this.restoreTimeout);
+            }
+            
+            this.restoreTimeout = setTimeout(() => {
+                this.attemptPlaceholderRestore();
+            }, 500); // Wait 500ms after user stops typing
+        });
+    }
+    
+    // Attempt to restore corrupted placeholders
+    attemptPlaceholderRestore() {
+        const currentContent = this.editor.editor.value;
+        const cursorPos = this.editor.editor.selectionStart;
+        
+        // Look for any corrupted placeholder patterns
+        let hasCorrupted = false;
+        let restoredContent = currentContent;
+        
+        // Check for partial image ID patterns that might be corrupted
+        for (const [imageId, imageData] of this.imageStore) {
+            const partialId = imageId.substring(0, 15);
+            
+            // Look for corrupted patterns like (...IMG_123...corrupted...)
+            const corruptedPattern = new RegExp(`\\(\\.\\.\\.${partialId}[^)]*\\.\\.\\.[^)]*\\)`, 'g');
+            if (corruptedPattern.test(currentContent)) {
+                hasCorrupted = true;
+                restoredContent = restoredContent.replace(corruptedPattern, `(...${imageId}...)`);
+            }
+            
+            // Also look for completely broken markdown image syntax
+            const brokenPattern = new RegExp(`!\\[[^\\]]*\\]\\([^)]*${partialId}[^)]*\\)`, 'g');
+            if (brokenPattern.test(currentContent)) {
+                hasCorrupted = true;
+                restoredContent = restoredContent.replace(brokenPattern, `![${imageData.alt}](...${imageId}...)`);
+            }
+        }
+        
+        // If we found and fixed corrupted placeholders, update the editor
+        if (hasCorrupted && restoredContent !== currentContent) {
+            const textBeforeCursor = currentContent.substring(0, cursorPos);
+            const restoredTextBeforeCursor = textBeforeCursor.replace(
+                /\(\.\.\.IMG_[^)]*\.\.\.[^)]*\)/g, 
+                (match) => {
+                    // Try to find the correct placeholder for this corrupted one
+                    for (const [imageId, imageData] of this.imageStore) {
+                        if (match.includes(imageId.substring(0, 15))) {
+                            return `(...${imageId}...)`;
+                        }
+                    }
+                    return match;
+                }
+            );
+            const newCursorPos = restoredTextBeforeCursor.length;
+            
+            this.editor.editor.value = restoredContent;
+            
+            // Restore cursor position
+            setTimeout(() => {
+                this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
+                this.editor.editor.focus();
+                this.editor.updatePreview();
+                
+                // Show a subtle notification
+                if (this.editor.showNotification) {
+                    this.editor.showNotification('🔧 Restored corrupted image placeholder', 'info');
+                }
+            }, 10);
+        }
+    }
+    
+    // Show advanced options context menu
+    showAdvancedOptions(event) {
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            top: ${event.clientY}px;
+            left: ${event.clientX}px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 0.5rem 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 0.875rem;
+        `;
+        
+        const restoreOption = document.createElement('div');
+        restoreOption.textContent = '🔧 Restore Corrupted Images';
+        restoreOption.style.cssText = `
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            hover: background-color: var(--bg-tertiary);
+        `;
+        restoreOption.onclick = () => {
+            this.attemptPlaceholderRestore();
+            document.body.removeChild(menu);
+        };
+        
+        const debugOption = document.createElement('div');
+        debugOption.textContent = '🐛 Debug Image Store';
+        debugOption.style.cssText = `
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            hover: background-color: var(--bg-tertiary);
+        `;
+        debugOption.onclick = () => {
+            console.log('Image Store:', Array.from(this.imageStore.entries()));
+            if (this.editor.showNotification) {
+                this.editor.showNotification(`Found ${this.imageStore.size} stored images (check console)`, 'info');
+            }
+            document.body.removeChild(menu);
+        };
+        
+        menu.appendChild(restoreOption);
+        menu.appendChild(debugOption);
+        document.body.appendChild(menu);
+        
+        // Remove menu when clicking elsewhere
+        setTimeout(() => {
+            document.addEventListener('click', () => {
+                if (document.body.contains(menu)) {
+                    document.body.removeChild(menu);
+                }
+            }, { once: true });
+        }, 10);
     }
 }
 
