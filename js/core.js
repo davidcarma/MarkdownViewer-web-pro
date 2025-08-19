@@ -159,6 +159,169 @@ class MarkdownEditor {
         }
     }
     
+    printFile() {
+        try {
+            // Get the current theme for proper styling
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            
+            // Get the preview content
+            let markdownText = this.editor.value;
+            if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
+                markdownText = this.imageCollapse.getPreviewContent();
+            }
+            
+            const html = marked.parse(markdownText);
+            
+            // Create a new window for printing
+            const printWindow = window.open('', '_blank');
+            
+            // Create the print document
+            const printContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${this.currentFileName}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        h3 { font-size: 1.25em; }
+        h4 { font-size: 1em; }
+        h5 { font-size: 0.875em; }
+        h6 { font-size: 0.85em; color: #666; }
+        p { margin-bottom: 16px; }
+        blockquote {
+            margin: 0;
+            padding: 0 1em;
+            color: #666;
+            border-left: 0.25em solid #dfe2e5;
+        }
+        ul, ol {
+            padding-left: 2em;
+            margin-bottom: 16px;
+        }
+        li { margin-bottom: 0.25em; }
+        code {
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        pre {
+            padding: 16px;
+            overflow: auto;
+            font-size: 85%;
+            line-height: 1.45;
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        pre code {
+            display: inline;
+            max-width: auto;
+            padding: 0;
+            margin: 0;
+            overflow: visible;
+            line-height: inherit;
+            word-wrap: normal;
+            background-color: transparent;
+            border: 0;
+        }
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            width: 100%;
+        }
+        table th, table td {
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+        }
+        table th {
+            font-weight: 600;
+            background-color: #f6f8fa;
+        }
+        table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            box-sizing: content-box;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        hr {
+            height: 0.25em;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #e1e4e8;
+            border: 0;
+        }
+        @media print {
+            body { margin: 0; padding: 15px; }
+            a[href]:after { content: " (" attr(href) ")"; }
+            pre, blockquote { page-break-inside: avoid; }
+            h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="print-header">
+        <h1 style="margin-top: 0; border-bottom: 2px solid #333; padding-bottom: 10px;">${this.currentFileName}</h1>
+    </div>
+    ${html}
+</body>
+</html>`;
+            
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            
+            // Wait for content to load, then print
+            printWindow.onload = () => {
+                setTimeout(() => {
+                    printWindow.focus();
+                    printWindow.print();
+                    printWindow.close();
+                }, 250);
+            };
+            
+            // Show success feedback
+            const btn = document.getElementById('printFile');
+            const originalTitle = btn.title;
+            btn.title = 'Print dialog opened';
+            
+            setTimeout(() => {
+                btn.title = originalTitle;
+            }, 2000);
+            
+        } catch (error) {
+            console.error('Print error:', error);
+            alert('Failed to open print dialog');
+        }
+    }
+    
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
@@ -170,7 +333,10 @@ class MarkdownEditor {
             this.updateStats();
             this.setModified(true);
             
-
+            // Refresh syntax highlighting if available
+            if (this.syntaxHighlighter) {
+                this.syntaxHighlighter.debouncedHighlight();
+            }
         });
         
         this.editor.addEventListener('scroll', () => {

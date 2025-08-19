@@ -24,6 +24,7 @@ class EditorEvents {
         document.getElementById('newFile').addEventListener('click', () => this.editor.newFile());
         document.getElementById('openFile').addEventListener('click', () => this.editor.openFile());
         document.getElementById('saveFile').addEventListener('click', () => this.editor.saveFile());
+        document.getElementById('printFile').addEventListener('click', () => this.editor.printFile());
         document.getElementById('togglePreview').addEventListener('click', () => this.editor.togglePreview());
         document.getElementById('toggleTheme').addEventListener('click', () => this.editor.toggleTheme());
         document.getElementById('copyHtml').addEventListener('click', () => this.editor.copyHtml());
@@ -77,6 +78,10 @@ class EditorEvents {
                     case 's':
                         e.preventDefault();
                         this.editor.saveFile();
+                        break;
+                    case 'p':
+                        e.preventDefault();
+                        this.editor.printFile();
                         break;
                     case 'b':
                         e.preventDefault();
