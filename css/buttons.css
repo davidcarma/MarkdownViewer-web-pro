@@ -27,7 +27,7 @@
 }
 
 .btn-icon {
-    padding: 0.5rem;
+    padding: 0.625rem;
     min-width: auto;
 }
 
@@ -84,4 +84,30 @@
     margin-left: auto;
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
+}
+
+/* PDF Export Button - Special Red Styling */
+.btn-pdf-export {
+    border: 2px solid #dc3545;
+    background-color: var(--bg-primary);
+    color: #dc3545;
+    position: relative;
+}
+
+.btn-pdf-export:hover {
+    background-color: #dc3545;
+    color: white;
+    border-color: #dc3545;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+}
+
+.btn-pdf-export:active {
+    transform: translateY(0);
+}
+
+.btn-pdf-export.success {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: white;
 }

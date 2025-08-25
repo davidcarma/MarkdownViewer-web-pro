@@ -24,6 +24,7 @@ class EditorEvents {
         document.getElementById('newFile').addEventListener('click', () => this.editor.newFile());
         document.getElementById('openFile').addEventListener('click', () => this.editor.openFile());
         document.getElementById('saveFile').addEventListener('click', () => this.editor.saveFile());
+        document.getElementById('exportToPdf').addEventListener('click', () => this.editor.exportToPdf());
         document.getElementById('printFile').addEventListener('click', () => this.editor.printFile());
         document.getElementById('togglePreview').addEventListener('click', () => this.editor.togglePreview());
         document.getElementById('toggleTheme').addEventListener('click', () => this.editor.toggleTheme());
@@ -78,6 +79,10 @@ class EditorEvents {
                     case 's':
                         e.preventDefault();
                         this.editor.saveFile();
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        this.editor.exportToPdf();
                         break;
                     case 'p':
                         e.preventDefault();
@@ -352,6 +357,11 @@ class EditorEvents {
                 break;
             case 'table':
                 replacement = `| Header 1 | Header 2 | Header 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |\n| Cell 4   | Cell 5   | Cell 6   |`;
+                break;
+            case 'mermaid':
+                replacement = selectedText ? 
+                    `\`\`\`mermaid\n${selectedText}\n\`\`\`` :
+                    `\`\`\`mermaid\ngraph TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Action 1]\n    B -->|No| D[Action 2]\n    C --> E[End]\n    D --> E\n\`\`\``;
                 break;
         }
         

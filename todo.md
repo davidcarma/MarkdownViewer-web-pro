@@ -47,7 +47,7 @@
 ### Enhanced Syntax Support
 - [ ] **Task Lists** - Interactive checkboxes `- [ ]` and `- [x]`
 - [ ] **Math Support** - LaTeX/KaTeX rendering for equations
-- [ ] **Mermaid Diagrams** - Flowcharts, sequence diagrams, gantt charts
+- [x] **Mermaid Diagrams** - Flowcharts, sequence diagrams, gantt charts ✅
 - [ ] **Footnotes** - Support for `[^1]` footnote syntax
 - [ ] **Definition Lists** - Enhanced list formatting
 - [ ] **Abbreviations** - Hover definitions for abbreviations
