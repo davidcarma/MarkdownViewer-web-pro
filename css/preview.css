@@ -158,3 +158,100 @@
     border-top: 1px solid var(--border-color);
     margin: 2rem 0;
 }
+
+/* Mermaid diagram styles */
+.preview-content .mermaid-diagram {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    text-align: center;
+    overflow-x: auto;
+}
+
+.preview-content .mermaid-diagram svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.preview-content .mermaid-error {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin: 1rem 0;
+    color: #dc2626;
+}
+
+[data-theme="dark"] .preview-content .mermaid-error {
+    background-color: #451a1a;
+    border-color: #7f1d1d;
+    color: #f87171;
+}
+
+.preview-content .mermaid-error p {
+    margin: 0 0 0.5rem 0;
+    font-weight: 600;
+}
+
+.preview-content .mermaid-error pre {
+    background-color: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+}
+
+[data-theme="dark"] .preview-content .mermaid-error pre {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.preview-content .mermaid-error details {
+    margin-top: 0.5rem;
+}
+
+.preview-content .mermaid-error summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: #991b1b;
+}
+
+[data-theme="dark"] .preview-content .mermaid-error summary {
+    color: #fca5a5;
+}
+
+.preview-content .mermaid-error summary:hover {
+    text-decoration: underline;
+}
+
+/* Dark theme adaptations for Mermaid diagrams */
+[data-theme="dark"] .preview-content .mermaid-diagram {
+    background-color: var(--bg-tertiary);
+}
+
+/* Ensure Mermaid diagrams work well in both themes */
+.preview-content .mermaid-diagram .node rect,
+.preview-content .mermaid-diagram .node circle,
+.preview-content .mermaid-diagram .node ellipse,
+.preview-content .mermaid-diagram .node polygon {
+    fill: var(--bg-primary);
+    stroke: var(--accent-color);
+    stroke-width: 2px;
+}
+
+.preview-content .mermaid-diagram .node text {
+    fill: var(--text-primary);
+}
+
+.preview-content .mermaid-diagram .edgePath .path {
+    stroke: var(--text-secondary);
+    stroke-width: 2px;
+}
+
+.preview-content .mermaid-diagram .edgeLabel {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
