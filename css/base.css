@@ -64,3 +64,113 @@ textarea:focus {
     white-space: nowrap;
     border: 0;
 }
+
+/* Fullscreen mode styles */
+.app.fullscreen-mode {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    background-color: var(--bg-primary);
+    transition: all 0.3s ease;
+}
+
+.fullscreen-mode-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 8px;
+    box-shadow: var(--shadow-lg);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-10px);
+    animation: slideInFromTop 0.3s ease forwards;
+}
+
+@keyframes slideInFromTop {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Smooth exit animation for fullscreen toggle */
+.fullscreen-mode-toggle.exiting {
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+}
+
+.fullscreen-mode-toggle .mode-btn {
+    padding: 8px;
+    border: 1px solid transparent;
+    background-color: transparent;
+    border-radius: var(--border-radius-sm);
+    transition: all 0.2s ease;
+}
+
+.fullscreen-mode-toggle .mode-btn:hover {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+.fullscreen-mode-toggle .mode-btn.active {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.fullscreen-mode-toggle .mode-btn.active:hover {
+    background-color: var(--accent-color);
+    opacity: 0.9;
+}
+
+/* Fullscreen mode main content adjustments */
+.app.fullscreen-mode .main-content {
+    flex: 1;
+    height: 100vh;
+    transition: all 0.3s ease;
+}
+
+.app.fullscreen-mode .editor-container {
+    height: 100vh;
+    transition: all 0.3s ease;
+}
+
+.app.fullscreen-mode .editor-pane,
+.app.fullscreen-mode .preview-pane {
+    height: 100vh;
+    transition: all 0.3s ease;
+}
+
+/* Ensure editor and preview take full height in fullscreen */
+.app.fullscreen-mode #editor {
+    height: 100vh;
+    transition: all 0.3s ease;
+}
+
+.app.fullscreen-mode .preview-content {
+    height: 100vh;
+    transition: all 0.3s ease;
+}
+
+/* Keyboard shortcut for exiting fullscreen */
+@media (max-width: 768px) {
+    .fullscreen-mode-toggle {
+        top: 10px;
+        right: 10px;
+        padding: 6px;
+        gap: 6px;
+    }
+    
+    .fullscreen-mode-toggle .mode-btn {
+        padding: 6px;
+    }
+}

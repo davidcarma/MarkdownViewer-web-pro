@@ -66,6 +66,16 @@ class EditorEvents {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            // Escape key to exit fullscreen mode
+            if (e.key === 'Escape') {
+                const app = document.querySelector('.app');
+                if (app.classList.contains('fullscreen-mode')) {
+                    e.preventDefault();
+                    this.editor.exitFullscreenMode();
+                    return;
+                }
+            }
+            
             if (e.ctrlKey || e.metaKey) {
                 switch (e.key.toLowerCase()) {
                     case 'n':
