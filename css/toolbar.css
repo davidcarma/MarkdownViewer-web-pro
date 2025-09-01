@@ -28,6 +28,38 @@
 
 .app-title svg {
     color: var(--accent-color);
+    flex-shrink: 0;
+}
+
+.document-title-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    min-width: 200px;
+    max-width: 300px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.document-title-input:hover {
+    border-color: var(--border-color);
+    background-color: var(--bg-tertiary);
+}
+
+.document-title-input:focus {
+    border-color: var(--accent-color);
+    background-color: var(--bg-primary);
+    box-shadow: 0 0 0 2px var(--accent-color-alpha);
+}
+
+.document-title-input::placeholder {
+    color: var(--text-secondary);
+    font-weight: normal;
 }
 
 .toolbar-actions {

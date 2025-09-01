@@ -14,8 +14,7 @@ class FileOperations {
         }
         
         this.editor.editor.value = '';
-        this.editor.currentFileName = 'Untitled.md';
-        this.editor.fileName.textContent = this.editor.currentFileName;
+        this.editor.setDocumentTitle('Untitled.md');
         this.editor.setModified(false);
         this.editor.updatePreview();
         this.editor.updateStats();
@@ -36,8 +35,7 @@ class FileOperations {
         const reader = new FileReader();
         reader.onload = (e) => {
             this.editor.editor.value = e.target.result;
-            this.editor.currentFileName = file.name;
-            this.editor.fileName.textContent = this.editor.currentFileName;
+            this.editor.setDocumentTitle(file.name);
             this.editor.lastSavedContent = e.target.result;
             this.editor.setModified(false);
             this.editor.updatePreview();
