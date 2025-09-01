@@ -1,27 +1,32 @@
-# Markdown Editor
+# Markdown Editor Pro
 
-A fully-featured, modern Markdown editor with live preview built with HTML, CSS, and JavaScript.
+A fully-featured, modern Markdown editor with live preview, auto-save, and fullscreen editing built with HTML, CSS, and JavaScript.
 
 ## Features
 
 ### Core Functionality
 - **Real-time Preview**: See your markdown rendered as you type
 - **Split Pane Layout**: Editor and preview side-by-side with resizable divider
+- **LocalStorage Auto-Save**: Your work is automatically saved as you type (never lose data again!)
+- **File Persistence**: Resume exactly where you left off across browser sessions
+- **Fullscreen Editing**: Distraction-free editing mode with smooth transitions
 - **Syntax Highlighting**: Code blocks are highlighted using highlight.js
-- **File Operations**: New, Open, and Save markdown files
+- **File Operations**: New, Open, and Save markdown files with smart workflow
 - **Drag & Drop Support**: Drop markdown files directly onto the editor
 - **Image Paste Support**: Paste images from clipboard as embedded inline images
 - **Image Widget System**: Collapse long data URLs into moveable image objects
-- **Auto-save Indication**: Visual feedback for unsaved changes
+- **Mermaid Diagrams**: Full support for Mermaid flowcharts, sequence diagrams, and more
 
 ### Editor Features
 - **Format Toolbar**: Quick access to common markdown formatting
 - **Keyboard Shortcuts**: 
   - `Ctrl/Cmd + N`: New file
   - `Ctrl/Cmd + O`: Open file
-  - `Ctrl/Cmd + S`: Save file
+  - `Ctrl/Cmd + S`: Save file (download)
+  - `Ctrl/Cmd + L`: Save to localStorage
   - `Ctrl/Cmd + B`: Bold text
   - `Ctrl/Cmd + I`: Italic text
+  - `Escape`: Exit fullscreen mode
   - `Tab`: Indent text
   - `Shift + Tab`: Unindent text
 - **Auto-completion**: Automatic closing of brackets, quotes, and parentheses
@@ -31,57 +36,102 @@ A fully-featured, modern Markdown editor with live preview built with HTML, CSS,
 
 ### UI/UX Features
 - **Dark/Light Theme**: Toggle between themes with persistent preference
+- **Fullscreen Mode**: Click the eye button for immersive editing with mode switching
+- **Smooth Transitions**: All UI changes are beautifully animated
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
 - **Modern Interface**: Clean, professional design with intuitive controls
-- **Smart File Handling**: Confirmation dialog for unsaved changes when dropping files
-- **Visual Feedback**: Drag-over effects, image processing indicators, and success/error notifications
+- **Smart Notifications**: Toast notifications for all operations (saves, loads, errors)
+- **Visual Feedback**: Drag-over effects, image processing indicators, and auto-save status
 - **Embedded Images**: Pasted images are converted to data URLs for self-contained documents
 - **Image Widgets**: Collapsible image objects that can be moved, deleted, and expanded
 - **Dual View Modes**: Switch between widget view and raw markdown view
 - **Copy HTML**: Export rendered HTML to clipboard
 - **Print Support**: Optimized print styles for preview content
+- **Storage Management**: Monitor localStorage usage and export/import data
 
 ### Advanced Features
 - **Scroll Synchronization**: Preview scrolls with editor
+- **Mermaid Diagrams**: Full support for flowcharts, sequence diagrams, Gantt charts, and more
+- **Advanced Error Handling**: Robust Mermaid parsing with helpful error messages
 - **Format Buttons**: Quick formatting for:
   - Headers (H1, H2, H3)
   - Bold, Italic, Code
   - Lists (Bullet, Numbered)
   - Quotes, Links, Images
   - Tables
+  - Mermaid Diagrams
 - **GitHub Flavored Markdown**: Full GFM support including tables and code blocks
 - **Accessibility**: Keyboard navigation and screen reader support
+- **Data Persistence**: Future-ready architecture for multi-file support
 
 ## Usage
 
+### Getting Started
 1. **Open the Editor**: Open `index.html` in any modern web browser
 2. **Start Writing**: Begin typing markdown in the left pane
-3. **Live Preview**: See the rendered output in the right pane
-4. **Format Text**: Use the toolbar buttons or keyboard shortcuts
-5. **Save Your Work**: Use Ctrl/Cmd+S or the save button
-6. **Open Files**: Use Ctrl/Cmd+O or the open button to load existing markdown files
-7. **Drag & Drop**: Simply drag a markdown file from your file system and drop it onto the editor pane
-8. **Paste Images**: Copy any image to clipboard and paste (Ctrl/Cmd+V) directly into the editor
+3. **Auto-Save**: Your work is automatically saved to localStorage as you type
+4. **Live Preview**: See the rendered output in the right pane
+5. **Fullscreen Mode**: Click the eye 👁 button for distraction-free editing
+
+### File Operations
+- **New File**: Use Ctrl/Cmd+N (offers to save current work first)
+- **Open Files**: Use Ctrl/Cmd+O or drag & drop files onto the editor
+- **Save to Computer**: Use Ctrl/Cmd+S to download your markdown file
+- **Save to Browser**: Use Ctrl/Cmd+L to explicitly save to localStorage
+- **Format Text**: Use the toolbar buttons or keyboard shortcuts
+
+### Advanced Features
+- **Drag & Drop**: Simply drag markdown files from your file system
+- **Paste Images**: Copy any image and paste (Ctrl/Cmd+V) directly into the editor
+- **Mermaid Diagrams**: Create flowcharts with code blocks marked as `mermaid`
+- **Fullscreen Editing**: Switch between edit and preview modes in fullscreen
 
 ## File Structure
 
 ```
-Md viewer/
-├── index.html          # Main HTML file
-├── styles.css          # CSS styling and themes
-├── script.js           # JavaScript functionality
-├── marked.min.js       # Markdown parsing library
-├── highlight.min.js    # Syntax highlighting library
-├── highlight.min.css   # Syntax highlighting styles
-└── README.md          # This file
+Markdown Viewer/
+├── index.html                    # Main HTML file
+├── css/                          # Modular CSS files
+│   ├── base.css                  # Base styles and layout
+│   ├── buttons.css               # Button styling
+│   ├── editor.css                # Editor pane styles
+│   ├── modals.css                # Modal dialogs
+│   ├── preview.css               # Preview pane styles
+│   ├── responsive.css            # Mobile responsiveness
+│   ├── toolbar.css               # Toolbar styling
+│   └── variables.css             # CSS custom properties
+├── js/                           # Modular JavaScript files
+│   ├── app.js                    # Application initialization
+│   ├── core.js                   # Core editor functionality
+│   ├── events.js                 # Event handling
+│   ├── file-operations.js        # File open/save operations
+│   ├── storage-manager.js        # localStorage management
+│   ├── drag-drop.js              # Drag & drop functionality
+│   ├── image-paste.js            # Image paste handling
+│   ├── notifications.js          # Toast notifications
+│   ├── pane-resizer.js           # Split pane resizing
+│   ├── syntax-highlight.js       # Editor syntax highlighting
+│   └── simple-image-collapse-v2.js # Image widget system
+├── test/                         # Test files
+│   ├── debug-mermaid.html        # Mermaid testing
+│   └── test-mermaid.md           # Test markdown files
+├── archive/                      # Archived old versions
+├── marked.min.js                 # Markdown parsing library
+├── highlight.min.js              # Syntax highlighting library
+├── mermaid.min.js                # Mermaid diagram library
+├── highlight.min.css             # Syntax highlighting styles
+├── README.md                     # This file
+├── LOCALSTORAGE.md               # localStorage documentation
+└── todo.md                       # Development roadmap
 ```
 
 ## Dependencies
 
-All dependencies are included locally (downloaded via curl):
+All dependencies are included locally for offline functionality:
 
 - **Marked.js**: Fast markdown parser and compiler
 - **Highlight.js**: Syntax highlighting for code blocks
+- **Mermaid.js**: Diagram and flowchart rendering
 
 ## Browser Support
 
@@ -95,13 +145,51 @@ All dependencies are included locally (downloaded via curl):
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl/Cmd + N` | New file |
+| `Ctrl/Cmd + N` | New file (offers to save current work) |
 | `Ctrl/Cmd + O` | Open file |
-| `Ctrl/Cmd + S` | Save file |
+| `Ctrl/Cmd + S` | Save file (download) |
+| `Ctrl/Cmd + L` | Save to localStorage |
+| `Ctrl/Cmd + E` | Export to PDF |
+| `Ctrl/Cmd + P` | Print |
 | `Ctrl/Cmd + B` | Bold selected text |
 | `Ctrl/Cmd + I` | Italic selected text |
+| `Escape` | Exit fullscreen mode |
 | `Tab` | Indent line/selection |
 | `Shift + Tab` | Unindent line/selection |
+
+## LocalStorage Auto-Save System
+
+This editor features a comprehensive localStorage system that automatically saves your work:
+
+### ✅ **What's Saved Automatically:**
+- **File Content**: Your markdown text as you type
+- **Cursor Position**: Exact position for seamless resume
+- **File Name**: Document title and metadata
+- **Modified State**: Track unsaved changes
+
+### 🔄 **How It Works:**
+1. **Auto-Save**: Saves every 500ms after you stop typing
+2. **Session Restore**: Automatically loads your last file when you return
+3. **Smart Workflow**: Asks before replacing saved work with new files
+4. **Visual Feedback**: Shows "✓ Auto-saved" and "📁 Buffered" notifications
+
+### 🗂️ **File Management:**
+- **One File Buffer**: Currently supports one file at a time (multi-file support planned)
+- **User-Controlled**: You decide when to create new files or load existing ones
+- **Data Persistence**: Works completely offline, no server required
+- **Future-Ready**: Architecture designed for multiple files and folders
+
+### 💾 **Storage Features:**
+- **Export/Import**: Backup and restore your data as JSON
+- **Storage Monitoring**: Check localStorage usage
+- **Error Handling**: Graceful handling of quota limits
+- **Cross-Session**: Your work persists across browser sessions
+
+### 📱 **Important Note About Syncing:**
+LocalStorage data does **NOT** automatically sync across devices. Each browser/device maintains its own copy. For cross-device access:
+- Use the export/import feature for manual backup
+- Future versions will include cloud sync options
+- Consider using a browser extension version for Chrome sync
 
 ## Drag & Drop Feature
 
@@ -193,6 +281,56 @@ The editor features an innovative widget system that collapses long data URLs in
 
 This system makes working with embedded images much more manageable, especially when dealing with multiple images or large documents.
 
+## Mermaid Diagram Support
+
+The editor includes full support for Mermaid diagrams, allowing you to create flowcharts, sequence diagrams, and more directly in your markdown:
+
+### Supported Diagram Types
+- **Flowcharts**: `graph TD`, `graph LR`, `flowchart TD`
+- **Sequence Diagrams**: `sequenceDiagram`
+- **Gantt Charts**: `gantt`
+- **Class Diagrams**: `classDiagram`
+- **State Diagrams**: `stateDiagram`
+- **Journey Maps**: `journey`
+- **Pie Charts**: `pie`
+- **Git Graphs**: `gitgraph`
+- **Entity Relationship**: `erDiagram`
+
+### Usage
+Create a code block with `mermaid` as the language:
+
+\`\`\`mermaid
+graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E
+\`\`\`
+
+### Features
+- **Real-Time Rendering**: See diagrams immediately in the preview
+- **Error Handling**: Helpful error messages for invalid syntax
+- **Export Support**: Diagrams are included in PDF and HTML exports
+- **Responsive**: Diagrams scale appropriately for different screen sizes
+
+## Fullscreen Editing Mode
+
+Click the eye (👁) button to enter fullscreen mode for distraction-free editing:
+
+### Features
+- **Mode Switching**: Toggle between edit-only and preview-only modes
+- **Smooth Transitions**: Beautiful animations for all mode changes
+- **Floating Controls**: Clean interface with floating mode toggle buttons
+- **Keyboard Exit**: Press `Escape` to exit fullscreen
+- **Full Immersion**: All toolbars and status bars are hidden
+
+### Controls in Fullscreen
+- **✏️ Edit Mode**: Show only the editor for focused writing
+- **👁 Preview Mode**: Show only the preview for reading
+- **❌ Exit**: Return to normal dual-pane view
+- **Keyboard**: Use `Escape` key to exit quickly
+
 ## Markdown Syntax Support
 
 The editor supports full GitHub Flavored Markdown including:
@@ -212,7 +350,47 @@ The editor supports full GitHub Flavored Markdown including:
 
 ## Customization
 
-The editor uses CSS custom properties (variables) for easy theming. You can modify the color scheme by editing the CSS variables in `styles.css`.
+The editor uses CSS custom properties (variables) for easy theming. You can modify the color scheme by editing the CSS variables in `css/variables.css`.
+
+### Modular Architecture
+- **CSS Modules**: Separate files for different components
+- **JavaScript Modules**: Clean separation of concerns
+- **Extensible Design**: Easy to add new features
+- **Future-Ready**: Architecture supports planned enhancements
+
+## Development Roadmap
+
+See `todo.md` for our comprehensive development roadmap including:
+
+- **Phase 2**: Multi-file support with file browser
+- **Phase 3**: Folder management and organization  
+- **Phase 4**: Advanced editing features
+- **Phase 5**: Cross-device sync and cloud integration
+- **Phase 6**: Collaboration and sharing
+- **Phase 7**: Customization and extensions
+
+## Technical Documentation
+
+- **`LOCALSTORAGE.md`**: Detailed localStorage implementation docs
+- **`todo.md`**: Complete development roadmap and future plans
+- **`test/`**: Test files and debugging tools
+
+## Browser Support
+
+- **Chrome/Chromium**: Full support (recommended)
+- **Firefox**: Full support
+- **Safari**: Full support  
+- **Edge**: Full support
+- **Mobile Browsers**: Responsive design works on all modern mobile browsers
+- **Requirements**: ES6+ support, localStorage, modern CSS features
+
+## Performance
+
+- **Offline-First**: Works completely offline
+- **Fast Loading**: All dependencies included locally
+- **Efficient Storage**: Debounced auto-save prevents performance issues
+- **Responsive**: Smooth performance on all device types
+- **Memory Efficient**: Modular architecture reduces memory footprint
 
 ## License
 
