@@ -150,7 +150,16 @@ class MarkdownEditor {
         
         mermaidBlocks.forEach((block, index) => {
             try {
-                const code = block.textContent.trim();
+                let code = block.textContent.trim();
+                
+                // Clean and validate the code before processing
+                code = this.sanitizeMermaidCode(code);
+                
+                if (!this.isValidMermaidCode(code)) {
+                    console.warn(`Skipping invalid Mermaid diagram ${index + 1}`);
+                    return;
+                }
+                
                 console.log(`Processing Mermaid diagram ${index + 1}:`, code.substring(0, 50) + '...');
                 
                 const id = `mermaid-diagram-${index}-${Date.now()}`;
@@ -456,7 +465,16 @@ class MarkdownEditor {
         // Process each mermaid block
         const promises = Array.from(mermaidBlocks).map(async (block, index) => {
             try {
-                const code = block.textContent;
+                let code = block.textContent.trim();
+                
+                // Clean the code using the same sanitization
+                code = this.sanitizeMermaidCode(code);
+                
+                if (!this.isValidMermaidCode(code)) {
+                    console.warn(`Skipping invalid Mermaid diagram ${index + 1} during export`);
+                    return;
+                }
+                
                 const id = `mermaid-export-${index}-${Date.now()}`;
                 
                 // Create a div to hold the mermaid diagram
@@ -490,6 +508,72 @@ class MarkdownEditor {
         
         // Wait for all diagrams to be processed
         await Promise.all(promises);
+    }
+    
+    sanitizeMermaidCode(code) {
+        // Clean up common issues that cause Mermaid parsing errors
+        
+        // Remove any stray HTML that might have leaked in
+        code = code.replace(/<script[\s\S]*?<\/script>/gi, '');
+        code = code.replace(/<style[\s\S]*?<\/style>/gi, '');
+        
+        // Handle problematic template-like syntax
+        code = code.replace(/\{\{[^}]*\}\}/g, '');
+        
+        // Clean up any malformed quotes or brackets
+        code = code.replace(/[""]([^""]*)[""]/g, '"$1"');
+        
+        // Remove extra whitespace and normalize line endings
+        code = code.replace(/\r\n/g, '\n');
+        code = code.replace(/\s+$/gm, '');
+        
+        return code.trim();
+    }
+    
+    isValidMermaidCode(code) {
+        if (!code || code.length < 5) return false;
+        
+        // Check for basic Mermaid diagram types
+        const validStartPatterns = [
+            /^\s*graph\s+(TD|TB|BT|RL|LR)/i,
+            /^\s*flowchart\s+(TD|TB|BT|RL|LR)/i,
+            /^\s*sequenceDiagram/i,
+            /^\s*classDiagram/i,
+            /^\s*stateDiagram/i,
+            /^\s*journey/i,
+            /^\s*gantt/i,
+            /^\s*pie/i,
+            /^\s*gitgraph/i,
+            /^\s*erDiagram/i,
+            /^\s*mindmap/i
+        ];
+        
+        const hasValidStart = validStartPatterns.some(pattern => pattern.test(code));
+        if (!hasValidStart) {
+            console.warn('Mermaid code does not start with a recognized diagram type:', code.substring(0, 50));
+            return false;
+        }
+        
+        // Check for obviously malformed syntax
+        const problematicPatterns = [
+            /\{\{.*\}\}/,  // Template syntax
+            /<\/?\w+[^>]*>/,  // HTML tags (except in quotes)
+            /[^\w\s\[\](){}<>|:;.,=+\-*/_"'`~!@#$%^&?\\]/  // Unexpected characters
+        ];
+        
+        // Only flag as invalid if problematic patterns exist outside of quoted strings
+        const quotedStrings = code.match(/"[^"]*"/g) || [];
+        let codeWithoutQuotes = code;
+        quotedStrings.forEach(quote => {
+            codeWithoutQuotes = codeWithoutQuotes.replace(quote, '');
+        });
+        
+        const hasProblematicSyntax = problematicPatterns.some(pattern => pattern.test(codeWithoutQuotes));
+        if (hasProblematicSyntax) {
+            console.warn('Mermaid code contains potentially problematic syntax');
+        }
+        
+        return true; // Let Mermaid handle the detailed validation
     }
     
     async printFile() {
