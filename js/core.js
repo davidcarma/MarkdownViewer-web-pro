@@ -18,12 +18,19 @@ class MarkdownEditor {
         this.isModified = false;
         this.lastSavedContent = '';
         
+        // Initialize storage manager
+        this.storageManager = new LocalStorageManager();
+        
         this.init();
     }
     
     init() {
         this.setupMarked();
         this.bindEvents();
+        
+        // Load saved file if available
+        this.loadSavedFile();
+        
         this.updatePreview();
         this.updateStats();
         this.updateCursorPosition();
@@ -1041,6 +1048,198 @@ class MarkdownEditor {
         this.documentTitle.value = fileName;
         this.fileName.textContent = fileName;
         this.updateDocumentTitle();
+        
+        // Save the file name change
+        this.autoSave();
+    }
+    
+    // localStorage integration methods
+    autoSave() {
+        if (this.storageManager) {
+            this.storageManager.autoSave(
+                this.currentFileName,
+                this.editor.value,
+                this.editor.selectionStart,
+                this.isModified
+            );
+        }
+    }
+    
+    loadSavedFile() {
+        if (!this.storageManager) return;
+        
+        const savedFile = this.storageManager.getCurrentFile();
+        if (savedFile) {
+            console.log('Loading saved file:', savedFile.name);
+            
+            // Restore file content and state
+            this.editor.value = savedFile.content || '';
+            this.currentFileName = savedFile.name || 'Untitled.md';
+            this.documentTitle.value = this.currentFileName;
+            this.fileName.textContent = this.currentFileName;
+            this.setModified(savedFile.isModified || false);
+            
+            // Restore cursor position
+            if (savedFile.cursorPosition) {
+                setTimeout(() => {
+                    this.editor.setSelectionRange(savedFile.cursorPosition, savedFile.cursorPosition);
+                    this.editor.focus();
+                }, 100);
+            }
+            
+            // Show restoration notification
+            this.showNotification(`Restored: ${savedFile.name}`, 'info');
+        } else {
+            // No saved file, show welcome content
+            this.loadWelcomeContent();
+        }
+    }
+    
+    loadWelcomeContent() {
+        // Load default welcome content
+        const welcomeContent = `# Welcome to Markdown Editor
+
+This is a **powerful** markdown editor with live preview.
+
+## Features
+- Real-time preview
+- Syntax highlighting  
+- File operations
+- Dark/Light themes
+- Format toolbar
+- Auto-save to localStorage
+- Fullscreen editing mode
+
+### Code Example
+\`\`\`javascript
+function hello() {
+    console.log('Hello, World!');
+}
+\`\`\`
+
+### Mermaid Diagram Example
+\`\`\`mermaid
+graph TD
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great!]
+    B -->|No| D[Debug]
+    D --> E[Fix issues]
+    E --> B
+    C --> F[Deploy]
+    F --> G[End]
+\`\`\`
+
+> This is a blockquote
+
+- List item 1
+- List item 2
+- List item 3
+
+[Link](https://example.com) | ![Image](https://via.placeholder.com/150)
+
+| Header 1 | Header 2 |
+|----------|----------|
+| Cell 1   | Cell 2   |
+
+**Your work is automatically saved to localStorage!**`;
+
+        this.editor.value = welcomeContent;
+        console.log('Loading welcome content for new user');
+        
+        // Save welcome content to localStorage
+        this.autoSave();
+    }
+    
+    // Manual save to localStorage (for explicit save actions)
+    saveToLocalStorage() {
+        if (this.storageManager) {
+            const success = this.storageManager.saveCurrentFile(
+                this.currentFileName,
+                this.editor.value,
+                this.editor.selectionStart,
+                this.isModified
+            );
+            
+            if (success) {
+                this.showNotification('Saved to local storage', 'success');
+                return true;
+            } else {
+                this.showNotification('Failed to save to local storage', 'error');
+                return false;
+            }
+        }
+        return false;
+    }
+    
+    // Get storage information
+    getStorageInfo() {
+        return this.storageManager ? this.storageManager.getStorageInfo() : null;
+    }
+    
+    // Notification system
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        
+        // Style the notification
+        notification.style.cssText = `
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10001;
+            max-width: 300px;
+            word-wrap: break-word;
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+        `;
+        
+        // Set colors based on type
+        switch (type) {
+            case 'success':
+                notification.style.backgroundColor = 'var(--success-color)';
+                notification.style.color = 'white';
+                break;
+            case 'error':
+                notification.style.backgroundColor = 'var(--danger-color)';
+                notification.style.color = 'white';
+                break;
+            case 'warning':
+                notification.style.backgroundColor = 'var(--warning-color)';
+                notification.style.color = 'white';
+                break;
+            default: // info
+                notification.style.backgroundColor = 'var(--accent-color)';
+                notification.style.color = 'white';
+                break;
+        }
+        
+        // Add to DOM
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateY(0)';
+        }, 10);
+        
+        // Remove after delay
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
     }
 
     escapeRegex(string) {
@@ -1054,6 +1253,9 @@ class MarkdownEditor {
             this.updateStats();
             this.setModified(true);
             
+            // Auto-save to localStorage
+            this.autoSave();
+            
             // Refresh syntax highlighting if available
             if (this.syntaxHighlighter) {
                 this.syntaxHighlighter.debouncedHighlight();
@@ -1066,10 +1268,14 @@ class MarkdownEditor {
         
         this.editor.addEventListener('keyup', () => {
             this.updateCursorPosition();
+            // Save cursor position for restoration
+            this.autoSave();
         });
         
         this.editor.addEventListener('click', () => {
             this.updateCursorPosition();
+            // Save cursor position for restoration
+            this.autoSave();
         });
 
         // Document title events
@@ -1079,6 +1285,8 @@ class MarkdownEditor {
 
         this.documentTitle.addEventListener('blur', () => {
             this.validateAndFormatTitle();
+            // Save file name change
+            this.autoSave();
         });
 
         this.documentTitle.addEventListener('keydown', (e) => {

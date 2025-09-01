@@ -19,9 +19,13 @@ class FileOperations {
         this.editor.updatePreview();
         this.editor.updateStats();
         
-
+        // Save new empty file to localStorage
+        this.editor.autoSave();
         
         this.editor.editor.focus();
+        
+        // Show notification
+        this.editor.showNotification('New file created', 'success');
     }
     
     openFile() {
@@ -46,9 +50,13 @@ class FileOperations {
                 this.editor.imageCollapse.initialize();
             }
 
-
+            // Save opened file to localStorage
+            this.editor.autoSave();
             
             this.editor.editor.focus();
+            
+            // Show notification
+            this.editor.showNotification(`File opened: ${file.name}`, 'success');
         };
         reader.readAsText(file);
         
@@ -78,7 +86,11 @@ class FileOperations {
         this.editor.lastSavedContent = content;
         this.editor.setModified(false);
         
-        this.editor.showNotification(`Saved "${this.editor.currentFileName}" with full image data`, 'success');
+        // Also save to localStorage
+        this.editor.autoSave();
+        
+        // Show notification
+        this.editor.showNotification(`File saved: ${this.editor.currentFileName}`, 'success');
     }
 }
 
