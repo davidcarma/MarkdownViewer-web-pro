@@ -1055,8 +1055,21 @@ class MarkdownEditor {
     
     // localStorage integration methods
     autoSave() {
+        // Only auto-save cursor position and minor state changes
+        // Content changes require explicit user action
         if (this.storageManager) {
-            this.storageManager.autoSave(
+            this.storageManager.updateFileState(
+                this.currentFileName,
+                this.editor.selectionStart,
+                this.isModified
+            );
+        }
+    }
+    
+    // Replace current localStorage file (for new file or file loading)
+    replaceLocalStorageFile() {
+        if (this.storageManager) {
+            this.storageManager.replaceCurrentFile(
                 this.currentFileName,
                 this.editor.value,
                 this.editor.selectionStart,
@@ -1253,7 +1266,7 @@ graph TD
             this.updateStats();
             this.setModified(true);
             
-            // Auto-save to localStorage
+            // Only auto-save state, not content (content saved on explicit actions)
             this.autoSave();
             
             // Refresh syntax highlighting if available

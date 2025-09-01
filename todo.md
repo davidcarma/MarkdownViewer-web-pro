@@ -1,168 +1,200 @@
-# Markdown Editor - Feature Roadmap & TODO
+# Markdown Viewer - Todo & Roadmap
 
-## 🚀 High Priority Features
+## Current Status ✅
+- [x] Core markdown editing with live preview
+- [x] Syntax highlighting for editor
+- [x] File operations (new, open, save)
+- [x] Print and PDF export functionality  
+- [x] Theme switching (light/dark)
+- [x] Format toolbar with shortcuts
+- [x] Drag & drop file support
+- [x] Image paste functionality
+- [x] Mermaid diagram support
+- [x] Fullscreen editing mode with smooth transitions
+- [x] LocalStorage auto-save system
+- [x] File persistence between sessions
+- [x] User-controlled save workflow
 
-### Document Management
-- [ ] **Auto-save** - Save to localStorage every 30 seconds to prevent data loss
-- [ ] **Recent Files** - Quick access dropdown with last 10 opened files
-- [ ] **Session Restore** - Remember current document content on browser refresh
-- [ ] **Export Options** 
-  - [ ] Export as HTML file
-  - [ ] Export as PDF
-  - [ ] Export as styled document
-  - [ ] Copy as rich text for pasting into other apps
+## Immediate Improvements 🔧
 
-### Essential Editor Features  
-- [ ] **Search & Replace** - Find/replace functionality with regex support
-- [ ] **Reading Time Estimate** - Calculate and display estimated reading time
-- [ ] **Document Outline** - Auto-generated TOC from headers with click-to-navigate
+### Storage & File Management
+- [ ] **Manual Save Button** - Add explicit "Save to LocalStorage" button in UI
+- [ ] **Storage Status Indicator** - Show localStorage usage in status bar
+- [ ] **Clear Storage Option** - Add button to clear all localStorage data
+- [ ] **Import/Export UI** - User-friendly backup/restore interface
 
-## 🎯 Quick Wins (Easy Implementation)
+### User Experience
+- [ ] **Better New File Dialog** - Custom modal instead of browser confirm()
+- [ ] **Unsaved Changes Indicator** - Visual indicator when work is unsaved
+- [ ] **Auto-save Toggle** - Let users disable auto-save state updates
+- [ ] **File Size Warnings** - Alert when approaching storage limits
 
-### Productivity Enhancements
-- [ ] **Line Numbers** - Optional line numbering in editor
-- [ ] **Go to Line** - Jump to specific line number (Ctrl+G)
-- [ ] **Character Count** - Show character count including/excluding spaces
-- [ ] **Paragraph Count** - Display total paragraphs
-- [ ] **Focus Mode** - Highlight current paragraph, dim others
+## Phase 2: Multi-File Support 📁
 
-### UI/UX Improvements
-- [ ] **Zen Mode** - Hide all toolbars for distraction-free writing
-- [ ] **Split View Options**
-  - [ ] Vertical split (current)
-  - [ ] Horizontal split (editor top, preview bottom)
-  - [ ] Hide preview completely
-  - [ ] Preview-only mode
-- [ ] **Custom Themes**
-  - [ ] Dark theme improvements
-  - [ ] High contrast theme
-  - [ ] Sepia theme for long writing sessions
-- [ ] **Font Customization**
-  - [ ] Editor font size adjustment
-  - [ ] Font family selection (monospace options)
-  - [ ] Preview font styling options
+### File Browser Interface
+- [ ] **File List Sidebar** - Collapsible file browser panel
+- [ ] **File Tabs** - Tab interface for multiple open files
+- [ ] **Recent Files** - Quick access to recently edited files
+- [ ] **File Search** - Find files by name or content
+- [ ] **File Sorting** - Sort by name, date modified, size
 
-## 💡 Advanced Markdown Features
+### File Operations
+- [ ] **Duplicate File** - Copy existing files
+- [ ] **Delete File** - Remove files with confirmation
+- [ ] **Rename File** - In-place file renaming
+- [ ] **File Templates** - Pre-defined file templates
+- [ ] **File Metadata** - Enhanced file information display
 
-### Enhanced Syntax Support
-- [ ] **Task Lists** - Interactive checkboxes `- [ ]` and `- [x]`
-- [ ] **Math Support** - LaTeX/KaTeX rendering for equations
-- [x] **Mermaid Diagrams** - Flowcharts, sequence diagrams, gantt charts ✅
-- [ ] **Footnotes** - Support for `[^1]` footnote syntax
-- [ ] **Definition Lists** - Enhanced list formatting
-- [ ] **Abbreviations** - Hover definitions for abbreviations
+### Advanced Features
+- [ ] **File Linking** - Internal links between files `[[filename]]`
+- [ ] **Global Search** - Search across all files
+- [ ] **File Tags** - Categorize files with tags
+- [ ] **Favorites** - Pin frequently used files
 
-### Table Enhancements
+## Phase 3: Folder Management 📂
+
+### Folder Structure
+- [ ] **Nested Folders** - Hierarchical file organization
+- [ ] **Folder Creation** - Create new folders dynamically
+- [ ] **Drag & Drop Organization** - Move files between folders
+- [ ] **Folder Templates** - Pre-structured project templates
+- [ ] **Breadcrumb Navigation** - Show current folder path
+
+### Project Management
+- [ ] **Project Workspaces** - Separate workspace contexts
+- [ ] **Project Templates** - Templates for different project types
+- [ ] **Project Settings** - Per-project configuration
+- [ ] **Project Export** - Export entire project as ZIP
+
+## Phase 4: Advanced Editing 🚀
+
+### Editor Enhancements
+- [ ] **Multiple Cursors** - Edit multiple locations simultaneously  
+- [ ] **Find & Replace** - Advanced search and replace functionality
+- [ ] **Code Folding** - Collapse markdown sections
+- [ ] **Line Numbers** - Optional line numbering
+- [ ] **Word Wrap Toggle** - Control text wrapping
+- [ ] **Vim/Emacs Keybindings** - Alternative keyboard shortcuts
+
+### Markdown Extensions
 - [ ] **Table Editor** - Visual table editing interface
-- [ ] **Table Formatting** - Auto-align columns, sort rows
-- [ ] **CSV Import** - Convert CSV data to markdown tables
+- [ ] **Math Support** - LaTeX math rendering with KaTeX
+- [ ] **Footnotes** - Enhanced footnote support
+- [ ] **Custom Containers** - Warning, info, tip containers
+- [ ] **Embed Support** - YouTube, CodePen, etc. embeds
 
-## 🖼️ Advanced Image Features
+### Content Tools
+- [ ] **Table of Contents** - Auto-generated TOC
+- [ ] **Word Count Goals** - Progress tracking for writing
+- [ ] **Reading Time Estimates** - Calculated reading time
+- [ ] **Document Outline** - Collapsible section navigator
 
-### Image Management
-- [ ] **Enhanced Drag & Drop** - Drop images from file explorer
-- [ ] **Image Resizing** - Add width/height parameters `![alt](url){width=300}`
-- [ ] **Image Gallery** - Library of frequently used images
-- [ ] **Image Optimization** - Compress large images automatically
-- [ ] **Image Captions** - Proper figure captions below images
-
-### Advanced Image Operations
-- [ ] **Image Editing** - Basic crop/rotate functionality
-- [ ] **Multiple Image Upload** - Batch image insertion
-- [ ] **Image Formats** - Support WebP, AVIF formats
-- [ ] **Image Lazy Loading** - Performance optimization for many images
-
-## 🔧 Technical Improvements
-
-### Performance & Reliability
-- [ ] **Undo/Redo Stack** - Comprehensive edit history (Ctrl+Z/Ctrl+Y)
-- [ ] **Large File Handling** - Optimize for documents >1MB
-- [ ] **Memory Management** - Clean up unused image data
-- [ ] **Error Recovery** - Graceful handling of corrupted data
-
-### Accessibility
-- [ ] **Keyboard Navigation** - Full keyboard accessibility
-- [ ] **Screen Reader Support** - ARIA labels and descriptions
-- [ ] **High Contrast Mode** - Better visibility options
-- [ ] **Reduced Motion** - Respect user motion preferences
-
-## 🌐 Collaboration & Sharing
+## Phase 5: Collaboration & Sharing 🤝
 
 ### Export & Sharing
-- [ ] **GitHub Integration** - Export to GitHub Gist
-- [ ] **Print Optimization** - Beautiful print layouts with page breaks
-- [ ] **Shareable Links** - Generate temporary document sharing URLs
-- [ ] **Social Media Cards** - Generate preview cards for sharing
+- [ ] **Share Links** - Generate shareable view-only links
+- [ ] **Export Options** - Multiple format exports (Word, HTML, etc.)
+- [ ] **Publishing** - Direct publish to GitHub Pages, Netlify
+- [ ] **Print Layouts** - Advanced print styling options
 
-### Import Features
-- [ ] **Import from URL** - Load markdown from web URLs
-- [ ] **Import from Clipboard** - Paste rich text and convert to markdown
-- [ ] **Import Word Documents** - Basic .docx to markdown conversion
+### Integration
+- [ ] **GitHub Integration** - Direct sync with GitHub repos
+- [ ] **Google Drive Sync** - Optional cloud storage sync
+- [ ] **Dropbox Support** - Alternative cloud storage
+- [ ] **WebDAV Support** - Generic remote storage
 
-## 🎨 Content Creation Tools
+### Collaboration Features
+- [ ] **Comment System** - Add comments to documents
+- [ ] **Version History** - Track document changes over time
+- [ ] **Change Tracking** - See what changed between versions
+- [ ] **Conflict Resolution** - Handle simultaneous edits
 
-### Writing Assistance
-- [ ] **Spell Check** - Basic spell checking functionality
-- [ ] **Grammar Hints** - Simple grammar suggestions
-- [ ] **Writing Statistics** - Readability scores, sentence length analysis
-- [ ] **Word Frequency** - Most used words analysis
+## Phase 6: Customization & Extensions 🎨
 
-### Templates & Snippets
-- [ ] **Document Templates** - Blog post, README, documentation templates
-- [ ] **Text Snippets** - Commonly used text blocks
-- [ ] **Auto-completion** - Smart suggestions for markdown syntax
-- [ ] **Emoji Picker** - Quick emoji insertion `:smile:`
+### UI Customization
+- [ ] **Custom Themes** - User-created theme support
+- [ ] **Layout Options** - Different editor layouts
+- [ ] **Font Customization** - Custom fonts and sizing
+- [ ] **Panel Arrangement** - Customizable panel positions
 
-## 📱 Mobile & Responsive
+### Extension System
+- [ ] **Plugin Architecture** - Third-party plugin support
+- [ ] **Custom Shortcodes** - User-defined content shortcuts
+- [ ] **Macro System** - Recordable action sequences
+- [ ] **Custom Renderers** - Extend markdown rendering
 
-### Mobile Optimization
-- [ ] **Touch Gestures** - Swipe to switch between editor/preview
-- [ ] **Mobile Toolbar** - Optimized formatting buttons for touch
-- [ ] **Virtual Keyboard** - Better mobile typing experience
-- [ ] **Offline Support** - PWA capabilities for offline editing
+### Advanced Features
+- [ ] **Distraction-Free Mode** - Minimal, focused editing
+- [ ] **Focus Mode** - Highlight current paragraph only
+- [ ] **Typewriter Mode** - Keep current line centered
+- [ ] **Dark Room Mode** - Complete dark interface
 
-## 🔌 Integration & Extensions
+## Technical Roadmap 🔧
 
-### External Integrations
-- [ ] **Cloud Storage** - Google Drive, Dropbox integration
-- [ ] **Version Control** - Git-like versioning for documents
-- [ ] **API Support** - REST API for external integrations
-- [ ] **Plugin System** - Extensible architecture for custom features
+### Performance
+- [ ] **Virtual Scrolling** - Handle very large documents
+- [ ] **Web Workers** - Background processing for heavy operations
+- [ ] **Progressive Loading** - Load large files incrementally
+- [ ] **Memory Optimization** - Efficient storage management
+
+### Modern Web Features
+- [ ] **Service Worker** - Offline functionality and caching
+- [ ] **PWA Support** - Install as native app
+- [ ] **File System API** - Direct file system access (Chrome)
+- [ ] **Web Share API** - Native sharing integration
+
+### Data Management
+- [ ] **IndexedDB Migration** - Move from localStorage for large datasets
+- [ ] **Compression** - Compress stored data
+- [ ] **Encryption** - Optional local data encryption
+- [ ] **Sync Algorithms** - Efficient data synchronization
+
+## Ideas for Future Consideration 💡
+
+### AI Integration
+- [ ] **Writing Assistance** - Grammar and style suggestions
+- [ ] **Auto-completion** - Intelligent text completion
+- [ ] **Content Generation** - AI-powered content suggestions
+- [ ] **Translation** - Multi-language support
+
+### Specialized Features
+- [ ] **Academic Writing** - Citation management, bibliography
+- [ ] **Technical Writing** - API documentation templates
+- [ ] **Creative Writing** - Chapter/scene management
+- [ ] **Note-Taking** - Zettelkasten-style linking
+
+### Mobile Experience
+- [ ] **Touch Optimization** - Better mobile editing experience
+- [ ] **Voice Input** - Speech-to-text functionality
+- [ ] **Mobile Gestures** - Swipe actions for common operations
+- [ ] **Responsive Optimization** - Enhanced mobile layouts
 
 ---
 
-## Implementation Priority
+## Implementation Philosophy
 
-### Phase 1: Core Improvements
-1. Auto-save
-2. Search & Replace  
-3. Word Count Goals
-4. Task Lists
+### Core Principles
+1. **Client-Side First** - Keep everything local and fast
+2. **Progressive Enhancement** - Build features incrementally  
+3. **User Control** - Users own their data and experience
+4. **Performance Focus** - Maintain speed as features grow
+5. **Accessibility** - Ensure inclusive design throughout
 
-### Phase 2: Enhanced Experience
-1. Document Outline
-2. Math Support
-3. Zen Mode
-4. Export Options
+### Technical Strategy
+- **Modular Architecture** - Easy to extend and maintain
+- **Backward Compatibility** - Don't break existing data
+- **Standards Compliance** - Use web standards over proprietary APIs
+- **Graceful Degradation** - Work across browser capabilities
+- **Future-Proof Storage** - Extensible data structures
 
-### Phase 3: Advanced Features
-1. Mermaid Diagrams
-2. Advanced Image Features
-3. Collaboration Tools
-4. Mobile Optimization
-
----
-
-## Notes
-
-- Features marked with 🚀 are high impact
-- Features marked with 🎯 are quick wins
-- Consider user feedback when prioritizing
-- Maintain simplicity and performance as core principles
-- Test thoroughly on different browsers and devices
+### User Experience Goals
+- **Intuitive Interface** - Easy to use without training
+- **Consistent Behavior** - Predictable interactions
+- **Fast Performance** - Responsive at every step
+- **Reliable Data** - Never lose user work
+- **Flexible Workflow** - Adapt to different use cases
 
 ---
 
-*Last updated: $(date)*
-*Feel free to add your own ideas and suggestions!*
-
+*Last Updated: 2024-01-15*
+*Current Version: v1.1 - Enhanced LocalStorage System*
