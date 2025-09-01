@@ -1148,7 +1148,7 @@ graph TD
 - List item 2
 - List item 3
 
-[Link](https://example.com) | ![Image](https://via.placeholder.com/150)
+[Link](https://example.com) | ![Image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y0ZjRmNCIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiLz4KICA8dGV4dCB4PSI3NSIgeT0iNTUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SW1hZ2UgRXhhbXBsZTwvdGV4dD4KICA8L3N2Zz4=)
 
 | Header 1 | Header 2 |
 |----------|----------|
