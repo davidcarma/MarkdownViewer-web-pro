@@ -4,6 +4,7 @@
     padding: 1rem;
     overflow-y: auto;
     background-color: var(--bg-primary);
+    transition: all 0.3s ease;
 }
 
 /* Markdown preview styles */

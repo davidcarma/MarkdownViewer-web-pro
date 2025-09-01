@@ -243,18 +243,157 @@ class MarkdownEditor {
     }
     
     togglePreview() {
-        const previewPane = document.querySelector('.preview-pane');
+        const app = document.querySelector('.app');
+        
+        // Check if we're already in fullscreen mode
+        if (app.classList.contains('fullscreen-mode')) {
+            // Exit fullscreen mode
+            this.exitFullscreenMode();
+        } else {
+            // Enter fullscreen mode
+            this.enterFullscreenMode();
+        }
+    }
+    
+    enterFullscreenMode() {
+        const app = document.querySelector('.app');
+        const toolbar = document.querySelector('.toolbar');
+        const statusBar = document.querySelector('.status-bar');
+        const formatToolbar = document.querySelector('.format-toolbar');
         const editorPane = document.querySelector('.editor-pane');
+        const previewPane = document.querySelector('.preview-pane');
         const divider = document.querySelector('.pane-divider');
         
-        if (previewPane.style.display === 'none') {
-            previewPane.style.display = 'flex';
-            divider.style.display = 'block';
-            editorPane.style.flex = '1';
-        } else {
+        // Add fullscreen class
+        app.classList.add('fullscreen-mode');
+        
+        // Hide toolbar, status bar, and format toolbar
+        toolbar.style.display = 'none';
+        statusBar.style.display = 'none';
+        formatToolbar.style.display = 'none';
+        divider.style.display = 'none';
+        
+        // Create and add mode toggle button
+        this.createModeToggleButton();
+        
+        // Start in preview mode
+        this.currentFullscreenMode = 'preview';
+        this.switchFullscreenMode('preview');
+    }
+    
+    exitFullscreenMode() {
+        const app = document.querySelector('.app');
+        const toolbar = document.querySelector('.toolbar');
+        const statusBar = document.querySelector('.status-bar');
+        const formatToolbar = document.querySelector('.format-toolbar');
+        const editorPane = document.querySelector('.editor-pane');
+        const previewPane = document.querySelector('.preview-pane');
+        const divider = document.querySelector('.pane-divider');
+        
+        // Remove fullscreen class
+        app.classList.remove('fullscreen-mode');
+        
+        // Show toolbar, status bar, and format toolbar
+        toolbar.style.display = 'flex';
+        statusBar.style.display = 'flex';
+        formatToolbar.style.display = 'flex';
+        divider.style.display = 'block';
+        
+        // Remove mode toggle button with smooth animation
+        const modeToggle = document.querySelector('.fullscreen-mode-toggle');
+        if (modeToggle) {
+            modeToggle.classList.add('exiting');
+            setTimeout(() => {
+                if (modeToggle.parentNode) {
+                    modeToggle.remove();
+                }
+            }, 300);
+        }
+        
+        // Restore normal dual pane view
+        editorPane.style.display = 'flex';
+        previewPane.style.display = 'flex';
+        editorPane.style.flex = '1';
+        previewPane.style.flex = '1';
+        
+        // Reset current mode
+        this.currentFullscreenMode = null;
+    }
+    
+    createModeToggleButton() {
+        // Remove existing button if present
+        const existingButton = document.querySelector('.fullscreen-mode-toggle');
+        if (existingButton) {
+            existingButton.remove();
+        }
+        
+        const modeToggle = document.createElement('div');
+        modeToggle.className = 'fullscreen-mode-toggle';
+        modeToggle.innerHTML = `
+            <button class="btn btn-icon mode-btn" id="editModeBtn" title="Edit Mode">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+            </button>
+            <button class="btn btn-icon mode-btn active" id="previewModeBtn" title="Preview Mode">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </button>
+            <button class="btn btn-icon" id="exitFullscreenBtn" title="Exit Fullscreen">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                </svg>
+            </button>
+        `;
+        
+        document.body.appendChild(modeToggle);
+        
+        // Add event listeners
+        document.getElementById('editModeBtn').addEventListener('click', () => {
+            this.switchFullscreenMode('edit');
+        });
+        
+        document.getElementById('previewModeBtn').addEventListener('click', () => {
+            this.switchFullscreenMode('preview');
+        });
+        
+        document.getElementById('exitFullscreenBtn').addEventListener('click', () => {
+            this.exitFullscreenMode();
+        });
+    }
+    
+    switchFullscreenMode(mode) {
+        const editorPane = document.querySelector('.editor-pane');
+        const previewPane = document.querySelector('.preview-pane');
+        const editBtn = document.getElementById('editModeBtn');
+        const previewBtn = document.getElementById('previewModeBtn');
+        
+        this.currentFullscreenMode = mode;
+        
+        if (mode === 'edit') {
+            // Show only editor
+            editorPane.style.display = 'flex';
             previewPane.style.display = 'none';
-            divider.style.display = 'none';
             editorPane.style.flex = '1 1 100%';
+            
+            // Update button states
+            editBtn.classList.add('active');
+            previewBtn.classList.remove('active');
+            
+            // Focus the editor
+            this.editor.focus();
+        } else {
+            // Show only preview
+            editorPane.style.display = 'none';
+            previewPane.style.display = 'flex';
+            previewPane.style.flex = '1 1 100%';
+            
+            // Update button states
+            previewBtn.classList.add('active');
+            editBtn.classList.remove('active');
         }
     }
     

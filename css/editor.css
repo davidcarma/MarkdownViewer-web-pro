@@ -21,10 +21,12 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    transition: all 0.3s ease;
 }
 
 .preview-pane {
     flex: 1;
+    transition: all 0.3s ease;
 }
 
 .pane-header {
@@ -92,6 +94,7 @@
     /* Simple, clean styling */
     white-space: pre-wrap;
     word-wrap: break-word;
+    transition: all 0.3s ease;
 }
 
 #editor::placeholder {
