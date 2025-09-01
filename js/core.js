@@ -12,6 +12,7 @@ class MarkdownEditor {
         this.charCount = document.getElementById('charCount');
         this.cursorPosition = document.getElementById('cursorPosition');
         this.fileInput = document.getElementById('fileInput');
+        this.documentTitle = document.getElementById('documentTitle');
         
         this.currentFileName = 'Untitled.md';
         this.isModified = false;
@@ -27,6 +28,7 @@ class MarkdownEditor {
         this.updateStats();
         this.updateCursorPosition();
         this.loadTheme();
+        this.updateDocumentTitle();
     }
     
     setupMarked() {
@@ -54,6 +56,7 @@ class MarkdownEditor {
     
     setupMermaid() {
         if (typeof mermaid !== 'undefined') {
+            console.log('Initializing Mermaid...');
             mermaid.initialize({
                 startOnLoad: false,
                 theme: 'default',
@@ -71,7 +74,8 @@ class MarkdownEditor {
                 },
                 flowchart: {
                     useMaxWidth: true,
-                    htmlLabels: true
+                    htmlLabels: true,
+                    curve: 'basis'
                 },
                 sequence: {
                     useMaxWidth: true,
@@ -82,8 +86,16 @@ class MarkdownEditor {
                 },
                 journey: {
                     useMaxWidth: true
+                },
+                // Ensure Graph TD syntax is properly supported
+                graph: {
+                    useMaxWidth: true,
+                    htmlLabels: true
                 }
             });
+            console.log('Mermaid initialized successfully');
+        } else {
+            console.error('Mermaid library not found');
         }
     }
     
@@ -98,13 +110,23 @@ class MarkdownEditor {
             const html = marked.parse(markdownText);
             this.preview.innerHTML = html;
             
-            // Re-apply syntax highlighting to new code blocks
-            this.preview.querySelectorAll('pre code').forEach((block) => {
+            // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
+            this.preview.querySelectorAll('pre code:not(.language-mermaid)').forEach((block) => {
                 hljs.highlightElement(block);
             });
             
-            // Process Mermaid diagrams
-            this.processMermaidDiagrams();
+            // Process Mermaid diagrams with proper timing and retry logic
+            setTimeout(() => {
+                this.processMermaidDiagrams();
+                // Retry if no blocks found initially (DOM timing issue)
+                setTimeout(() => {
+                    const blocks = this.preview.querySelectorAll('pre code.language-mermaid');
+                    if (blocks.length > 0) {
+                        console.log('Retrying Mermaid processing for any missed blocks');
+                        this.processMermaidDiagrams();
+                    }
+                }, 100);
+            }, 50);
         } catch (error) {
             console.error('Markdown parsing error:', error);
             this.preview.innerHTML = '<div class="error">Error parsing markdown</div>';
@@ -112,14 +134,25 @@ class MarkdownEditor {
     }
     
     processMermaidDiagrams() {
-        if (typeof mermaid === 'undefined') return;
+        if (typeof mermaid === 'undefined') {
+            console.warn('Mermaid is not loaded');
+            return;
+        }
         
-        // Find all code blocks with mermaid language
+        // Find all code blocks with mermaid language that haven't been processed yet
         const mermaidBlocks = this.preview.querySelectorAll('pre code.language-mermaid');
+        console.log(`Found ${mermaidBlocks.length} Mermaid blocks to process`);
+        
+        if (mermaidBlocks.length === 0) {
+            console.log('No Mermaid blocks found - checking if DOM is ready');
+            return;
+        }
         
         mermaidBlocks.forEach((block, index) => {
             try {
-                const code = block.textContent;
+                const code = block.textContent.trim();
+                console.log(`Processing Mermaid diagram ${index + 1}:`, code.substring(0, 50) + '...');
+                
                 const id = `mermaid-diagram-${index}-${Date.now()}`;
                 
                 // Create a div to hold the mermaid diagram
@@ -129,11 +162,12 @@ class MarkdownEditor {
                 
                 // Replace the code block with the mermaid div
                 const preElement = block.closest('pre');
-                if (preElement) {
+                if (preElement && preElement.parentNode) {
                     preElement.parentNode.replaceChild(mermaidDiv, preElement);
                     
                     // Render the mermaid diagram
                     mermaid.render(id + '-svg', code).then(({ svg, bindFunctions }) => {
+                        console.log(`Successfully rendered Mermaid diagram ${index + 1}`);
                         mermaidDiv.innerHTML = svg;
                         if (bindFunctions) {
                             bindFunctions(mermaidDiv);
@@ -149,6 +183,8 @@ class MarkdownEditor {
                             </details>
                         </div>`;
                     });
+                } else {
+                    console.error('Could not find parent pre element for Mermaid block');
                 }
             } catch (error) {
                 console.error('Mermaid processing error:', error);
@@ -190,6 +226,7 @@ class MarkdownEditor {
         this.isModified = modified;
         this.fileStatus.textContent = modified ? '●' : '';
         this.fileStatus.className = modified ? 'file-status' : 'file-status saved';
+        this.updateDocumentTitle();
     }
     
     loadTheme() {
@@ -744,6 +781,45 @@ class MarkdownEditor {
         }
     }
     
+    handleTitleChange() {
+        const newTitle = this.documentTitle.value.trim();
+        this.currentFileName = newTitle || 'Untitled.md';
+        this.fileName.textContent = this.currentFileName;
+        this.updateDocumentTitle();
+    }
+
+    validateAndFormatTitle() {
+        let title = this.documentTitle.value.trim();
+        
+        // If empty, set to default
+        if (!title) {
+            title = 'Untitled.md';
+        } else if (!title.toLowerCase().endsWith('.md')) {
+            // Add .md extension if not present
+            title = title + '.md';
+        }
+        
+        // Update the input field and internal state
+        this.documentTitle.value = title;
+        this.currentFileName = title;
+        this.fileName.textContent = this.currentFileName;
+        this.updateDocumentTitle();
+    }
+
+    updateDocumentTitle() {
+        // Update the browser tab title
+        const baseTitle = this.currentFileName === 'Untitled.md' ? 'Markdown Editor' : this.currentFileName;
+        document.title = this.isModified ? `${baseTitle} • (Modified)` : baseTitle;
+    }
+
+    setDocumentTitle(fileName) {
+        // Method to programmatically set the document title (used by file operations)
+        this.currentFileName = fileName;
+        this.documentTitle.value = fileName;
+        this.fileName.textContent = fileName;
+        this.updateDocumentTitle();
+    }
+
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
@@ -767,12 +843,25 @@ class MarkdownEditor {
         
         this.editor.addEventListener('keyup', () => {
             this.updateCursorPosition();
-            
-
         });
         
         this.editor.addEventListener('click', () => {
             this.updateCursorPosition();
+        });
+
+        // Document title events
+        this.documentTitle.addEventListener('input', () => {
+            this.handleTitleChange();
+        });
+
+        this.documentTitle.addEventListener('blur', () => {
+            this.validateAndFormatTitle();
+        });
+
+        this.documentTitle.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.documentTitle.blur();
+            }
         });
     }
 }

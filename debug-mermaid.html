@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Debug Test</title>
+    <script src="mermaid.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-area { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
+        .mermaid-diagram { border: 2px solid #4f46e5; padding: 10px; margin: 10px 0; }
+        pre { background: #f5f5f5; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Mermaid Debug Test</h1>
+    
+    <div class="test-area">
+        <h2>Test 1: Direct Mermaid Element</h2>
+        <div class="mermaid">
+graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E
+        </div>
+    </div>
+    
+    <div class="test-area">
+        <h2>Test 2: Code Block (like in your editor)</h2>
+        <pre><code class="language-mermaid">graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E</code></pre>
+        
+        <button onclick="processCodeBlock()">Process Code Block</button>
+        <div id="result"></div>
+    </div>
+    
+    <div class="test-area">
+        <h2>Test 3: Your Exact Graph TD</h2>
+        <pre><code class="language-mermaid">graph TD
+    A["Initial Setup<br/>OCR + Images"] --> B["Cycle 1: Analysis"]
+    A --> C["Cycle 2: Analysis"] 
+    A --> D["Cycle 3: Analysis"]
+    
+    subgraph "Each Cycle (Independent)"
+        E["1. /clear-ctx<br/>(Keep --persist images)"]
+        F["2. /retrieve-ctx OCR_Results<br/>(Get raw OCR)"]
+        G["3. Generate Article List<br/>(From OCR)"]
+        H["4. Extract Articles<br/>(Gemini Pro)"]
+        I["5. Add Metadata<br/>(Full analysis)"]
+        J["6. /stash-ctx Article_Set_Cycle_N<br/>(Save this cycle's results)"]
+        
+        E --> F --> G --> H --> I --> J
+    end
+    
+    B --> K["Cross-Cycle Comparison"]
+    C --> K
+    D --> K
+    
+    subgraph "Comparison Phase"
+        L["1. /clear-ctx"]
+        M["2. /retrieve-ctx Article_Set_Cycle_1"]
+        N["3. /retrieve-ctx Article_Set_Cycle_2"] 
+        O["4. /retrieve-ctx Article_Set_Cycle_3"]
+        P["5. Compare Consistency<br/>- Article counts<br/>- Headlines<br/>- Content stability"]
+        Q["6. Identify Variations<br/>- Where cycles disagree<br/>- Root cause analysis"]
+        R["7. Build Consensus<br/>- Resolve conflicts<br/>- Create stable result"]
+        
+        L --> M --> N --> O --> P --> Q --> R
+    end
+    
+    K --> L
+    
+    style K fill:#e1f5fe
+    style P fill:#fff3e0
+    style Q fill:#ffebee
+    style R fill:#e8f5e8</code></pre>
+        
+        <button onclick="processComplexGraph()">Process Complex Graph</button>
+        <div id="complex-result"></div>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            },
+            graph: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        });
+        
+        function processCodeBlock() {
+            const codeBlock = document.querySelector('.test-area:nth-child(2) code.language-mermaid');
+            const code = codeBlock.textContent.trim();
+            const resultDiv = document.getElementById('result');
+            
+            console.log('Processing code block:', code);
+            
+            const id = 'test-diagram-' + Date.now();
+            const mermaidDiv = document.createElement('div');
+            mermaidDiv.className = 'mermaid-diagram';
+            mermaidDiv.id = id;
+            
+            resultDiv.appendChild(mermaidDiv);
+            
+            mermaid.render(id + '-svg', code).then(({ svg, bindFunctions }) => {
+                console.log('Successfully rendered test diagram');
+                mermaidDiv.innerHTML = svg;
+                if (bindFunctions) {
+                    bindFunctions(mermaidDiv);
+                }
+            }).catch(error => {
+                console.error('Mermaid rendering error:', error);
+                mermaidDiv.innerHTML = `<div style="color: red; border: 1px solid red; padding: 10px;">
+                    <p><strong>Mermaid Diagram Error:</strong></p>
+                    <pre>${error.message}</pre>
+                </div>`;
+            });
+        }
+        
+        function processComplexGraph() {
+            // Clear previous results
+            const resultDiv = document.getElementById('complex-result');
+            resultDiv.innerHTML = '';
+            
+            // Your exact Graph TD code
+            const code = `graph TD
+    A["Initial Setup<br/>OCR + Images"] --> B["Cycle 1: Analysis"]
+    A --> C["Cycle 2: Analysis"] 
+    A --> D["Cycle 3: Analysis"]
+    
+    subgraph "Each Cycle (Independent)"
+        E["1. /clear-ctx<br/>(Keep --persist images)"]
+        F["2. /retrieve-ctx OCR_Results<br/>(Get raw OCR)"]
+        G["3. Generate Article List<br/>(From OCR)"]
+        H["4. Extract Articles<br/>(Gemini Pro)"]
+        I["5. Add Metadata<br/>(Full analysis)"]
+        J["6. /stash-ctx Article_Set_Cycle_N<br/>(Save this cycle's results)"]
+        
+        E --> F --> G --> H --> I --> J
+    end
+    
+    B --> K["Cross-Cycle Comparison"]
+    C --> K
+    D --> K
+    
+    subgraph "Comparison Phase"
+        L["1. /clear-ctx"]
+        M["2. /retrieve-ctx Article_Set_Cycle_1"]
+        N["3. /retrieve-ctx Article_Set_Cycle_2"] 
+        O["4. /retrieve-ctx Article_Set_Cycle_3"]
+        P["5. Compare Consistency<br/>- Article counts<br/>- Headlines<br/>- Content stability"]
+        Q["6. Identify Variations<br/>- Where cycles disagree<br/>- Root cause analysis"]
+        R["7. Build Consensus<br/>- Resolve conflicts<br/>- Create stable result"]
+        
+        L --> M --> N --> O --> P --> Q --> R
+    end
+    
+    K --> L
+    
+    style K fill:#e1f5fe
+    style P fill:#fff3e0
+    style Q fill:#ffebee
+    style R fill:#e8f5e8`;
+            
+            console.log('Processing YOUR EXACT complex graph:', code.substring(0, 100) + '...');
+            
+            const id = 'complex-diagram-' + Date.now();
+            const mermaidDiv = document.createElement('div');
+            mermaidDiv.className = 'mermaid-diagram';
+            mermaidDiv.id = id;
+            
+            resultDiv.appendChild(mermaidDiv);
+            
+            mermaid.render(id + '-svg', code).then(({ svg, bindFunctions }) => {
+                console.log('Successfully rendered YOUR complex diagram');
+                mermaidDiv.innerHTML = svg;
+                if (bindFunctions) {
+                    bindFunctions(mermaidDiv);
+                }
+            }).catch(error => {
+                console.error('YOUR complex diagram rendering error:', error);
+                mermaidDiv.innerHTML = `<div style="color: red; border: 1px solid red; padding: 10px;">
+                    <p><strong>Mermaid Diagram Error:</strong></p>
+                    <pre>${error.message}</pre>
+                    <details>
+                        <summary>Show diagram code</summary>
+                        <pre style="font-size: 12px; max-height: 200px; overflow-y: auto;">${code}</pre>
+                    </details>
+                </div>`;
+            });
+        }
+        
+        // Log when page loads
+        console.log('Mermaid version:', mermaid.version || 'Unknown');
+        console.log('Mermaid object:', mermaid);
+    </script>
+</body>
+</html>

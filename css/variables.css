@@ -8,6 +8,7 @@
     --text-muted: #adb5bd;
     --border-color: #dee2e6;
     --accent-color: #0d6efd;
+    --accent-color-alpha: rgba(13, 110, 253, 0.2);
     --accent-hover: #0b5ed7;
     --success-color: #198754;
     --warning-color: #fd7e14;
@@ -32,6 +33,7 @@
     --text-muted: #6c757d;
     --border-color: #495057;
     --accent-color: #0d6efd;
+    --accent-color-alpha: rgba(13, 110, 253, 0.2);
     --accent-hover: #3d8bfd;
     --success-color: #20c997;
     --warning-color: #fd7e14;
