@@ -134,19 +134,19 @@ graph TD
             const resultDiv = document.getElementById('complex-result');
             resultDiv.innerHTML = '';
             
-            // Your exact Graph TD code
+            // Fixed Graph TD code (removed HTML breaks)
             const code = `graph TD
-    A["Initial Setup<br/>OCR + Images"] --> B["Cycle 1: Analysis"]
+    A["Initial Setup - OCR + Images"] --> B["Cycle 1: Analysis"]
     A --> C["Cycle 2: Analysis"] 
     A --> D["Cycle 3: Analysis"]
     
     subgraph "Each Cycle (Independent)"
-        E["1. /clear-ctx<br/>(Keep --persist images)"]
-        F["2. /retrieve-ctx OCR_Results<br/>(Get raw OCR)"]
-        G["3. Generate Article List<br/>(From OCR)"]
-        H["4. Extract Articles<br/>(Gemini Pro)"]
-        I["5. Add Metadata<br/>(Full analysis)"]
-        J["6. /stash-ctx Article_Set_Cycle_N<br/>(Save this cycle's results)"]
+        E["1. /clear-ctx (Keep --persist images)"]
+        F["2. /retrieve-ctx OCR_Results (Get raw OCR)"]
+        G["3. Generate Article List (From OCR)"]
+        H["4. Extract Articles (Gemini Pro)"]
+        I["5. Add Metadata (Full analysis)"]
+        J["6. /stash-ctx Article_Set_Cycle_N (Save results)"]
         
         E --> F --> G --> H --> I --> J
     end
@@ -160,9 +160,9 @@ graph TD
         M["2. /retrieve-ctx Article_Set_Cycle_1"]
         N["3. /retrieve-ctx Article_Set_Cycle_2"] 
         O["4. /retrieve-ctx Article_Set_Cycle_3"]
-        P["5. Compare Consistency<br/>- Article counts<br/>- Headlines<br/>- Content stability"]
-        Q["6. Identify Variations<br/>- Where cycles disagree<br/>- Root cause analysis"]
-        R["7. Build Consensus<br/>- Resolve conflicts<br/>- Create stable result"]
+        P["5. Compare Consistency - Article counts, Headlines, Content stability"]
+        Q["6. Identify Variations - Where cycles disagree, Root cause analysis"]
+        R["7. Build Consensus - Resolve conflicts, Create stable result"]
         
         L --> M --> N --> O --> P --> Q --> R
     end
