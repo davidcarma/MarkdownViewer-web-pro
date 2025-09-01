@@ -8,19 +8,22 @@ class FileOperations {
     
     newFile() {
         if (this.editor.isModified) {
-            if (!confirm('You have unsaved changes. Are you sure you want to create a new file?')) {
-                return;
+            // Offer to save current work first
+            const shouldSave = confirm('You have unsaved changes. Would you like to save to localStorage before creating a new file?');
+            if (shouldSave) {
+                this.editor.saveToLocalStorage();
             }
         }
         
+        // Create new file
         this.editor.editor.value = '';
         this.editor.setDocumentTitle('Untitled.md');
         this.editor.setModified(false);
         this.editor.updatePreview();
         this.editor.updateStats();
         
-        // Save new empty file to localStorage
-        this.editor.autoSave();
+        // Replace localStorage buffer with new empty file
+        this.editor.replaceLocalStorageFile();
         
         this.editor.editor.focus();
         
@@ -50,13 +53,13 @@ class FileOperations {
                 this.editor.imageCollapse.initialize();
             }
 
-            // Save opened file to localStorage
-            this.editor.autoSave();
+            // Replace localStorage buffer with loaded file
+            this.editor.replaceLocalStorageFile();
             
             this.editor.editor.focus();
             
             // Show notification
-            this.editor.showNotification(`File opened: ${file.name}`, 'success');
+            this.editor.showNotification(`File loaded to localStorage: ${file.name}`, 'success');
         };
         reader.readAsText(file);
         

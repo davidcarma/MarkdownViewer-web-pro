@@ -91,7 +91,67 @@ class LocalStorageManager {
         return data.files[data.lastActiveFile] || null;
     }
     
-    // Auto-save functionality
+    // Update file state without changing content (for cursor position, etc.)
+    updateFileState(fileName, cursorPosition, isModified) {
+        const data = this.getAllData();
+        if (!data || !data.lastActiveFile) return false;
+        
+        const fileId = this.generateFileId(fileName);
+        if (data.files[fileId]) {
+            data.files[fileId].cursorPosition = cursorPosition;
+            data.files[fileId].isModified = isModified;
+            data.files[fileId].modified = new Date().toISOString();
+            
+            return this.saveAllData(data);
+        }
+        return false;
+    }
+    
+    // Replace current file in localStorage (for file loading or new file)
+    replaceCurrentFile(fileName, content, cursorPosition, isModified) {
+        const success = this.saveCurrentFile(fileName, content, cursorPosition, isModified);
+        if (success) {
+            console.log(`Replaced localStorage buffer: ${fileName}`);
+            this.showReplaceIndicator(fileName);
+        }
+        return success;
+    }
+    
+    showReplaceIndicator(fileName) {
+        // Create temporary indicator
+        const indicator = document.createElement('div');
+        indicator.textContent = `📁 Buffered: ${fileName}`;
+        indicator.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 10001;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+        
+        document.body.appendChild(indicator);
+        
+        // Animate in
+        setTimeout(() => indicator.style.opacity = '1', 10);
+        
+        // Remove after delay
+        setTimeout(() => {
+            indicator.style.opacity = '0';
+            setTimeout(() => {
+                if (indicator.parentNode) {
+                    indicator.parentNode.removeChild(indicator);
+                }
+            }, 300);
+        }, 3000);
+    }
+    
+    // Auto-save functionality (legacy method, now used for explicit saves)
     autoSave(fileName, content, cursorPosition, isModified) {
         // Clear existing timeout
         if (this.autoSaveTimeout) {
