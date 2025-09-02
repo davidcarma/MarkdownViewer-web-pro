@@ -12,7 +12,8 @@ A fully-featured, modern Markdown editor with live preview, auto-save, and fulls
 - **Fullscreen Editing**: Distraction-free editing mode with smooth transitions
 - **Syntax Highlighting**: Code blocks are highlighted using highlight.js
 - **File Operations**: New, Open, and Save markdown files with smart workflow
-- **Drag & Drop Support**: Drop markdown files directly onto the editor
+- **Word Document Import**: Import and convert Word documents (.docx) to Markdown automatically
+- **Drag & Drop Support**: Drop markdown files or Word documents directly onto the editor
 - **Image Paste Support**: Paste images from clipboard as embedded inline images
 - **Image Widget System**: Collapse long data URLs into moveable image objects
 - **Mermaid Diagrams**: Full support for Mermaid flowcharts, sequence diagrams, and more
@@ -81,7 +82,8 @@ A fully-featured, modern Markdown editor with live preview, auto-save, and fulls
 - **Format Text**: Use the toolbar buttons or keyboard shortcuts
 
 ### Advanced Features
-- **Drag & Drop**: Simply drag markdown files from your file system
+- **Drag & Drop**: Simply drag markdown files or Word documents from your file system
+- **Word Import**: Click the Word import button or drag & drop .docx files for automatic conversion
 - **Paste Images**: Copy any image and paste (Ctrl/Cmd+V) directly into the editor
 - **Mermaid Diagrams**: Create flowcharts with code blocks marked as `mermaid`
 - **Fullscreen Editing**: Switch between edit and preview modes in fullscreen
@@ -119,6 +121,7 @@ Markdown Viewer/
 ├── marked.min.js                 # Markdown parsing library
 ├── highlight.min.js              # Syntax highlighting library
 ├── mermaid.min.js                # Mermaid diagram library
+├── mammoth.min.js                # Word document conversion library
 ├── highlight.min.css             # Syntax highlighting styles
 ├── README.md                     # This file
 ├── LOCALSTORAGE.md               # localStorage documentation
@@ -132,6 +135,7 @@ All dependencies are included locally for offline functionality:
 - **Marked.js**: Fast markdown parser and compiler
 - **Highlight.js**: Syntax highlighting for code blocks
 - **Mermaid.js**: Diagram and flowchart rendering
+- **Mammoth.js**: Word document to HTML/Markdown conversion
 
 ## Browser Support
 
@@ -193,26 +197,29 @@ LocalStorage data does **NOT** automatically sync across devices. Each browser/d
 
 ## Drag & Drop Feature
 
-The editor supports intuitive drag and drop functionality for opening markdown files:
+The editor supports intuitive drag and drop functionality for opening markdown files and Word documents:
 
 ### How it Works
-1. **Drag a File**: Select any markdown file (`.md`, `.txt`, `.markdown`) from your file system
+1. **Drag a File**: Select any supported file (`.md`, `.txt`, `.markdown`, `.docx`) from your file system
 2. **Drop on Editor**: Drag the file over the editor pane (left side) - you'll see a visual indicator
 3. **Smart Handling**: If you have unsaved changes, you'll get a dialog with three options:
    - **Cancel**: Keep current file, don't load the dropped file
    - **Save Current & Load New**: Save your current work first, then load the dropped file
    - **Replace Without Saving**: Discard current changes and load the dropped file
+4. **Automatic Conversion**: Word documents are automatically converted to Markdown during the drop process
 
 ### Supported File Types
 - `.md` (Markdown files)
 - `.txt` (Plain text files) 
 - `.markdown` (Markdown files with full extension)
-- Files with `text/markdown` or `text/plain` MIME types
+- `.docx` (Microsoft Word documents - automatically converted to Markdown)
+- Files with `text/markdown`, `text/plain`, or Word document MIME types
 
 ### Visual Feedback
-- **Drag Over**: The editor pane highlights with a blue dashed border and shows "Drop markdown file here"
-- **Success**: Green notification confirms the file was loaded
-- **Error**: Red notification shows if there's an issue (wrong file type, read error, etc.)
+- **Drag Over**: The editor pane highlights with a blue dashed border and shows "Drop file here"
+- **Success**: Green notification confirms the file was loaded or converted successfully
+- **Error**: Red notification shows if there's an issue (unsupported file type, conversion error, etc.)
+- **Word Conversion**: Special notifications for Word document conversion progress and results
 
 ## Image Paste Feature
 
@@ -280,6 +287,57 @@ The editor features an innovative widget system that collapses long data URLs in
 - **Toggle Views**: Use the toggle button in the editor header to switch between widget and raw views
 
 This system makes working with embedded images much more manageable, especially when dealing with multiple images or large documents.
+
+## Word Document Import
+
+The editor supports importing Microsoft Word documents (.docx) and automatically converting them to Markdown:
+
+### How to Import Word Documents
+
+1. **Using the Import Button**: Click the Word document import button (W icon) in the toolbar
+2. **Drag & Drop**: Simply drag a .docx file from your file system onto the editor
+3. **File Selection**: Browse and select a Word document from the file dialog
+
+### Conversion Features
+
+- **Automatic Format Conversion**: Word formatting is automatically converted to Markdown syntax
+- **Preserved Elements**: 
+  - Headings (H1-H6) → Markdown headings (`#`, `##`, etc.)
+  - Bold and italic text → `**bold**` and `*italic*`
+  - Lists (bulleted and numbered) → Markdown lists
+  - Links → `[text](url)` format
+  - Tables → Markdown table format
+  - Code blocks → Triple backtick code blocks
+  - Blockquotes → `> quoted text`
+- **Smart Filename Handling**: Original filename is preserved with `.md` extension
+- **Warning Notifications**: Any formatting issues are reported after conversion
+
+### Supported Word Features
+
+The import function handles most common Word document elements:
+
+- **Text Formatting**: Bold, italic, inline code
+- **Document Structure**: Headings, paragraphs, line breaks
+- **Lists**: Bulleted lists, numbered lists, nested lists
+- **Links**: Hyperlinks with proper URL preservation
+- **Tables**: Full table structure with headers and cells
+- **Quotes**: Blockquotes and indented text
+- **Images**: Embedded images (converted to base64 data URLs)
+
+### Technical Details
+
+- **Conversion Engine**: Uses mammoth.js library for reliable Word to HTML conversion
+- **Processing Pipeline**: Word → HTML → Markdown for clean output
+- **Error Handling**: Graceful handling of unsupported elements
+- **Preservation**: Original document structure and hierarchy maintained
+- **Integration**: Seamlessly integrates with existing editor features (auto-save, image collapse, etc.)
+
+### Known Limitations
+
+- Complex formatting (custom styles, advanced layouts) may be simplified
+- Some Word-specific features (comments, track changes) are not preserved
+- Very large documents may take longer to process
+- Requires modern browser with ES6+ support for optimal performance
 
 ## Mermaid Diagram Support
 
