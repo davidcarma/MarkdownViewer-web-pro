@@ -39,26 +39,34 @@ class DragDropHandler {
             editorPane.classList.remove('drag-over');
             
             const files = Array.from(e.dataTransfer.files);
-            const textFiles = files.filter(file => 
+            const supportedFiles = files.filter(file => 
                 file.type === 'text/markdown' || 
                 file.type === 'text/plain' || 
                 file.name.endsWith('.md') || 
                 file.name.endsWith('.txt') ||
-                file.name.endsWith('.markdown')
+                file.name.endsWith('.markdown') ||
+                file.name.endsWith('.docx') ||
+                file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             );
             
-            if (textFiles.length === 0) {
-                this.editor.showNotification('Please drop a markdown or text file', 'error');
+            if (supportedFiles.length === 0) {
+                this.editor.showNotification('Please drop a markdown, text, or Word document file', 'error');
                 return;
             }
             
-            if (textFiles.length > 1) {
+            if (supportedFiles.length > 1) {
                 this.editor.showNotification('Please drop only one file at a time', 'error');
                 return;
             }
             
-            const file = textFiles[0];
-            this.handleFileDrop(file);
+            const file = supportedFiles[0];
+            
+            // Check if it's a Word document
+            if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                this.handleWordFileDrop(file);
+            } else {
+                this.handleFileDrop(file);
+            }
         });
     }
     
@@ -105,6 +113,111 @@ class DragDropHandler {
         };
         
         reader.readAsText(file);
+    }
+    
+    async handleWordFileDrop(file) {
+        // Check if mammoth is available with retry logic
+        const checkMammoth = () => {
+            return typeof mammoth !== 'undefined';
+        };
+        
+        if (!checkMammoth()) {
+            this.editor.showNotification('Checking mammoth.js availability...', 'info');
+            
+            // Wait a bit in case mammoth is still loading
+            setTimeout(() => {
+                if (!checkMammoth()) {
+                    console.error('mammoth.js not available for drag-drop. Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('mammoth')));
+                    this.editor.showNotification('Word import feature not available. Please check browser console for details.', 'error');
+                    return;
+                }
+                
+                // If mammoth became available, continue processing
+                this.processWordFileDrop(file);
+            }, 200);
+            return;
+        }
+        
+        this.processWordFileDrop(file);
+    }
+    
+    async processWordFileDrop(file) {
+        // If current content is modified, ask user what to do
+        if (this.editor.isModified) {
+            const action = await this.showFileReplaceDialog(file.name);
+            
+            if (action === 'cancel') {
+                return;
+            } else if (action === 'save') {
+                // Save current file first
+                this.editor.saveFile();
+            }
+            // If action is 'replace', we continue without saving
+        }
+        
+        // Show processing notification
+        this.editor.showNotification(`Converting Word document: ${file.name}...`, 'info');
+        
+        try {
+            // Read file as ArrayBuffer first (mammoth.js requires this format)
+            const arrayBuffer = await this.readFileAsArrayBuffer(file);
+            
+            // Convert Word document to HTML using ArrayBuffer
+            const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+            const html = result.value;
+            
+            // Convert HTML to Markdown (reuse the method from file-operations)
+            const markdown = this.editor.fileOps ? 
+                this.editor.fileOps.htmlToMarkdown(html) : 
+                html; // Fallback to HTML if method not available
+            
+            // Set the converted content in the editor
+            this.editor.editor.value = markdown;
+            
+            // Set filename with .md extension
+            const originalName = file.name.replace(/\.[^/.]+$/, '');
+            const newFileName = originalName + '.md';
+            this.editor.currentFileName = newFileName;
+            this.editor.fileName.textContent = this.editor.currentFileName;
+            
+            this.editor.lastSavedContent = markdown;
+            this.editor.setModified(false);
+            this.editor.updatePreview();
+            this.editor.updateStats();
+            this.editor.updateCursorPosition();
+            
+            // Auto-collapse images if collapse is enabled
+            if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
+                this.editor.imageCollapse.initialize();
+            }
+            
+            // Replace localStorage buffer with converted file
+            this.editor.replaceLocalStorageFile();
+            
+            this.editor.editor.focus();
+            
+            // Show success notification with any warnings
+            const warnings = result.messages.filter(msg => msg.type === 'warning');
+            let message = `Word document converted successfully: ${newFileName}`;
+            if (warnings.length > 0) {
+                message += ` (${warnings.length} formatting warnings)`;
+            }
+            this.editor.showNotification(message, 'success');
+            
+        } catch (error) {
+            console.error('Word conversion error:', error);
+            this.editor.showNotification('Failed to convert Word document: ' + error.message, 'error');
+        }
+    }
+    
+    // Helper method to read file as ArrayBuffer  
+    readFileAsArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(new Error('Failed to read file: ' + e.target.error));
+            reader.readAsArrayBuffer(file);
+        });
     }
     
     showFileReplaceDialog(fileName) {

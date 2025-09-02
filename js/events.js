@@ -23,6 +23,7 @@ class EditorEvents {
         // Toolbar events
         document.getElementById('newFile').addEventListener('click', () => this.editor.newFile());
         document.getElementById('openFile').addEventListener('click', () => this.editor.openFile());
+        document.getElementById('openWordFile').addEventListener('click', () => this.editor.openWordFile());
         document.getElementById('saveFile').addEventListener('click', () => this.editor.saveFile());
         document.getElementById('exportToPdf').addEventListener('click', () => this.editor.exportToPdf());
         document.getElementById('printFile').addEventListener('click', () => this.editor.printFile());
@@ -40,6 +41,9 @@ class EditorEvents {
         
         // File input event
         this.editor.fileInput.addEventListener('change', (e) => this.editor.handleFileOpen(e));
+        
+        // Word file input event
+        this.editor.wordFileInput.addEventListener('change', (e) => this.editor.handleWordFileOpen(e));
         
         // Image file input event
         const imageInput = document.getElementById('imageInput');

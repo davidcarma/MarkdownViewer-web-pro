@@ -12,6 +12,7 @@ class MarkdownEditor {
         this.charCount = document.getElementById('charCount');
         this.cursorPosition = document.getElementById('cursorPosition');
         this.fileInput = document.getElementById('fileInput');
+        this.wordFileInput = document.getElementById('wordFileInput');
         this.documentTitle = document.getElementById('documentTitle');
         
         this.currentFileName = 'Untitled.md';
