@@ -114,6 +114,9 @@ class EditorEvents {
                         e.preventDefault();
                         this.editor.saveToLocalStorage();
                         break;
+                    // Let browser handle undo/redo natively
+                    // case 'z': - Removed to allow native undo
+                    // case 'y': - Removed to allow native redo
                 }
             }
         });
