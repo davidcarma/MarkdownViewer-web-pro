@@ -25,6 +25,8 @@ A fully-featured, modern Markdown editor with live preview, auto-save, and fulls
   - `Ctrl/Cmd + O`: Open file
   - `Ctrl/Cmd + S`: Save file (download)
   - `Ctrl/Cmd + L`: Save to localStorage
+  - `Ctrl/Cmd + Z`: Undo (native browser undo)
+  - `Ctrl/Cmd + Y`: Redo (native browser redo)
   - `Ctrl/Cmd + B`: Bold text
   - `Ctrl/Cmd + I`: Italic text
   - `Escape`: Exit fullscreen mode
@@ -153,6 +155,8 @@ All dependencies are included locally for offline functionality:
 | `Ctrl/Cmd + O` | Open file |
 | `Ctrl/Cmd + S` | Save file (download) |
 | `Ctrl/Cmd + L` | Save to localStorage |
+| `Ctrl/Cmd + Z` | Undo (native browser) |
+| `Ctrl/Cmd + Y` | Redo (native browser) |
 | `Ctrl/Cmd + E` | Export to PDF |
 | `Ctrl/Cmd + P` | Print |
 | `Ctrl/Cmd + B` | Bold selected text |

@@ -19,6 +19,8 @@ class MarkdownEditor {
         this.isModified = false;
         this.lastSavedContent = '';
         
+        // Undo/Redo handled natively by browser - no custom implementation needed
+        
         // Initialize storage manager
         this.storageManager = new LocalStorageManager();
         
@@ -1259,6 +1261,7 @@ graph TD
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
+    
     
     bindEvents() {
         // Basic editor events - specific handlers will be added by modules
