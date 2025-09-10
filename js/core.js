@@ -115,17 +115,34 @@ class MarkdownEditor {
     
     updatePreview() {
         try {
-            // Use expanded content for preview if images are collapsed or in compact mode
-            let markdownText = this.editor.value;
+            // Check if marked.js is available
+            if (typeof marked === 'undefined') {
+                console.error('marked.js not loaded!');
+                this.preview.innerHTML = '<div class="error">Marked.js library not loaded</div>';
+                return;
+            }
             
-            // If in compact mode, use the expanded content for preview
-            if (this.isCompactMode && this.expandedContent) {
-                markdownText = this.expandedContent;
+            // Get markdown content based on current mode
+            let markdownText = this.editor.value;
+            console.log('updatePreview - isCompactMode:', this.isCompactMode);
+            console.log('updatePreview - raw editor value:', markdownText.substring(0, 100) + '...');
+            
+            // Auto-detect escaped content even if not in compact mode
+            const hasEscapedSequences = markdownText.includes('\\n') || markdownText.includes('\\"');
+            console.log('updatePreview - hasEscapedSequences:', hasEscapedSequences);
+            
+            // If in compact mode OR content has escaped sequences, unescape for preview
+            if (this.isCompactMode || hasEscapedSequences) {
+                console.log('updatePreview - unescaping content for preview');
+                markdownText = this.getLiveUnescapedContent();
+                console.log('updatePreview - after unescape:', markdownText.substring(0, 100) + '...');
             } else if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
                 markdownText = this.imageCollapse.getPreviewContent();
             }
             
+            console.log('updatePreview - about to parse with marked.js');
             const html = marked.parse(markdownText);
+            console.log('updatePreview - marked.js result:', html.substring(0, 100) + '...');
             this.preview.innerHTML = html;
             
             // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
@@ -147,7 +164,7 @@ class MarkdownEditor {
             }, 50);
         } catch (error) {
             console.error('Markdown parsing error:', error);
-            this.preview.innerHTML = '<div class="error">Error parsing markdown</div>';
+            this.preview.innerHTML = '<div class="error">Error parsing markdown: ' + error.message + '</div>';
         }
     }
     
@@ -1090,6 +1107,11 @@ class MarkdownEditor {
     }
     
     loadSavedFile() {
+        // Skip localStorage temporarily to start fresh
+        console.log('Starting with clean content - skipping localStorage');
+        this.loadWelcomeContent();
+        return;
+        
         if (!this.storageManager) return;
         
         const savedFile = this.storageManager.getCurrentFile();
@@ -1123,7 +1145,7 @@ class MarkdownEditor {
         // Load default welcome content
         const welcomeContent = `# Welcome to Markdown Editor
 
-This is a **powerful** markdown editor with live preview.
+This is a **powerful** markdown editor with live preview and compact/expand functionality.
 
 ## Features
 - Real-time preview
@@ -1132,7 +1154,17 @@ This is a **powerful** markdown editor with live preview.
 - Dark/Light themes
 - Format toolbar
 - Auto-save to localStorage
-- Fullscreen editing mode
+- **Compact/Expand mode** for JSON string handling
+
+## Compact/Expand Feature
+
+Use the compact button (📝) to convert markdown to JSON-safe strings:
+
+### Example Usage:
+1. Write your markdown normally
+2. Click compact to get: \`"# Title\\n\\nContent here"\`
+3. Copy the escaped string for JSON use
+4. Click expand to return to normal editing
 
 ### Code Example
 \`\`\`javascript
@@ -1141,34 +1173,15 @@ function hello() {
 }
 \`\`\`
 
-### Mermaid Diagram Example
-\`\`\`mermaid
-graph TD
-    A[Start] --> B{Is it working?}
-    B -->|Yes| C[Great!]
-    B -->|No| D[Debug]
-    D --> E[Fix issues]
-    E --> B
-    C --> F[Deploy]
-    F --> G[End]
-\`\`\`
-
-> This is a blockquote
-
-- List item 1
-- List item 2
-- List item 3
-
-[Link](https://example.com) | ![Image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y0ZjRmNCIgc3Ryb2tlPSIjY2NjIiBzdHJva2Utd2lkdGg9IjEiLz4KICA8dGV4dCB4PSI3NSIgeT0iNTUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SW1hZ2UgRXhhbXBsZTwvdGV4dD4KICA8L3N2Zz4=)
-
-| Header 1 | Header 2 |
-|----------|----------|
-| Cell 1   | Cell 2   |
+> This is perfect for API payloads, configuration files, and prompt engineering!
 
 **Your work is automatically saved to localStorage!**`;
 
         this.editor.value = welcomeContent;
         console.log('Loading welcome content for new user');
+        
+        // Force immediate preview update
+        this.updatePreview();
         
         // Save welcome content to localStorage
         this.autoSave();
@@ -1279,16 +1292,66 @@ graph TD
     unescapeJsonString(str) {
         try {
             // Use JSON.parse for proper unescaping by wrapping in quotes
-            return JSON.parse('"' + str + '"');
+            const unescaped = JSON.parse('"' + str + '"');
+            console.log('JSON.parse unescaping successful');
+            console.log('Original:', str.substring(0, 50) + '...');
+            console.log('Unescaped:', unescaped.substring(0, 50) + '...');
+            return unescaped;
         } catch (error) {
             console.warn('JSON parse failed, using manual unescape:', error);
             // Fallback to manual unescaping if JSON.parse fails
-            return str.replace(/\\n/g, '\n')
-                      .replace(/\\r/g, '\r')
-                      .replace(/\\t/g, '\t')
-                      .replace(/\\"/g, '"')
-                      .replace(/\\\//g, '/')
-                      .replace(/\\\\/g, '\\');
+            const manually = str.replace(/\\n/g, '\n')
+                              .replace(/\\r/g, '\r')
+                              .replace(/\\t/g, '\t')
+                              .replace(/\\"/g, '"')
+                              .replace(/\\\//g, '/')
+                              .replace(/\\\\/g, '\\');
+            console.log('Manual unescaping result:', manually.substring(0, 50) + '...');
+            return manually;
+        }
+    }
+
+    // Get live unescaped content for real-time preview 
+    getLiveUnescapedContent() {
+        let currentValue = this.editor.value.trim();
+        
+        // If empty, return stored expanded content or empty
+        if (!currentValue) {
+            return this.expandedContent || '';
+        }
+        
+        // Check if content looks like it needs unescaping
+        const needsUnescaping = currentValue.includes('\\n') || currentValue.includes('\\"') || 
+                               (currentValue.startsWith('"') && currentValue.endsWith('"'));
+        
+        if (!needsUnescaping) {
+            console.log('Content does not need unescaping, returning as-is');
+            return currentValue;
+        }
+        
+        try {
+            // Remove surrounding quotes if present
+            let valueToUnescape = currentValue;
+            if (currentValue.startsWith('"') && currentValue.endsWith('"') && currentValue.length > 2) {
+                valueToUnescape = currentValue.slice(1, -1);
+                console.log('Removed surrounding quotes');
+            }
+            
+            // Try to unescape the current content
+            const unescaped = this.unescapeJsonString(valueToUnescape);
+            
+            // Update stored expanded content with successful unescape (only if in compact mode)
+            if (this.isCompactMode) {
+                this.expandedContent = unescaped;
+            }
+            
+            console.log('Live unescape successful, preview will update with:', unescaped.substring(0, 50) + '...');
+            return unescaped;
+            
+        } catch (error) {
+            // If unescaping fails, fall back to stored expanded content or original
+            console.warn('Live unescape failed:', error.message);
+            return this.expandedContent || currentValue;
         }
     }
 
@@ -1312,12 +1375,13 @@ graph TD
         this.editor.value = `"${compactString}"`;
         this.isCompactMode = true;
         
+        console.log('Switched to compact mode - isCompactMode now:', this.isCompactMode);
+        console.log('Compact string:', this.editor.value.substring(0, 100) + '...');
+        
         // Update preview to show the original markdown rendered
         this.updatePreview();
         this.updateStats();
         this.setModified(true);
-        
-        console.log('Switched to compact mode');
     }
 
     expandMode() {
@@ -1326,11 +1390,19 @@ graph TD
         // If the content is wrapped in quotes, remove them and unescape
         if (currentValue.startsWith('"') && currentValue.endsWith('"')) {
             currentValue = currentValue.slice(1, -1);
-            currentValue = this.unescapeJsonString(currentValue);
+            try {
+                currentValue = this.unescapeJsonString(currentValue);
+            } catch (error) {
+                console.warn('Failed to unescape during expand, using stored content:', error);
+                currentValue = this.expandedContent || currentValue;
+            }
         }
         
+        // Update the expanded content with current live content
+        this.expandedContent = currentValue || this.expandedContent;
+        
         // Restore the content
-        this.editor.value = currentValue || this.expandedContent;
+        this.editor.value = this.expandedContent;
         this.isCompactMode = false;
         
         // Update preview and stats
@@ -1534,16 +1606,22 @@ graph TD
         }
         
         this.editor.addEventListener('input', () => {
-            this.updatePreview();
-            this.updateStats();
-            this.setModified(true);
-            
-            // Auto-save content as user types (debounced)
-            this.autoSave();
-            
-            // Refresh syntax highlighting if available
-            if (this.syntaxHighlighter) {
-                this.syntaxHighlighter.debouncedHighlight();
+            try {
+                this.updatePreview();
+                this.updateStats();
+                this.setModified(true);
+                
+                // Auto-save content as user types (debounced)
+                this.autoSave();
+                
+                // Refresh syntax highlighting if available
+                if (this.syntaxHighlighter) {
+                    this.syntaxHighlighter.debouncedHighlight();
+                }
+            } catch (error) {
+                console.error('Error in input handler:', error);
+                // Try to keep basic functionality working
+                this.setModified(true);
             }
         });
 

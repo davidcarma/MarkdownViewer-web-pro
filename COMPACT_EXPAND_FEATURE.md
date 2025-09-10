@@ -51,9 +51,10 @@ The compact mode automatically handles:
 - Tab escaping (`\t` → `\\t`)
 - Other JSON control characters
 
-### Preview Preservation
-- In compact mode, the preview pane still shows the properly rendered markdown
-- This lets you verify the content while working with the escaped string
+### Live Preview in Both Modes
+- **Expand mode**: Preview updates in real-time as you type normal markdown
+- **Compact mode**: Preview updates in real-time by dynamically unescaping your edits
+- This lets you verify the content while working with the escaped string and see changes immediately
 
 ### Visual Indicators
 - Button icon changes between list and expand arrow
@@ -100,7 +101,8 @@ The compact mode automatically handles:
 
 ## Notes
 
-- The preview always renders the original markdown content, even in compact mode
-- Switching modes preserves your content - no data loss
-- Perfect for working with AI prompts, API configurations, and other JSON-based systems
-- All standard markdown features continue to work in both modes
+- **Real-time preview**: Works in both modes - even when editing escaped strings in compact mode!
+- **No data loss**: Switching modes preserves your content and edits
+- **Live editing**: You can edit the escaped string directly and see the preview update immediately
+- **Perfect workflow**: Copy escaped strings from APIs/JSON, paste, auto-unescape, edit, then compact for export
+- **All markdown features**: Work in both modes including headings, formatting, links, etc.
