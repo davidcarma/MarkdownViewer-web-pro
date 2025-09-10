@@ -19,6 +19,10 @@ class MarkdownEditor {
         this.isModified = false;
         this.lastSavedContent = '';
         
+        // Compact/Expand mode state
+        this.isCompactMode = false;
+        this.expandedContent = '';
+        
         // Undo/Redo handled natively by browser - no custom implementation needed
         
         // Initialize storage manager
@@ -111,9 +115,13 @@ class MarkdownEditor {
     
     updatePreview() {
         try {
-            // Use expanded content for preview if images are collapsed
+            // Use expanded content for preview if images are collapsed or in compact mode
             let markdownText = this.editor.value;
-            if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
+            
+            // If in compact mode, use the expanded content for preview
+            if (this.isCompactMode && this.expandedContent) {
+                markdownText = this.expandedContent;
+            } else if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
                 markdownText = this.imageCollapse.getPreviewContent();
             }
             
@@ -1261,10 +1269,270 @@ graph TD
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
+
+    // JSON string utilities for compact mode
+    escapeJsonString(str) {
+        // Use JSON.stringify for proper escaping, then remove outer quotes
+        return JSON.stringify(str).slice(1, -1);
+    }
+
+    unescapeJsonString(str) {
+        try {
+            // Use JSON.parse for proper unescaping by wrapping in quotes
+            return JSON.parse('"' + str + '"');
+        } catch (error) {
+            console.warn('JSON parse failed, using manual unescape:', error);
+            // Fallback to manual unescaping if JSON.parse fails
+            return str.replace(/\\n/g, '\n')
+                      .replace(/\\r/g, '\r')
+                      .replace(/\\t/g, '\t')
+                      .replace(/\\"/g, '"')
+                      .replace(/\\\//g, '/')
+                      .replace(/\\\\/g, '\\');
+        }
+    }
+
+    // Compact/Expand mode methods
+    toggleCompactMode() {
+        if (this.isCompactMode) {
+            this.expandMode();
+        } else {
+            this.compactMode();
+        }
+        this.updateCompactModeUI();
+    }
+
+    compactMode() {
+        // Store the current content as expanded content
+        this.expandedContent = this.editor.value;
+        
+        // Convert to compact (single-line JSON-escaped) format
+        const compactString = this.escapeJsonString(this.expandedContent);
+        
+        this.editor.value = `"${compactString}"`;
+        this.isCompactMode = true;
+        
+        // Update preview to show the original markdown rendered
+        this.updatePreview();
+        this.updateStats();
+        this.setModified(true);
+        
+        console.log('Switched to compact mode');
+    }
+
+    expandMode() {
+        let currentValue = this.editor.value;
+        
+        // If the content is wrapped in quotes, remove them and unescape
+        if (currentValue.startsWith('"') && currentValue.endsWith('"')) {
+            currentValue = currentValue.slice(1, -1);
+            currentValue = this.unescapeJsonString(currentValue);
+        }
+        
+        // Restore the content
+        this.editor.value = currentValue || this.expandedContent;
+        this.isCompactMode = false;
+        
+        // Update preview and stats
+        this.updatePreview();
+        this.updateStats();
+        this.setModified(true);
+        
+        console.log('Switched to expand mode');
+    }
+
+    updateCompactModeUI() {
+        const toggleBtn = document.getElementById('toggleCompact');
+        const editorPane = document.querySelector('.editor-pane .pane-title');
+        
+        if (toggleBtn) {
+            if (this.isCompactMode) {
+                toggleBtn.title = 'Expand to Multi-line Mode';
+                toggleBtn.classList.add('active');
+                // Change icon to expand icon
+                toggleBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path>
+                        <path d="M15 9l6-6M21 3h-6v6"></path>
+                    </svg>
+                `;
+            } else {
+                toggleBtn.title = 'Compact to Single-line Mode';
+                toggleBtn.classList.remove('active');
+                // Change icon to compact icon  
+                toggleBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path>
+                    </svg>
+                `;
+            }
+        }
+
+        // Update editor pane title to indicate mode
+        if (editorPane) {
+            editorPane.textContent = this.isCompactMode ? 'Editor (Compact)' : 'Editor';
+        }
+    }
+
+    // Detect if pasted content contains escaped strings and offer to unescape
+    detectAndOfferUnescape() {
+        const content = this.editor.value.trim();
+        
+        // Skip if in compact mode or content is too short
+        if (this.isCompactMode || content.length < 10) return;
+        
+        // Check for escaped newlines (the main indicator)
+        const hasEscapedNewlines = content.includes('\\n');
+        
+        // Check for other JSON escape sequences
+        const hasEscapedQuotes = content.includes('\\"');
+        const hasEscapedBackslashes = content.includes('\\\\');
+        
+        // More sophisticated check: content should look like it has multiple lines but all on one line
+        const looksLikeSingleLineMarkdown = hasEscapedNewlines && !content.includes('\n');
+        
+        // Check if it starts with markdown-like content (after potential quote removal)
+        const testContent = content.startsWith('"') ? content.slice(1) : content;
+        const startsWithMarkdown = /^#\s+\w+|^\*\*\w+|^-\s+\w+/i.test(testContent);
+        
+        // Only show notification if it really looks like escaped markdown
+        if (hasEscapedNewlines && (looksLikeSingleLineMarkdown || startsWithMarkdown || hasEscapedQuotes)) {
+            this.showUnescapeNotification();
+        }
+    }
+
+    showUnescapeNotification() {
+        // Remove any existing unescape notification
+        const existingNotification = document.querySelector('.unescape-notification');
+        if (existingNotification) {
+            existingNotification.remove();
+        }
+
+        // Create notification
+        const notification = document.createElement('div');
+        notification.className = 'unescape-notification';
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span>🔧 Escaped content detected! Would you like to unescape it?</span>
+                <div class="notification-buttons">
+                    <button class="btn btn-sm btn-primary" id="unescapeBtn">Unescape</button>
+                    <button class="btn btn-sm" id="dismissUnescapeBtn">Dismiss</button>
+                </div>
+            </div>
+        `;
+        
+        // Style the notification
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 10002;
+            max-width: 350px;
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--accent-color);
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+        `;
+
+        // Add notification styles
+        const style = document.createElement('style');
+        style.textContent = `
+            .unescape-notification .notification-content {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .unescape-notification .notification-buttons {
+                display: flex;
+                gap: 8px;
+                justify-content: flex-end;
+            }
+            .unescape-notification .btn {
+                font-size: 12px;
+                padding: 0.25rem 0.5rem;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Add to DOM
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateY(0)';
+        }, 10);
+
+        // Add event listeners
+        document.getElementById('unescapeBtn').addEventListener('click', () => {
+            this.unescapePastedContent();
+            notification.remove();
+            style.remove();
+        });
+
+        document.getElementById('dismissUnescapeBtn').addEventListener('click', () => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateY(-20px)';
+            setTimeout(() => {
+                notification.remove();
+                style.remove();
+            }, 300);
+        });
+
+        // Auto-dismiss after 10 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateY(-20px)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                        style.remove();
+                    }
+                }, 300);
+            }
+        }, 10000);
+    }
+
+    unescapePastedContent() {
+        let content = this.editor.value;
+        
+        // Remove surrounding quotes if present
+        if (content.startsWith('"') && content.endsWith('"')) {
+            content = content.slice(1, -1);
+        }
+        
+        // Unescape the content
+        const unescapedContent = this.unescapeJsonString(content);
+        
+        // Update the editor
+        this.editor.value = unescapedContent;
+        
+        // Update preview and stats
+        this.updatePreview();
+        this.updateStats();
+        this.setModified(true);
+        
+        // Show success message
+        this.showNotification('Content unescaped successfully! ✨', 'success');
+        
+        // Focus the editor
+        this.editor.focus();
+    }
     
     
     bindEvents() {
         // Basic editor events - specific handlers will be added by modules
+        if (!this.editor) {
+            console.error('Editor element not found!');
+            return;
+        }
+        
         this.editor.addEventListener('input', () => {
             this.updatePreview();
             this.updateStats();
@@ -1277,6 +1545,13 @@ graph TD
             if (this.syntaxHighlighter) {
                 this.syntaxHighlighter.debouncedHighlight();
             }
+        });
+
+        // Add paste event listener for auto-detection of escaped strings
+        this.editor.addEventListener('paste', (e) => {
+            setTimeout(() => {
+                this.detectAndOfferUnescape();
+            }, 100);
         });
         
         this.editor.addEventListener('scroll', () => {

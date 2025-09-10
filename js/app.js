@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('   Ctrl/Cmd + P: Print file');
     console.log('   Ctrl/Cmd + B: Bold text');
     console.log('   Ctrl/Cmd + I: Italic text');
+    console.log('   Ctrl/Cmd + U: Unescape JSON string');
     console.log('   Ctrl/Cmd + Z: Undo (native browser)');
     console.log('   Ctrl/Cmd + Y: Redo (native browser)');
     console.log('   Tab: Indent');
