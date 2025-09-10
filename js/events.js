@@ -27,6 +27,8 @@ class EditorEvents {
         document.getElementById('saveFile').addEventListener('click', () => this.editor.saveFile());
         document.getElementById('exportToPdf').addEventListener('click', () => this.editor.exportToPdf());
         document.getElementById('printFile').addEventListener('click', () => this.editor.printFile());
+        document.getElementById('toggleCompact').addEventListener('click', () => this.editor.toggleCompactMode());
+        document.getElementById('unescapeContent').addEventListener('click', () => this.editor.unescapePastedContent());
         document.getElementById('togglePreview').addEventListener('click', () => this.editor.togglePreview());
         document.getElementById('toggleTheme').addEventListener('click', () => this.editor.toggleTheme());
         document.getElementById('copyHtml').addEventListener('click', () => this.editor.copyHtml());
@@ -113,6 +115,10 @@ class EditorEvents {
                     case 'l':
                         e.preventDefault();
                         this.editor.saveToLocalStorage();
+                        break;
+                    case 'u':
+                        e.preventDefault();
+                        this.editor.unescapePastedContent();
                         break;
                     // Let browser handle undo/redo natively
                     // case 'z': - Removed to allow native undo
