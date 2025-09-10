@@ -124,25 +124,18 @@ class MarkdownEditor {
             
             // Get markdown content based on current mode
             let markdownText = this.editor.value;
-            console.log('updatePreview - isCompactMode:', this.isCompactMode);
-            console.log('updatePreview - raw editor value:', markdownText.substring(0, 100) + '...');
             
             // Auto-detect escaped content even if not in compact mode
             const hasEscapedSequences = markdownText.includes('\\n') || markdownText.includes('\\"');
-            console.log('updatePreview - hasEscapedSequences:', hasEscapedSequences);
             
             // If in compact mode OR content has escaped sequences, unescape for preview
             if (this.isCompactMode || hasEscapedSequences) {
-                console.log('updatePreview - unescaping content for preview');
                 markdownText = this.getLiveUnescapedContent();
-                console.log('updatePreview - after unescape:', markdownText.substring(0, 100) + '...');
             } else if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
                 markdownText = this.imageCollapse.getPreviewContent();
             }
             
-            console.log('updatePreview - about to parse with marked.js');
             const html = marked.parse(markdownText);
-            console.log('updatePreview - marked.js result:', html.substring(0, 100) + '...');
             this.preview.innerHTML = html;
             
             // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
@@ -1107,11 +1100,6 @@ class MarkdownEditor {
     }
     
     loadSavedFile() {
-        // Skip localStorage temporarily to start fresh
-        console.log('Starting with clean content - skipping localStorage');
-        this.loadWelcomeContent();
-        return;
-        
         if (!this.storageManager) return;
         
         const savedFile = this.storageManager.getCurrentFile();
@@ -1292,22 +1280,15 @@ function hello() {
     unescapeJsonString(str) {
         try {
             // Use JSON.parse for proper unescaping by wrapping in quotes
-            const unescaped = JSON.parse('"' + str + '"');
-            console.log('JSON.parse unescaping successful');
-            console.log('Original:', str.substring(0, 50) + '...');
-            console.log('Unescaped:', unescaped.substring(0, 50) + '...');
-            return unescaped;
+            return JSON.parse('"' + str + '"');
         } catch (error) {
-            console.warn('JSON parse failed, using manual unescape:', error);
             // Fallback to manual unescaping if JSON.parse fails
-            const manually = str.replace(/\\n/g, '\n')
-                              .replace(/\\r/g, '\r')
-                              .replace(/\\t/g, '\t')
-                              .replace(/\\"/g, '"')
-                              .replace(/\\\//g, '/')
-                              .replace(/\\\\/g, '\\');
-            console.log('Manual unescaping result:', manually.substring(0, 50) + '...');
-            return manually;
+            return str.replace(/\\n/g, '\n')
+                      .replace(/\\r/g, '\r')
+                      .replace(/\\t/g, '\t')
+                      .replace(/\\"/g, '"')
+                      .replace(/\\\//g, '/')
+                      .replace(/\\\\/g, '\\');
         }
     }
 
@@ -1325,7 +1306,6 @@ function hello() {
                                (currentValue.startsWith('"') && currentValue.endsWith('"'));
         
         if (!needsUnescaping) {
-            console.log('Content does not need unescaping, returning as-is');
             return currentValue;
         }
         
@@ -1334,7 +1314,6 @@ function hello() {
             let valueToUnescape = currentValue;
             if (currentValue.startsWith('"') && currentValue.endsWith('"') && currentValue.length > 2) {
                 valueToUnescape = currentValue.slice(1, -1);
-                console.log('Removed surrounding quotes');
             }
             
             // Try to unescape the current content
@@ -1345,12 +1324,10 @@ function hello() {
                 this.expandedContent = unescaped;
             }
             
-            console.log('Live unescape successful, preview will update with:', unescaped.substring(0, 50) + '...');
             return unescaped;
             
         } catch (error) {
             // If unescaping fails, fall back to stored expanded content or original
-            console.warn('Live unescape failed:', error.message);
             return this.expandedContent || currentValue;
         }
     }
@@ -1375,8 +1352,6 @@ function hello() {
         this.editor.value = `"${compactString}"`;
         this.isCompactMode = true;
         
-        console.log('Switched to compact mode - isCompactMode now:', this.isCompactMode);
-        console.log('Compact string:', this.editor.value.substring(0, 100) + '...');
         
         // Update preview to show the original markdown rendered
         this.updatePreview();
