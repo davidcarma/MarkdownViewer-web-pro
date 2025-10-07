@@ -14,6 +14,119 @@ body {
     overflow: hidden;
 }
 
+/* Gwyneth theme - Clean pastel gradient with solid panels */
+[data-theme="gwyneth"] body {
+    background: linear-gradient(135deg, 
+        #bfdbfe 0%, 
+        #c7d2fe 20%,
+        #ddd6fe 40%, 
+        #e9d5ff 60%,
+        #fae8ff 80%,
+        #fce7f3 100%
+    );
+    background-attachment: fixed;
+}
+
+[data-theme="gwyneth"] .app {
+    background: transparent;
+}
+
+/* Soft blue-to-purple panels (15% darker) */
+[data-theme="gwyneth"] .toolbar {
+    background: linear-gradient(135deg, 
+        rgba(190, 196, 217, 0.95) 0%,
+        rgba(201, 198, 216, 0.95) 50%,
+        rgba(213, 208, 217, 0.95) 100%
+    );
+    border-bottom: 1px solid rgba(140, 153, 214, 0.5);
+}
+
+[data-theme="gwyneth"] .format-toolbar {
+    background: linear-gradient(135deg,
+        rgba(186, 199, 216, 0.9) 0%,
+        rgba(198, 181, 217, 0.9) 50%,
+        rgba(207, 197, 217, 0.9) 100%
+    );
+    border-bottom: 1px solid rgba(125, 167, 215, 0.45);
+}
+
+[data-theme="gwyneth"] .status-bar {
+    background: linear-gradient(135deg,
+        rgba(190, 196, 217, 0.9) 0%,
+        rgba(201, 198, 216, 0.9) 50%,
+        rgba(213, 208, 217, 0.95) 100%
+    );
+    border-top: 1px solid rgba(140, 153, 214, 0.5);
+}
+
+/* Clean containers - just structural */
+[data-theme="gwyneth"] .editor-pane,
+[data-theme="gwyneth"] .preview-pane {
+    background: transparent;
+}
+
+[data-theme="gwyneth"] .pane-header {
+    background: linear-gradient(135deg,
+        rgba(186, 199, 216, 0.95) 0%,
+        rgba(198, 181, 217, 0.95) 50%,
+        rgba(207, 197, 217, 0.95) 100%
+    );
+    border-bottom: 1px solid rgba(140, 153, 214, 0.5);
+}
+
+/* ONE clean background for the editor textarea */
+[data-theme="gwyneth"] #editor {
+    background-color: rgba(255, 255, 255, 0.9);
+    color: var(--text-primary);
+}
+
+/* ONE clean background for preview */
+[data-theme="gwyneth"] .preview-content {
+    background-color: rgba(255, 255, 255, 0.9);
+    color: var(--text-primary);
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+/* Soft blue-purple button styling (15% darker) */
+[data-theme="gwyneth"] .btn {
+    background: linear-gradient(135deg,
+        rgba(190, 196, 217, 0.9) 0%,
+        rgba(198, 181, 217, 0.9) 50%,
+        rgba(213, 208, 217, 0.9) 100%
+    );
+    border-color: rgba(140, 153, 214, 0.5);
+    transition: all 0.2s ease;
+}
+
+[data-theme="gwyneth"] .btn:hover {
+    background: linear-gradient(135deg,
+        rgba(169, 179, 216, 0.95) 0%,
+        rgba(188, 182, 216, 0.95) 50%,
+        rgba(201, 188, 217, 0.95) 100%
+    );
+    border-color: rgba(110, 119, 211, 0.65);
+    transform: translateY(-1px);
+}
+
+[data-theme="gwyneth"] .btn.active {
+    background: linear-gradient(135deg,
+        rgba(140, 153, 214, 0.95) 0%,
+        rgba(167, 154, 215, 0.95) 50%,
+        rgba(188, 182, 216, 0.95) 100%
+    );
+    border-color: rgba(84, 87, 205, 0.75);
+}
+
+/* Blue-purple divider (15% darker) */
+[data-theme="gwyneth"] .pane-divider {
+    background: linear-gradient(180deg,
+        rgba(140, 153, 214, 0.4) 0%,
+        rgba(142, 118, 213, 0.45) 50%,
+        rgba(140, 153, 214, 0.4) 100%
+    );
+}
+
 /* App layout */
 .app {
     display: flex;

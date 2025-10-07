@@ -81,8 +81,8 @@
                 <div class="separator"></div>
                 
                 <button class="btn btn-icon" id="toggleCompact" title="Toggle Compact/Expand Mode">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <text x="4" y="17" font-family="monospace" font-size="14" font-weight="bold" fill="currentColor">\n</text>
                     </svg>
                 </button>
                 
@@ -283,17 +283,117 @@
                 <h3>Settings</h3>
             </div>
             <div class="modal-body">
-                <div class="settings-section">
-                    <h4>Image Compression</h4>
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <label for="imageCompressionToggle">Compress pasted images</label>
-                            <p class="setting-description">Automatically compress large pasted images to ~200KB (JPEG 90% quality) for better performance</p>
+                <div class="settings-menu">
+                    <div class="settings-sidebar">
+                        <button class="settings-menu-item active" data-section="editor">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            <span>Editor</span>
+                        </button>
+                        <button class="settings-menu-item" data-section="images">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21,15 16,10 5,21"></polyline>
+                            </svg>
+                            <span>Images</span>
+                        </button>
+                        <button class="settings-menu-item" data-section="appearance">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                            <span>Appearance</span>
+                        </button>
+                    </div>
+                    <div class="settings-content">
+                        <!-- Editor Section -->
+                        <div class="settings-section active" id="section-editor">
+                            <h4>Editor Settings</h4>
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <label>Auto-save</label>
+                                    <p class="setting-description">Automatically save your work to local storage as you type</p>
+                                </div>
+                                <div class="setting-value">
+                                    <span class="setting-badge">Always On</span>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <label>Syntax highlighting</label>
+                                    <p class="setting-description">Highlight markdown syntax in the editor</p>
+                                </div>
+                                <div class="setting-value">
+                                    <span class="setting-badge">Always On</span>
+                                </div>
+                            </div>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="imageCompressionToggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
+                        
+                        <!-- Images Section -->
+                        <div class="settings-section" id="section-images">
+                            <h4>Image Settings</h4>
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <label for="imageCompressionToggle">Compress pasted images</label>
+                                    <p class="setting-description">Automatically compress large pasted images to ~200KB (JPEG 90% quality) for better performance</p>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="imageCompressionToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Appearance Section -->
+                        <div class="settings-section" id="section-appearance">
+                            <h4>Appearance Settings</h4>
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <label>Theme</label>
+                                    <p class="setting-description">Choose your preferred color theme</p>
+                                </div>
+                                <div class="setting-value">
+                                    <div class="theme-selector">
+                                        <button class="theme-option" data-theme="light" title="Light Theme">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="5"></circle>
+                                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                            </svg>
+                                            <span>Light</span>
+                                        </button>
+                                        <button class="theme-option" data-theme="dark" title="Dark Theme">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                                            </svg>
+                                            <span>Dark</span>
+                                        </button>
+                                        <button class="theme-option" data-theme="gwyneth" title="Gwyneth Theme">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                            </svg>
+                                            <span>Gwyneth</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
