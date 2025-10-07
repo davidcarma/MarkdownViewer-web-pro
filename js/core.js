@@ -71,46 +71,242 @@ class MarkdownEditor {
     setupMermaid() {
         if (typeof mermaid !== 'undefined') {
             console.log('Initializing Mermaid...');
-            mermaid.initialize({
-                startOnLoad: false,
-                theme: 'default',
-                themeVariables: {
-                    primaryColor: '#4f46e5',
-                    primaryTextColor: '#1f2937',
-                    primaryBorderColor: '#6366f1',
-                    lineColor: '#6b7280',
-                    secondaryColor: '#f3f4f6',
-                    tertiaryColor: '#ffffff',
-                    background: '#ffffff',
-                    mainBkg: '#ffffff',
-                    secondBkg: '#f9fafb',
-                    tertiaryBkg: '#f3f4f6'
-                },
-                flowchart: {
-                    useMaxWidth: true,
-                    htmlLabels: true,
-                    curve: 'basis'
-                },
-                sequence: {
-                    useMaxWidth: true,
-                    wrap: true
-                },
-                gantt: {
-                    useMaxWidth: true
-                },
-                journey: {
-                    useMaxWidth: true
-                },
-                // Ensure Graph TD syntax is properly supported
-                graph: {
-                    useMaxWidth: true,
-                    htmlLabels: true
-                }
-            });
+            this.updateMermaidTheme();
             console.log('Mermaid initialized successfully');
         } else {
             console.error('Mermaid library not found');
         }
+    }
+
+    updateMermaidTheme() {
+        if (typeof mermaid === 'undefined') return;
+
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        let mermaidConfig = {
+            startOnLoad: false,
+            theme: 'base',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 20
+            },
+            sequence: {
+                useMaxWidth: true,
+                wrap: true,
+                diagramMarginX: 20,
+                diagramMarginY: 20,
+                actorMargin: 80,
+                width: 180,
+                height: 65,
+                boxMargin: 15,
+                messageMargin: 45
+            },
+            gantt: {
+                useMaxWidth: true,
+                leftPadding: 80,
+                gridLineStartPadding: 40,
+                fontSize: 12,
+                sectionFontSize: 14,
+                numberSectionStyles: 4,
+                axisFormat: '%Y-%m-%d'
+            },
+            journey: {
+                useMaxWidth: true,
+                diagramMarginX: 50,
+                diagramMarginY: 20
+            },
+            class: {
+                useMaxWidth: true,
+                padding: 15
+            },
+            state: {
+                useMaxWidth: true,
+                padding: 15
+            },
+            er: {
+                useMaxWidth: true,
+                layoutDirection: 'TB',
+                diagramPadding: 30,
+                entityPadding: 20,
+                fontSize: 14
+            },
+            pie: {
+                useMaxWidth: true
+            },
+            git: {
+                useMaxWidth: true
+            },
+            graph: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        };
+
+        // Theme-specific colors
+        if (currentTheme === 'dark') {
+            mermaidConfig.themeVariables = {
+                darkMode: true,
+                background: '#1f2937',
+                primaryColor: '#818cf8',
+                primaryTextColor: '#f9fafb',
+                primaryBorderColor: '#6366f1',
+                lineColor: '#9ca3af',
+                secondaryColor: '#374151',
+                tertiaryColor: '#4b5563',
+                mainBkg: '#374151',
+                secondBkg: '#4b5563',
+                tertiaryBkg: '#6b7280',
+                nodeBorder: '#818cf8',
+                clusterBkg: '#374151',
+                clusterBorder: '#6366f1',
+                defaultLinkColor: '#9ca3af',
+                titleColor: '#f9fafb',
+                edgeLabelBackground: '#374151',
+                actorBorder: '#818cf8',
+                actorBkg: '#4b5563',
+                actorTextColor: '#f9fafb',
+                actorLineColor: '#9ca3af',
+                signalColor: '#f9fafb',
+                signalTextColor: '#f9fafb',
+                labelBoxBkgColor: '#4b5563',
+                labelBoxBorderColor: '#818cf8',
+                labelTextColor: '#f9fafb',
+                loopTextColor: '#f9fafb',
+                noteBorderColor: '#818cf8',
+                noteBkgColor: '#374151',
+                noteTextColor: '#f9fafb',
+                activationBorderColor: '#6366f1',
+                activationBkgColor: '#4b5563',
+                sequenceNumberColor: '#1f2937',
+                sectionBkgColor: '#4b5563',
+                altSectionBkgColor: '#374151',
+                sectionBkgColor2: '#6b7280',
+                excludeBkgColor: '#6b7280',
+                taskBorderColor: '#818cf8',
+                taskBkgColor: '#4b5563',
+                taskTextColor: '#f9fafb',
+                activeTaskBorderColor: '#a78bfa',
+                activeTaskBkgColor: '#6366f1',
+                gridColor: '#6b7280',
+                doneTaskBkgColor: '#10b981',
+                doneTaskBorderColor: '#059669',
+                critBorderColor: '#ef4444',
+                critBkgColor: '#dc2626',
+                todayLineColor: '#f59e0b',
+                personBorder: '#818cf8',
+                personBkg: '#4b5563'
+            };
+        } else if (currentTheme === 'gwyneth') {
+            mermaidConfig.themeVariables = {
+                darkMode: false,
+                background: '#faf5ff',
+                primaryColor: '#c7d2fe',
+                primaryTextColor: '#1e293b',
+                primaryBorderColor: '#a78bfa',
+                lineColor: '#8e7cc3',
+                secondaryColor: '#e9d5ff',
+                tertiaryColor: '#f3e8ff',
+                mainBkg: '#ddd6fe',
+                secondBkg: '#ede9fe',
+                tertiaryBkg: '#f3e8ff',
+                nodeBorder: '#a78bfa',
+                clusterBkg: '#f3e8ff',
+                clusterBorder: '#c084fc',
+                defaultLinkColor: '#8e7cc3',
+                titleColor: '#1e293b',
+                edgeLabelBackground: '#faf5ff',
+                actorBorder: '#a78bfa',
+                actorBkg: '#ddd6fe',
+                actorTextColor: '#1e293b',
+                actorLineColor: '#8e7cc3',
+                signalColor: '#1e293b',
+                signalTextColor: '#1e293b',
+                labelBoxBkgColor: '#e9d5ff',
+                labelBoxBorderColor: '#a78bfa',
+                labelTextColor: '#1e293b',
+                loopTextColor: '#1e293b',
+                noteBorderColor: '#c084fc',
+                noteBkgColor: '#f3e8ff',
+                noteTextColor: '#1e293b',
+                activationBorderColor: '#a78bfa',
+                activationBkgColor: '#e9d5ff',
+                sequenceNumberColor: '#ffffff',
+                sectionBkgColor: '#e9d5ff',
+                altSectionBkgColor: '#f3e8ff',
+                sectionBkgColor2: '#ddd6fe',
+                excludeBkgColor: '#f5f3ff',
+                taskBorderColor: '#a78bfa',
+                taskBkgColor: '#e9d5ff',
+                taskTextColor: '#1e293b',
+                activeTaskBorderColor: '#c084fc',
+                activeTaskBkgColor: '#c7d2fe',
+                gridColor: '#d8b4fe',
+                doneTaskBkgColor: '#a7f3d0',
+                doneTaskBorderColor: '#6ee7b7',
+                critBorderColor: '#fda4af',
+                critBkgColor: '#fecdd3',
+                todayLineColor: '#fbbf24',
+                personBorder: '#a78bfa',
+                personBkg: '#e9d5ff'
+            };
+        } else {
+            // Light theme
+            mermaidConfig.themeVariables = {
+                darkMode: false,
+                background: '#ffffff',
+                primaryColor: '#dbeafe',
+                primaryTextColor: '#1e293b',
+                primaryBorderColor: '#3b82f6',
+                lineColor: '#64748b',
+                secondaryColor: '#f1f5f9',
+                tertiaryColor: '#f8fafc',
+                mainBkg: '#bfdbfe',
+                secondBkg: '#e0f2fe',
+                tertiaryBkg: '#f0f9ff',
+                nodeBorder: '#3b82f6',
+                clusterBkg: '#f0f9ff',
+                clusterBorder: '#60a5fa',
+                defaultLinkColor: '#64748b',
+                titleColor: '#0f172a',
+                edgeLabelBackground: '#ffffff',
+                actorBorder: '#3b82f6',
+                actorBkg: '#bfdbfe',
+                actorTextColor: '#1e293b',
+                actorLineColor: '#64748b',
+                signalColor: '#1e293b',
+                signalTextColor: '#1e293b',
+                labelBoxBkgColor: '#e0f2fe',
+                labelBoxBorderColor: '#3b82f6',
+                labelTextColor: '#1e293b',
+                loopTextColor: '#1e293b',
+                noteBorderColor: '#60a5fa',
+                noteBkgColor: '#f0f9ff',
+                noteTextColor: '#1e293b',
+                activationBorderColor: '#3b82f6',
+                activationBkgColor: '#dbeafe',
+                sequenceNumberColor: '#ffffff',
+                sectionBkgColor: '#e0f2fe',
+                altSectionBkgColor: '#f0f9ff',
+                sectionBkgColor2: '#bfdbfe',
+                excludeBkgColor: '#f8fafc',
+                taskBorderColor: '#3b82f6',
+                taskBkgColor: '#dbeafe',
+                taskTextColor: '#1e293b',
+                activeTaskBorderColor: '#2563eb',
+                activeTaskBkgColor: '#60a5fa',
+                gridColor: '#cbd5e1',
+                doneTaskBkgColor: '#86efac',
+                doneTaskBorderColor: '#4ade80',
+                critBorderColor: '#f87171',
+                critBkgColor: '#fca5a5',
+                todayLineColor: '#fbbf24',
+                personBorder: '#3b82f6',
+                personBkg: '#dbeafe'
+            };
+        }
+
+        mermaid.initialize(mermaidConfig);
     }
     
     updatePreview() {
@@ -288,6 +484,10 @@ class MarkdownEditor {
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('markdown-editor-theme', newTheme);
         this.updateThemeIcon();
+        
+        // Update Mermaid theme and re-render diagrams
+        this.updateMermaidTheme();
+        this.updatePreview();
         
         // Show notification about theme
         const themeNames = {
@@ -1457,21 +1657,23 @@ function hello() {
             if (this.isCompactMode) {
                 toggleBtn.title = 'Expand to Multi-line Mode';
                 toggleBtn.classList.add('active');
-                // Change icon to expand icon (multiple lines)
+                // Change icon to expand/unfold icon (arrows pointing outward)
                 toggleBtn.innerHTML = `
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <text x="2" y="8" font-family="monospace" font-size="6" font-weight="bold" fill="currentColor">\n</text>
-                        <text x="2" y="14" font-family="monospace" font-size="6" font-weight="bold" fill="currentColor">\n</text>
-                        <text x="2" y="20" font-family="monospace" font-size="6" font-weight="bold" fill="currentColor">\n</text>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <polyline points="3 8 7 12 3 16"></polyline>
+                        <polyline points="21 8 17 12 21 16"></polyline>
+                        <line x1="11" y1="4" x2="13" y2="20"></line>
                     </svg>
                 `;
             } else {
                 toggleBtn.title = 'Compact to Single-line Mode';
                 toggleBtn.classList.remove('active');
-                // Change icon to compact icon (single \n)
+                // Change icon to compress/fold icon (arrows pointing inward)
                 toggleBtn.innerHTML = `
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <text x="4" y="17" font-family="monospace" font-size="14" font-weight="bold" fill="currentColor">\n</text>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <polyline points="7 8 3 12 7 16"></polyline>
+                        <polyline points="17 8 21 12 17 16"></polyline>
+                        <line x1="11" y1="4" x2="13" y2="20"></line>
                     </svg>
                 `;
             }

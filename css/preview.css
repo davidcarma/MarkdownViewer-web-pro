@@ -163,12 +163,18 @@
 /* Mermaid diagram styles */
 .preview-content .mermaid-diagram {
     margin: 1.5rem 0;
-    padding: 1rem;
+    padding: 2rem;
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: 12px;
     text-align: center;
     overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.3s ease;
+}
+
+.preview-content .mermaid-diagram:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .preview-content .mermaid-diagram svg {
@@ -176,6 +182,7 @@
     height: auto;
     display: block;
     margin: 0 auto;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
 }
 
 .preview-content .mermaid-error {
@@ -231,28 +238,47 @@
 /* Dark theme adaptations for Mermaid diagrams */
 [data-theme="dark"] .preview-content .mermaid-diagram {
     background-color: var(--bg-tertiary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Ensure Mermaid diagrams work well in both themes */
-.preview-content .mermaid-diagram .node rect,
-.preview-content .mermaid-diagram .node circle,
-.preview-content .mermaid-diagram .node ellipse,
-.preview-content .mermaid-diagram .node polygon {
-    fill: var(--bg-primary);
-    stroke: var(--accent-color);
-    stroke-width: 2px;
+[data-theme="dark"] .preview-content .mermaid-diagram:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.preview-content .mermaid-diagram .node text {
-    fill: var(--text-primary);
+/* Gwyneth theme adaptations for Mermaid diagrams */
+[data-theme="gwyneth"] .preview-content .mermaid-diagram {
+    background: linear-gradient(135deg, 
+        rgba(250, 245, 255, 0.6) 0%,
+        rgba(243, 232, 255, 0.5) 100%
+    );
+    border-color: rgba(167, 139, 250, 0.3);
+    box-shadow: 0 2px 8px rgba(167, 139, 250, 0.15);
 }
 
-.preview-content .mermaid-diagram .edgePath .path {
-    stroke: var(--text-secondary);
-    stroke-width: 2px;
+[data-theme="gwyneth"] .preview-content .mermaid-diagram:hover {
+    box-shadow: 0 4px 16px rgba(167, 139, 250, 0.25);
 }
 
-.preview-content .mermaid-diagram .edgeLabel {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
+[data-theme="gwyneth"] .preview-content .mermaid-diagram svg {
+    filter: drop-shadow(0 1px 3px rgba(167, 139, 250, 0.2));
+}
+
+/* Enhanced Mermaid font rendering */
+.preview-content .mermaid-diagram text {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+/* Smooth transitions for interactive elements */
+.preview-content .mermaid-diagram .node,
+.preview-content .mermaid-diagram .actor,
+.preview-content .mermaid-diagram .task {
+    transition: opacity 0.2s ease;
+}
+
+.preview-content .mermaid-diagram .node:hover,
+.preview-content .mermaid-diagram .actor:hover,
+.preview-content .mermaid-diagram .task:hover {
+    opacity: 0.85;
 }
