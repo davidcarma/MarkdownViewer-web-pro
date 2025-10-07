@@ -13,6 +13,11 @@
     animation: modalFadeIn 0.2s ease-out;
 }
 
+/* Gwyneth theme modal overlay */
+[data-theme="gwyneth"] .modal-overlay {
+    background: rgba(167, 139, 250, 0.25);
+}
+
 .modal-dialog {
     background-color: var(--bg-primary);
     border-radius: var(--border-radius);
@@ -22,6 +27,16 @@
     max-height: 80vh;
     overflow: hidden;
     animation: modalSlideIn 0.3s ease-out;
+}
+
+/* Gwyneth theme modal - clean and simple */
+[data-theme="gwyneth"] .modal-dialog {
+    background-color: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(167, 139, 250, 0.4);
+}
+
+[data-theme="gwyneth"] .settings-modal {
+    background-color: rgba(255, 255, 255, 0.98);
 }
 
 .modal-header {
@@ -140,37 +155,150 @@
 
 /* Settings Modal Styles */
 .settings-modal {
-    min-width: 500px;
-    max-width: 600px;
+    min-width: 700px;
+    max-width: 800px;
+}
+
+.settings-modal .modal-body {
+    padding: 0;
+    max-height: 70vh;
+    overflow: hidden;
+}
+
+.settings-menu {
+    display: flex;
+    min-height: 400px;
+}
+
+.settings-sidebar {
+    width: 200px;
+    background-color: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    padding: 1rem 0;
+    flex-shrink: 0;
+}
+
+.settings-menu-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+    text-align: left;
+}
+
+.settings-menu-item:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.settings-menu-item.active {
+    background-color: var(--accent-color-alpha);
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.settings-menu-item svg {
+    flex-shrink: 0;
+}
+
+.settings-content {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    max-height: 70vh;
 }
 
 .settings-section {
-    margin-bottom: 1.5rem;
+    display: none;
 }
 
-.settings-section:last-child {
-    margin-bottom: 0;
+.settings-section.active {
+    display: block;
 }
 
 .settings-section h4 {
-    margin: 0 0 1rem 0;
+    margin: 0 0 1.25rem 0;
     color: var(--text-primary);
-    font-size: 1rem;
+    font-size: 1.125rem;
     font-weight: 600;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
 }
 
 .setting-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 1rem;
-    padding: 0.75rem 0;
+    gap: 1.5rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setting-item:last-child {
+    border-bottom: none;
 }
 
 .setting-info {
     flex: 1;
+}
+
+.setting-value {
+    flex-shrink: 0;
+}
+
+.setting-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Theme Selector */
+.theme-selector {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.theme-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.theme-option:hover {
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
+}
+
+.theme-option.active {
+    border-color: var(--accent-color);
+    background-color: var(--accent-color-alpha);
+    color: var(--accent-color);
+}
+
+.theme-option svg {
+    flex-shrink: 0;
 }
 
 .setting-info label {

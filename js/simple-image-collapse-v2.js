@@ -7,8 +7,81 @@ class SimpleImageCollapseV2 {
         this.editor = editor;
         this.isCollapsed = true;
         this.imageStore = new Map(); // Global store for all image data
+        this.storageKey = 'markdown-editor-image-store';
+        this.loadImageStore(); // Load persisted images
         this.setupToggle();
         this.bindInputHandler();
+    }
+    
+    // Load image store from localStorage
+    loadImageStore() {
+        try {
+            const storedData = localStorage.getItem(this.storageKey);
+            if (storedData) {
+                const imageData = JSON.parse(storedData);
+                // Convert back to Map
+                this.imageStore = new Map(Object.entries(imageData));
+                console.log(`Loaded ${this.imageStore.size} images from localStorage`);
+            }
+        } catch (error) {
+            console.error('Error loading image store:', error);
+            this.imageStore = new Map();
+        }
+    }
+    
+    // Save image store to localStorage
+    saveImageStore() {
+        try {
+            // Convert Map to object for JSON serialization
+            const imageData = Object.fromEntries(this.imageStore);
+            localStorage.setItem(this.storageKey, JSON.stringify(imageData));
+        } catch (error) {
+            console.error('Error saving image store:', error);
+            // If storage is full, try cleaning up old images
+            if (error.name === 'QuotaExceededError') {
+                this.cleanupOldImages();
+                // Try saving again after cleanup
+                try {
+                    const imageData = Object.fromEntries(this.imageStore);
+                    localStorage.setItem(this.storageKey, JSON.stringify(imageData));
+                } catch (retryError) {
+                    console.error('Error saving image store after cleanup:', retryError);
+                }
+            }
+        }
+    }
+    
+    // Clean up old images (older than 30 days) to free up localStorage space
+    cleanupOldImages() {
+        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        let cleanedCount = 0;
+        
+        for (const [imageId, imageData] of this.imageStore) {
+            // Extract timestamp from image ID (format: IMG_timestamp_randomstring)
+            const timestampMatch = imageId.match(/IMG_(\d+)_/);
+            if (timestampMatch) {
+                const timestamp = parseInt(timestampMatch[1]);
+                if (timestamp < thirtyDaysAgo) {
+                    this.imageStore.delete(imageId);
+                    cleanedCount++;
+                }
+            }
+        }
+        
+        if (cleanedCount > 0) {
+            console.log(`Cleaned up ${cleanedCount} old images from storage`);
+            this.saveImageStore();
+        }
+    }
+    
+    // Clear all stored images (for debugging or manual cleanup)
+    clearImageStore() {
+        this.imageStore.clear();
+        try {
+            localStorage.removeItem(this.storageKey);
+        } catch (error) {
+            console.error('Error clearing image store:', error);
+        }
     }
     
     setupToggle() {
@@ -51,6 +124,9 @@ class SimpleImageCollapseV2 {
             dataUrl: dataUrl,
             fullMarkdown: fullMatch
         });
+        
+        // Save to localStorage
+        this.saveImageStore();
         
         // Return collapsed placeholder
         return `![${alt}](...${imageId}...)`;
@@ -108,8 +184,7 @@ class SimpleImageCollapseV2 {
             
             this.editor.editor.value = expandedContent;
             this.isCollapsed = false;
-            toggleBtn.innerHTML = '🖼️ Collapse Images';
-            toggleBtn.title = 'Collapse long image data URLs';
+            this.updateToggleButton();
             
             // Restore cursor position with better accuracy
             setTimeout(() => {
@@ -124,8 +199,7 @@ class SimpleImageCollapseV2 {
             
             this.editor.editor.value = collapsedContent;
             this.isCollapsed = true;
-            toggleBtn.innerHTML = '📝 Show Raw Data';
-            toggleBtn.title = 'Show full image data URLs';
+            this.updateToggleButton();
             
             // Restore cursor position with better accuracy
             setTimeout(() => {
@@ -197,10 +271,39 @@ class SimpleImageCollapseV2 {
     // Initialize with existing content
     initialize() {
         const content = this.editor.editor.value;
-        if (content.includes('data:image/')) {
+        
+        // Check if content has image placeholders (from previous session)
+        const hasPlaceholders = /\.\.\.[A-Z0-9_]+\.\.\./g.test(content);
+        
+        if (hasPlaceholders) {
+            // Content already has placeholders - we're in collapsed mode
+            this.isCollapsed = true;
+            this.updateToggleButton();
+            console.log('Initialized with existing image placeholders');
+        } else if (content.includes('data:image/')) {
+            // Content has raw image data URLs - collapse them
             const collapsedContent = this.collapseImages(content);
             this.editor.editor.value = collapsedContent;
-            this.editor.updatePreview();
+            this.isCollapsed = true;
+            this.updateToggleButton();
+            console.log('Collapsed existing image data URLs');
+        }
+        
+        // Always update preview to ensure images display correctly
+        this.editor.updatePreview();
+    }
+    
+    // Update toggle button text and state
+    updateToggleButton() {
+        const toggleBtn = document.querySelector('.image-collapse-toggle');
+        if (toggleBtn) {
+            if (this.isCollapsed) {
+                toggleBtn.innerHTML = '📝 Show Raw Data';
+                toggleBtn.title = 'Show full image data URLs';
+            } else {
+                toggleBtn.innerHTML = '🖼️ Collapse Images';
+                toggleBtn.title = 'Collapse long image data URLs';
+            }
         }
     }
     
@@ -325,8 +428,47 @@ class SimpleImageCollapseV2 {
             document.body.removeChild(menu);
         };
         
+        const cleanupOption = document.createElement('div');
+        cleanupOption.textContent = '🧹 Cleanup Old Images';
+        cleanupOption.style.cssText = `
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            hover: background-color: var(--bg-tertiary);
+        `;
+        cleanupOption.onclick = () => {
+            const sizeBefore = this.imageStore.size;
+            this.cleanupOldImages();
+            const sizeAfter = this.imageStore.size;
+            const cleanedCount = sizeBefore - sizeAfter;
+            if (this.editor.showNotification) {
+                this.editor.showNotification(`Cleaned up ${cleanedCount} old images`, 'success');
+            }
+            document.body.removeChild(menu);
+        };
+        
+        const clearOption = document.createElement('div');
+        clearOption.textContent = '🗑️ Clear All Images';
+        clearOption.style.cssText = `
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            hover: background-color: var(--bg-tertiary);
+            color: var(--danger-color);
+        `;
+        clearOption.onclick = () => {
+            if (confirm('Are you sure you want to clear all stored images? This cannot be undone.')) {
+                const count = this.imageStore.size;
+                this.clearImageStore();
+                if (this.editor.showNotification) {
+                    this.editor.showNotification(`Cleared ${count} stored images`, 'info');
+                }
+            }
+            document.body.removeChild(menu);
+        };
+        
         menu.appendChild(restoreOption);
         menu.appendChild(debugOption);
+        menu.appendChild(cleanupOption);
+        menu.appendChild(clearOption);
         document.body.appendChild(menu);
         
         // Remove menu when clicking elsewhere

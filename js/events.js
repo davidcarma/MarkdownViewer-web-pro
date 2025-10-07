@@ -38,6 +38,16 @@ class EditorEvents {
         document.getElementById('closeSettingsBtn').addEventListener('click', () => this.closeSettingsModal());
         document.getElementById('imageCompressionToggle').addEventListener('change', (e) => this.handleImageCompressionToggle(e));
         
+        // Settings menu navigation
+        document.querySelectorAll('.settings-menu-item').forEach(item => {
+            item.addEventListener('click', (e) => this.switchSettingsSection(e));
+        });
+        
+        // Theme selector buttons
+        document.querySelectorAll('.theme-option').forEach(btn => {
+            btn.addEventListener('click', (e) => this.handleThemeSelection(e));
+        });
+        
         // Close modal on overlay click
         document.getElementById('settingsModal').addEventListener('click', (e) => {
             if (e.target.id === 'settingsModal') {
@@ -153,9 +163,15 @@ class EditorEvents {
         const modal = document.getElementById('settingsModal');
         const toggle = document.getElementById('imageCompressionToggle');
         
-        // Load current setting
+        // Load current settings
         const imageCompression = this.editor.storageManager.getSetting('imageCompression', true);
         toggle.checked = imageCompression;
+        
+        // Update theme selector active state
+        this.updateThemeSelector();
+        
+        // Reset to first section
+        this.switchSettingsSectionByName('editor');
         
         // Show modal
         modal.style.display = 'flex';
@@ -164,6 +180,32 @@ class EditorEvents {
     closeSettingsModal() {
         const modal = document.getElementById('settingsModal');
         modal.style.display = 'none';
+    }
+    
+    switchSettingsSection(e) {
+        const button = e.currentTarget;
+        const sectionName = button.getAttribute('data-section');
+        this.switchSettingsSectionByName(sectionName);
+    }
+    
+    switchSettingsSectionByName(sectionName) {
+        // Update menu items
+        document.querySelectorAll('.settings-menu-item').forEach(item => {
+            if (item.getAttribute('data-section') === sectionName) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+        
+        // Update sections
+        document.querySelectorAll('.settings-section').forEach(section => {
+            if (section.id === `section-${sectionName}`) {
+                section.classList.add('active');
+            } else {
+                section.classList.remove('active');
+            }
+        });
     }
     
     handleImageCompressionToggle(e) {
@@ -175,6 +217,40 @@ class EditorEvents {
             'Image compression disabled - Images will be pasted at full resolution';
         
         this.editor.showNotification(message, 'info');
+    }
+    
+    handleThemeSelection(e) {
+        const button = e.currentTarget;
+        const theme = button.getAttribute('data-theme');
+        
+        // Apply the theme
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('markdown-editor-theme', theme);
+        
+        // Update theme icon in toolbar
+        this.editor.updateThemeIcon();
+        
+        // Update active state in theme selector
+        this.updateThemeSelector();
+        
+        // Show notification
+        const themeNames = {
+            'light': 'Light Theme',
+            'dark': 'Dark Theme',
+            'gwyneth': 'Gwyneth Theme'
+        };
+        this.editor.showNotification(`Switched to ${themeNames[theme]}`, 'success');
+    }
+    
+    updateThemeSelector() {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        document.querySelectorAll('.theme-option').forEach(btn => {
+            if (btn.getAttribute('data-theme') === currentTheme) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
     }
     
     async handleImageFileInsert(e) {

@@ -45,3 +45,23 @@
     --warning-text: #ffecb5;
     --danger-color: #dc3545;
 }
+
+/* Gwyneth theme variables - Flowing pastel gradient */
+[data-theme="gwyneth"] {
+    --bg-primary: rgba(255, 255, 255, 0.7);
+    --bg-secondary: rgba(250, 245, 255, 0.75);
+    --bg-tertiary: rgba(243, 232, 255, 0.7);
+    --text-primary: #1e1b4b;
+    --text-secondary: #5b21b6;
+    --text-muted: #7c3aed;
+    --border-color: rgba(139, 92, 246, 0.25);
+    --accent-color: #8b5cf6;
+    --accent-color-alpha: rgba(139, 92, 246, 0.2);
+    --accent-hover: #7c3aed;
+    --success-color: #8b5cf6;
+    --warning-color: #f59e0b;
+    --warning-bg: rgba(254, 240, 138, 0.4);
+    --warning-border: rgba(251, 191, 36, 0.5);
+    --warning-text: #78350f;
+    --danger-color: #be123c;
+}
