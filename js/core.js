@@ -307,6 +307,7 @@ class MarkdownEditor {
         }
 
         mermaid.initialize(mermaidConfig);
+        console.log(`Mermaid theme updated to: ${currentTheme}`);
     }
     
     updatePreview() {
@@ -466,6 +467,9 @@ class MarkdownEditor {
         const savedTheme = localStorage.getItem('markdown-editor-theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         this.updateThemeIcon();
+        
+        // Initialize Mermaid with the correct theme
+        this.updateMermaidTheme();
     }
     
     toggleTheme() {
@@ -485,9 +489,13 @@ class MarkdownEditor {
         localStorage.setItem('markdown-editor-theme', newTheme);
         this.updateThemeIcon();
         
-        // Update Mermaid theme and re-render diagrams
+        // Update Mermaid theme and force complete re-render of diagrams
         this.updateMermaidTheme();
-        this.updatePreview();
+        
+        // Force complete regeneration of preview to apply new Mermaid theme
+        setTimeout(() => {
+            this.updatePreview();
+        }, 100);
         
         // Show notification about theme
         const themeNames = {
