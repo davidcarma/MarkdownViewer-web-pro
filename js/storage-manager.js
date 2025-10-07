@@ -22,7 +22,8 @@ class LocalStorageManager {
                 settings: {
                     theme: 'light',
                     autoSave: true,
-                    saveInterval: 500
+                    saveInterval: 500,
+                    imageCompression: true
                 },
                 metadata: {
                     created: new Date().toISOString(),
@@ -371,5 +372,29 @@ class LocalStorageManager {
             console.error('Error clearing data:', error);
             return false;
         }
+    }
+    
+    // Settings management
+    getSetting(key, defaultValue = null) {
+        const data = this.getAllData();
+        if (!data || !data.settings) return defaultValue;
+        return data.settings[key] !== undefined ? data.settings[key] : defaultValue;
+    }
+    
+    setSetting(key, value) {
+        const data = this.getAllData();
+        if (!data) return false;
+        
+        if (!data.settings) {
+            data.settings = {};
+        }
+        
+        data.settings[key] = value;
+        return this.saveAllData(data);
+    }
+    
+    getAllSettings() {
+        const data = this.getAllData();
+        return data ? data.settings : null;
     }
 }

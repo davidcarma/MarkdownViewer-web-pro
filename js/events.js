@@ -33,6 +33,18 @@ class EditorEvents {
         document.getElementById('toggleTheme').addEventListener('click', () => this.editor.toggleTheme());
         document.getElementById('copyHtml').addEventListener('click', () => this.editor.copyHtml());
         
+        // Settings menu events
+        document.getElementById('settingsMenu').addEventListener('click', () => this.openSettingsModal());
+        document.getElementById('closeSettingsBtn').addEventListener('click', () => this.closeSettingsModal());
+        document.getElementById('imageCompressionToggle').addEventListener('change', (e) => this.handleImageCompressionToggle(e));
+        
+        // Close modal on overlay click
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'settingsModal') {
+                this.closeSettingsModal();
+            }
+        });
+        
         // Format toolbar events
         document.querySelectorAll('.btn-format').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -72,8 +84,17 @@ class EditorEvents {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            // Escape key to exit fullscreen mode
+            // Escape key handling
             if (e.key === 'Escape') {
+                // Check if settings modal is open first
+                const settingsModal = document.getElementById('settingsModal');
+                if (settingsModal && settingsModal.style.display === 'flex') {
+                    e.preventDefault();
+                    this.closeSettingsModal();
+                    return;
+                }
+                
+                // Then check fullscreen mode
                 const app = document.querySelector('.app');
                 if (app.classList.contains('fullscreen-mode')) {
                     e.preventDefault();
@@ -126,6 +147,34 @@ class EditorEvents {
                 }
             }
         });
+    }
+    
+    openSettingsModal() {
+        const modal = document.getElementById('settingsModal');
+        const toggle = document.getElementById('imageCompressionToggle');
+        
+        // Load current setting
+        const imageCompression = this.editor.storageManager.getSetting('imageCompression', true);
+        toggle.checked = imageCompression;
+        
+        // Show modal
+        modal.style.display = 'flex';
+    }
+    
+    closeSettingsModal() {
+        const modal = document.getElementById('settingsModal');
+        modal.style.display = 'none';
+    }
+    
+    handleImageCompressionToggle(e) {
+        const enabled = e.target.checked;
+        this.editor.storageManager.setSetting('imageCompression', enabled);
+        
+        const message = enabled ? 
+            'Image compression enabled - Large images will be compressed automatically' : 
+            'Image compression disabled - Images will be pasted at full resolution';
+        
+        this.editor.showNotification(message, 'info');
     }
     
     async handleImageFileInsert(e) {
