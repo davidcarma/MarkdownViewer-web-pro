@@ -141,23 +141,52 @@ class ImagePasteHandler {
             
             const reader = new FileReader();
             
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const dataUrl = e.target.result;
-                    const fileName = this.generateImageFileName(file.type);
+                    const fileSizeKB = Math.round(file.size / 1024);
+                    const compressionEnabled = this.editor.storageManager.getSetting('imageCompression', true);
                     
-                    // Insert markdown image syntax at cursor position
-                    this.insertImageAtCursor(fileName, dataUrl);
+                    // Check if image is large and should be compressed
+                    if (fileSizeKB > 200 && compressionEnabled) {
+                        // Compress the image
+                        const compressedDataUrl = await this.compressImage(dataUrl, file.type);
+                        const compressedSizeKB = Math.round(compressedDataUrl.length * 0.75 / 1024); // Rough estimate
+                        const fileName = this.generateImageFileName('image/jpeg'); // Always JPEG after compression
+                        
+                        this.insertImageAtCursor(fileName, compressedDataUrl);
+                        
+                        // Remove processing state
+                        editorPane.classList.remove('processing-image');
+                        
+                        this.editor.showNotification(
+                            `Image compressed: ${fileSizeKB}KB → ${compressedSizeKB}KB`, 
+                            'success'
+                        );
+                    } else if (fileSizeKB > 200 && !compressionEnabled) {
+                        // Insert full resolution but show warning
+                        const fileName = this.generateImageFileName(file.type);
+                        this.insertImageAtCursor(fileName, dataUrl);
+                        
+                        // Remove processing state
+                        editorPane.classList.remove('processing-image');
+                        
+                        // Show warning about large image
+                        this.showLargeImageWarning(fileSizeKB);
+                    } else {
+                        // Small image, no compression needed
+                        const fileName = this.generateImageFileName(file.type);
+                        this.insertImageAtCursor(fileName, dataUrl);
+                        
+                        // Remove processing state
+                        editorPane.classList.remove('processing-image');
+                        
+                        this.editor.showNotification('Image pasted successfully!', 'success');
+                    }
                     
-                    // Remove processing state
-                    const editorPane = document.querySelector('.editor-pane');
-                    editorPane.classList.remove('processing-image');
-                    
-                    this.editor.showNotification('Image pasted successfully!', 'success');
                     resolve();
                 } catch (error) {
                     // Remove processing state on error
-                    const editorPane = document.querySelector('.editor-pane');
                     editorPane.classList.remove('processing-image');
                     reject(error);
                 }
@@ -173,6 +202,93 @@ class ImagePasteHandler {
             // Read the file as data URL
             reader.readAsDataURL(file);
         });
+    }
+    
+    async compressImage(dataUrl, originalType) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            
+            img.onload = () => {
+                try {
+                    // Create canvas
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Set canvas dimensions to image dimensions
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    // Draw image on canvas
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Compress to JPEG at 90% quality
+                    // Start with 0.9 quality and reduce if needed
+                    let quality = 0.9;
+                    let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    
+                    // If still too large, reduce quality iteratively
+                    const targetSizeKB = 200;
+                    let attempts = 0;
+                    const maxAttempts = 5;
+                    
+                    while (compressedDataUrl.length * 0.75 / 1024 > targetSizeKB && attempts < maxAttempts) {
+                        quality -= 0.1;
+                        if (quality < 0.5) quality = 0.5; // Don't go below 50%
+                        compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                        attempts++;
+                    }
+                    
+                    resolve(compressedDataUrl);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            
+            img.onerror = () => {
+                reject(new Error('Failed to load image for compression'));
+            };
+            
+            img.src = dataUrl;
+        });
+    }
+    
+    showLargeImageWarning(sizeKB) {
+        // Remove any existing warning
+        const existingWarning = document.querySelector('.warning-card');
+        if (existingWarning) {
+            existingWarning.remove();
+        }
+        
+        // Create warning card
+        const warningCard = document.createElement('div');
+        warningCard.className = 'warning-card';
+        warningCard.innerHTML = `
+            <div class="warning-card-header">
+                <span class="warning-card-icon">⚠️</span>
+                <span>Large Image Pasted</span>
+            </div>
+            <div class="warning-card-body">
+                You pasted a ${sizeKB}KB image at full resolution. Large images may slow down the editor. 
+                Consider enabling image compression in settings for better performance.
+            </div>
+            <div class="warning-card-actions">
+                <button class="btn btn-sm" onclick="this.closest('.warning-card').remove()">Dismiss</button>
+            </div>
+        `;
+        
+        document.body.appendChild(warningCard);
+        
+        // Auto-remove after 8 seconds
+        setTimeout(() => {
+            if (warningCard.parentNode) {
+                warningCard.style.opacity = '0';
+                setTimeout(() => {
+                    if (warningCard.parentNode) {
+                        warningCard.remove();
+                    }
+                }, 300);
+            }
+        }, 8000);
     }
     
     generateImageFileName(mimeType) {

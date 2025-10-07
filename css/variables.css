@@ -12,6 +12,9 @@
     --accent-hover: #0b5ed7;
     --success-color: #198754;
     --warning-color: #fd7e14;
+    --warning-bg: #fff3cd;
+    --warning-border: #ffc107;
+    --warning-text: #856404;
     --danger-color: #dc3545;
     --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     --shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
@@ -37,5 +40,8 @@
     --accent-hover: #3d8bfd;
     --success-color: #20c997;
     --warning-color: #fd7e14;
+    --warning-bg: #664d03;
+    --warning-border: #ffda6a;
+    --warning-text: #ffecb5;
     --danger-color: #dc3545;
 }
