@@ -230,9 +230,13 @@ class EditorEvents {
         // Update theme icon in toolbar
         this.editor.updateThemeIcon();
         
-        // Update Mermaid theme and re-render diagrams
+        // Update Mermaid theme and force complete re-render of diagrams
         this.editor.updateMermaidTheme();
-        this.editor.updatePreview();
+        
+        // Force complete regeneration of preview to apply new Mermaid theme
+        setTimeout(() => {
+            this.editor.updatePreview();
+        }, 100);
         
         // Update active state in theme selector
         this.updateThemeSelector();

@@ -14,49 +14,82 @@ body {
     overflow: hidden;
 }
 
-/* Gwyneth theme - Clean pastel gradient with solid panels */
+/* Gwyneth theme - Sailor Mercury with sparkles only ✨🌙💙 */
 [data-theme="gwyneth"] body {
-    background: linear-gradient(135deg, 
-        #bfdbfe 0%, 
-        #c7d2fe 20%,
-        #ddd6fe 40%, 
-        #e9d5ff 60%,
-        #fae8ff 80%,
-        #fce7f3 100%
-    );
+    background-color: #e8e3f5;
+    background-image: url('../images/Portrait.sailormercury.png');
     background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: 500px auto;
+    background-position: 85% 10%;
 }
+
 
 [data-theme="gwyneth"] .app {
     background: transparent;
+    padding: 8px;
+    gap: 8px;
 }
 
-/* Soft blue-to-purple panels (15% darker) */
+/* Add a semi-transparent overlay to make Mercury blend with the background */
+[data-theme="gwyneth"] body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, 
+        rgba(147, 197, 253, 0.15) 0%,
+        rgba(167, 139, 250, 0.12) 50%,
+        rgba(245, 208, 254, 0.15) 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+}
+
+[data-theme="gwyneth"] .app {
+    position: relative;
+    z-index: 1;
+}
+
+/* Soft blue-to-purple panels (more transparent to show stars) */
 [data-theme="gwyneth"] .toolbar {
     background: linear-gradient(135deg, 
-        rgba(190, 196, 217, 0.95) 0%,
-        rgba(201, 198, 216, 0.95) 50%,
-        rgba(213, 208, 217, 0.95) 100%
+        rgba(190, 196, 217, 0.75) 0%,
+        rgba(201, 198, 216, 0.75) 50%,
+        rgba(213, 208, 217, 0.75) 100%
     );
     border-bottom: 1px solid rgba(140, 153, 214, 0.5);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    margin: 4px 4px 0 4px;
+    box-shadow: 0 4px 20px rgba(167, 139, 250, 0.15);
 }
 
 [data-theme="gwyneth"] .format-toolbar {
     background: linear-gradient(135deg,
-        rgba(186, 199, 216, 0.9) 0%,
-        rgba(198, 181, 217, 0.9) 50%,
-        rgba(207, 197, 217, 0.9) 100%
+        rgba(186, 199, 216, 0.7) 0%,
+        rgba(198, 181, 217, 0.7) 50%,
+        rgba(207, 197, 217, 0.7) 100%
     );
     border-bottom: 1px solid rgba(125, 167, 215, 0.45);
+    backdrop-filter: blur(10px);
+    margin: 0 4px;
 }
 
 [data-theme="gwyneth"] .status-bar {
     background: linear-gradient(135deg,
-        rgba(190, 196, 217, 0.9) 0%,
-        rgba(201, 198, 216, 0.9) 50%,
-        rgba(213, 208, 217, 0.95) 100%
+        rgba(190, 196, 217, 0.7) 0%,
+        rgba(201, 198, 216, 0.7) 50%,
+        rgba(213, 208, 217, 0.75) 100%
     );
     border-top: 1px solid rgba(140, 153, 214, 0.5);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    margin: 0 4px 4px 4px;
+    box-shadow: 0 4px 20px rgba(167, 139, 250, 0.15);
 }
 
 /* Clean containers - just structural */
@@ -67,25 +100,44 @@ body {
 
 [data-theme="gwyneth"] .pane-header {
     background: linear-gradient(135deg,
-        rgba(186, 199, 216, 0.95) 0%,
-        rgba(198, 181, 217, 0.95) 50%,
-        rgba(207, 197, 217, 0.95) 100%
+        rgba(186, 199, 216, 0.7) 0%,
+        rgba(198, 181, 217, 0.7) 50%,
+        rgba(207, 197, 217, 0.7) 100%
     );
     border-bottom: 1px solid rgba(140, 153, 214, 0.5);
+    backdrop-filter: blur(10px);
 }
 
-/* ONE clean background for the editor textarea */
+/* Semi-transparent editor with rounded corners */
 [data-theme="gwyneth"] #editor {
-    background-color: rgba(255, 255, 255, 0.9);
+    background-color: rgba(255, 255, 255, 0.75);
     color: var(--text-primary);
+    backdrop-filter: blur(8px);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(167, 139, 250, 0.15);
 }
 
-/* ONE clean background for preview */
+/* Semi-transparent preview with rounded corners */
 [data-theme="gwyneth"] .preview-content {
-    background-color: rgba(255, 255, 255, 0.9);
+    background-color: rgba(255, 255, 255, 0.75);
     color: var(--text-primary);
     padding: 1rem;
-    border-radius: 8px;
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(167, 139, 250, 0.15);
+}
+
+/* Add visible margins to editor and preview panes with rounded corners */
+[data-theme="gwyneth"] .editor-pane {
+    margin: 4px;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+[data-theme="gwyneth"] .preview-pane {
+    margin: 4px;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 /* Soft blue-purple button styling (15% darker) */
