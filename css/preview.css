@@ -282,3 +282,77 @@
 .preview-content .mermaid-diagram .task:hover {
     opacity: 0.85;
 }
+
+/* Math equation styles (KaTeX) */
+.preview-content .katex {
+    font-size: 1.1em;
+}
+
+/* Block math equations */
+.preview-content .katex-display {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+[data-theme="dark"] .preview-content .katex-display {
+    background-color: var(--bg-tertiary);
+}
+
+[data-theme="gwyneth"] .preview-content .katex-display {
+    background: linear-gradient(135deg, 
+        rgba(250, 245, 255, 0.4) 0%,
+        rgba(243, 232, 255, 0.3) 100%
+    );
+    border: 1px solid rgba(167, 139, 250, 0.2);
+}
+
+/* Inline math equations */
+.preview-content p .katex,
+.preview-content li .katex,
+.preview-content td .katex {
+    padding: 0.1rem 0.2rem;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+}
+
+[data-theme="dark"] .preview-content p .katex,
+[data-theme="dark"] .preview-content li .katex,
+[data-theme="dark"] .preview-content td .katex {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="gwyneth"] .preview-content p .katex,
+[data-theme="gwyneth"] .preview-content li .katex,
+[data-theme="gwyneth"] .preview-content td .katex {
+    background-color: rgba(250, 245, 255, 0.5);
+}
+
+/* Math equation color adjustments for dark theme */
+[data-theme="dark"] .preview-content .katex {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .preview-content .katex .mord,
+[data-theme="dark"] .preview-content .katex .mbin,
+[data-theme="dark"] .preview-content .katex .mrel,
+[data-theme="dark"] .preview-content .katex .mop,
+[data-theme="dark"] .preview-content .katex .mpunct {
+    color: var(--text-primary);
+}
+
+/* Math equation color adjustments for gwyneth theme */
+[data-theme="gwyneth"] .preview-content .katex {
+    color: var(--text-primary);
+}
+
+/* Ensure math equations are scrollable on small screens */
+@media (max-width: 768px) {
+    .preview-content .katex-display {
+        padding: 0.75rem;
+        font-size: 0.95em;
+    }
+}
