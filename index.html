@@ -19,6 +19,14 @@
 </head>
 <body>
     <div class="app">
+        <!-- Product Title Header -->
+        <div class="product-header">
+            <h1 class="product-title">
+                Markdown Pro
+                <span class="build-info" id="buildInfo">(build: loading...)</span>
+            </h1>
+        </div>
+        
         <!-- Header with toolbar -->
         <header class="toolbar">
             <div class="toolbar-section">
@@ -408,6 +416,7 @@
     </div>
 
     <!-- Scripts -->
+    <script src="build-info.js"></script>
     <script src="marked.min.js"></script>
     <script src="highlight.min.js"></script>
     <script src="mermaid.min.js"></script>
@@ -482,5 +491,18 @@
     <script src="js/notifications.js"></script>
     <script src="js/pane-resizer.js"></script>
     <script src="js/app.js"></script>
+    
+    <!-- Update build info display -->
+    <script>
+        // Update build info in header
+        if (typeof BUILD_INFO !== 'undefined') {
+            const buildInfoEl = document.getElementById('buildInfo');
+            if (buildInfoEl) {
+                buildInfoEl.textContent = `(build: ${BUILD_INFO.hash})`;
+                buildInfoEl.title = `Full hash: ${BUILD_INFO.hashFull}\nBuild date: ${BUILD_INFO.date}\nVersion: ${BUILD_INFO.version}`;
+                console.log('🏗️ Markdown Pro - Build:', BUILD_INFO.hash, 'on', BUILD_INFO.date);
+            }
+        }
+    </script>
 </body>
 </html>
