@@ -340,6 +340,9 @@ class MarkdownEditor {
                 hljs.highlightElement(block);
             });
             
+            // Render math equations with KaTeX
+            this.renderMath();
+            
             // Process Mermaid diagrams with proper timing and retry logic
             setTimeout(() => {
                 this.processMermaidDiagrams();
@@ -355,6 +358,35 @@ class MarkdownEditor {
         } catch (error) {
             console.error('Markdown parsing error:', error);
             this.preview.innerHTML = '<div class="error">Error parsing markdown: ' + error.message + '</div>';
+        }
+    }
+    
+    renderMath() {
+        // Render math equations using KaTeX
+        if (typeof renderMathInElement !== 'undefined') {
+            try {
+                renderMathInElement(this.preview, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\[', right: '\\]', display: true},
+                        {left: '\\(', right: '\\)', display: false}
+                    ],
+                    throwOnError: false,
+                    errorColor: '#cc0000',
+                    trust: false,
+                    strict: 'warn',
+                    output: 'html',
+                    fleqn: false,
+                    macros: {
+                        "\\text": "\\textrm"
+                    }
+                });
+            } catch (error) {
+                console.error('KaTeX rendering error:', error);
+            }
+        } else {
+            console.warn('KaTeX not loaded yet');
         }
     }
     
@@ -747,6 +779,31 @@ class MarkdownEditor {
             hljs.highlightElement(block);
         });
         
+        // Render math equations
+        if (typeof renderMathInElement !== 'undefined') {
+            try {
+                renderMathInElement(tempContainer, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\[', right: '\\]', display: true},
+                        {left: '\\(', right: '\\)', display: false}
+                    ],
+                    throwOnError: false,
+                    errorColor: '#cc0000',
+                    trust: false,
+                    strict: 'warn',
+                    output: 'html',
+                    fleqn: false,
+                    macros: {
+                        "\\text": "\\textrm"
+                    }
+                });
+            } catch (error) {
+                console.error('KaTeX rendering error during export:', error);
+            }
+        }
+        
         // Process Mermaid diagrams
         await this.processMermaidDiagramsForExport(tempContainer);
         
@@ -891,6 +948,7 @@ class MarkdownEditor {
 <head>
     <meta charset="UTF-8">
     <title>${this.currentFileName}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
@@ -1091,6 +1149,7 @@ class MarkdownEditor {
 <head>
     <meta charset="UTF-8">
     <title>${pdfFileName}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
     <style>
         @page {
             margin: 0.75in;
