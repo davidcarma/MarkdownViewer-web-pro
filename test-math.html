@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>KaTeX Test</title>
+    <link rel="stylesheet" href="katex.min.css">
+    <script src="katex.min.js"></script>
+    <script src="katex-auto-render.min.js"></script>
+</head>
+<body>
+    <h1>KaTeX Test Page</h1>
+    <p>Inline math: $E = mc^2$</p>
+    <p>Block math:</p>
+    $$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$
+    
+    <div id="test">Testing: $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$</div>
+    
+    <script>
+        console.log('KaTeX loaded:', typeof katex !== 'undefined');
+        console.log('renderMathInElement loaded:', typeof renderMathInElement !== 'undefined');
+        
+        if (typeof renderMathInElement !== 'undefined') {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError: false
+            });
+            console.log('Math rendering attempted');
+        } else {
+            console.error('renderMathInElement not available!');
+        }
+    </script>
+</body>
+</html>
