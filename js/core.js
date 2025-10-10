@@ -45,10 +45,36 @@ class MarkdownEditor {
         this.updateDocumentTitle();
     }
     
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    extractMermaidBlocks(markdownText) {
+        // Extract all mermaid code blocks from the markdown before processing
+        // Pattern matches: ```mermaid\n<code>\n```
+        const mermaidPattern = /```mermaid\n([\s\S]*?)\n```/g;
+        let match;
+        let index = 0;
+        
+        while ((match = mermaidPattern.exec(markdownText)) !== null) {
+            const code = match[1];
+            const cacheKey = `mermaid_block_${index}`;
+            this.mermaidCodeCache.set(cacheKey, code);
+            index++;
+        }
+        
+        console.log(`Extracted ${index} mermaid blocks from markdown`);
+    }
+    
     setupMarked() {
+        // Store original mermaid code blocks before marked.js processing
+        this.mermaidCodeCache = new Map();
+        
         // Configure marked.js
         marked.setOptions({
-            highlight: function(code, lang) {
+            highlight: (code, lang) => {
                 if (lang && hljs.getLanguage(lang)) {
                     try {
                         return hljs.highlight(code, { language: lang }).value;
@@ -312,6 +338,11 @@ class MarkdownEditor {
     
     updatePreview() {
         try {
+            // Clear old mermaid cache entries and extract new ones
+            if (this.mermaidCodeCache) {
+                this.mermaidCodeCache.clear();
+            }
+            
             // Check if marked.js is available
             if (typeof marked === 'undefined') {
                 console.error('marked.js not loaded!');
@@ -331,6 +362,9 @@ class MarkdownEditor {
             } else if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
                 markdownText = this.imageCollapse.getPreviewContent();
             }
+            
+            // Extract and cache mermaid code blocks BEFORE marked.js processes them
+            this.extractMermaidBlocks(markdownText);
             
             const html = marked.parse(markdownText);
             this.preview.innerHTML = html;
@@ -407,7 +441,18 @@ class MarkdownEditor {
         
         mermaidBlocks.forEach((block, index) => {
             try {
-                let code = block.textContent.trim();
+                let code;
+                
+                // Try to get the original code from cache first (by index)
+                const cacheKey = `mermaid_block_${index}`;
+                if (this.mermaidCodeCache.has(cacheKey)) {
+                    code = this.mermaidCodeCache.get(cacheKey);
+                    console.log(`Using cached mermaid code for block ${index}`);
+                } else {
+                    // Fallback to textContent if cache is not available
+                    code = block.textContent.trim();
+                    console.log(`No cache found for block ${index}, using textContent`);
+                }
                 
                 // Clean and validate the code before processing
                 code = this.sanitizeMermaidCode(code);
@@ -771,6 +816,9 @@ class MarkdownEditor {
             markdownText = this.imageCollapse.getPreviewContent();
         }
         
+        // Extract mermaid blocks before processing (for export)
+        this.extractMermaidBlocks(markdownText);
+        
         const html = marked.parse(markdownText);
         tempContainer.innerHTML = html;
         
@@ -819,7 +867,16 @@ class MarkdownEditor {
         // Process each mermaid block
         const promises = Array.from(mermaidBlocks).map(async (block, index) => {
             try {
-                let code = block.textContent.trim();
+                let code;
+                
+                // Try to get the original code from cache first (by index)
+                const cacheKey = `mermaid_block_${index}`;
+                if (this.mermaidCodeCache.has(cacheKey)) {
+                    code = this.mermaidCodeCache.get(cacheKey);
+                } else {
+                    // Fallback to textContent if cache is not available
+                    code = block.textContent.trim();
+                }
                 
                 // Clean the code using the same sanitization
                 code = this.sanitizeMermaidCode(code);
