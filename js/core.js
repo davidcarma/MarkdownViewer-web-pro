@@ -497,13 +497,21 @@ class MarkdownEditor {
                         }
                     }).catch(error => {
                         console.error('Mermaid rendering error:', error);
+                        const encodedCode = encodeURIComponent(code);
+                        const liveEditorUrl = `https://mermaid.live/edit#pako:${btoa(JSON.stringify({code, mermaid: {theme: 'default'}}))}`;
                         mermaidDiv.innerHTML = `<div class="mermaid-error">
                             <p><strong>Mermaid Diagram Error:</strong></p>
                             <pre>${error.message}</pre>
                             <details>
                                 <summary>Show diagram code</summary>
-                                <pre><code>${code}</code></pre>
+                                <pre><code>${this.escapeHtml(code)}</code></pre>
                             </details>
+                            <p style="margin-top: 1rem;">
+                                <a href="https://mermaid.live/edit" target="_blank" style="color: #3b82f6; text-decoration: underline;">
+                                    🔧 Fix syntax in Mermaid Live Editor
+                                </a>
+                                <br><small style="color: #666;">Tip: Enclose labels with special characters in double quotes</small>
+                            </p>
                         </div>`;
                     });
                 } else {
@@ -917,10 +925,10 @@ class MarkdownEditor {
                         const cleanedSvg = svg.replace(/<script[\s\S]*?<\/script>/gi, '');
                         mermaidDiv.innerHTML = cleanedSvg;
                     } catch (error) {
-                        console.error('Mermaid rendering error:', error);
+                        console.error('Mermaid rendering error during export:', error);
                         mermaidDiv.innerHTML = `<div class="mermaid-error">
                             <p><strong>Mermaid Diagram Error:</strong> ${error.message}</p>
-                            <pre><code>${code}</code></pre>
+                            <pre><code>${this.escapeHtml(code)}</code></pre>
                         </div>`;
                     }
                 }
@@ -934,57 +942,31 @@ class MarkdownEditor {
     }
     
     sanitizeMermaidCode(code) {
-        // Clean up common issues that cause Mermaid parsing errors
+        // Minimal sanitizer - only fix what we KNOW needs fixing
+        // Let Mermaid's own parser handle everything else
         
-        // Remove any stray HTML that might have leaked in (but preserve <br>!)
+        // 1. Security: Remove dangerous HTML/scripts
         code = code.replace(/<script[\s\S]*?<\/script>/gi, '');
         code = code.replace(/<style[\s\S]*?<\/style>/gi, '');
         
-        // Handle problematic template-like syntax
-        code = code.replace(/\{\{[^}]*\}\}/g, '');
-        
-        // Fix <br/> to <br> - Mermaid expects non-self-closing tags
+        // 2. Compatibility: Mermaid requires <br> not <br/>
         code = code.replace(/<br\s*\/>/gi, '<br>');
         
-        // Fix node labels with parentheses - Mermaid parser gets confused by unquoted parens
-        // Match node definitions like: A[text with (parens)] or B{text with (parens)}
-        code = code.replace(/([A-Z]\d*)([\[\{])([^\]\}]*\([^\]\}]*\)[^\]\}]*)([\]\}])/g, (match, nodeId, openBrace, content, closeBrace) => {
-            // Skip if already quoted
-            if (content.trim().startsWith('"') && content.trim().endsWith('"')) {
-                return match;
-            }
-            // Wrap content in quotes
-            return `${nodeId}${openBrace}"${content.trim()}"${closeBrace}`;
-        });
-        
-        // Fix subgraph labels with parentheses or special characters
-        // Match: subgraph <unquoted text with parens>
-        // Replace with: subgraph "<quoted text>"
-        code = code.replace(/^(\s*subgraph\s+)([^"\n]+\([^"\n]+\))$/gm, (match, prefix, label) => {
-            // Only quote if not already quoted
-            if (!label.trim().startsWith('"')) {
-                return `${prefix}"${label.trim()}"`;
-            }
-            return match;
-        });
-        
-        // Clean up any malformed quotes or brackets
-        code = code.replace(/[""]([^""]*)[""]/g, '"$1"');
-        
-        // Remove extra whitespace and normalize line endings
+        // 3. Normalize whitespace
         code = code.replace(/\r\n/g, '\n');
-        code = code.replace(/\s+$/gm, '');
+        code = code.trim();
         
-        return code.trim();
+        return code;
     }
     
     isValidMermaidCode(code) {
+        // Minimal validation - let Mermaid's parser do the heavy lifting
         if (!code || code.length < 5) return false;
         
         // Check for basic Mermaid diagram types
         const validStartPatterns = [
-            /^\s*graph\s+(TD|TB|BT|RL|LR)/i,
-            /^\s*flowchart\s+(TD|TB|BT|RL|LR)/i,
+            /^\s*graph\s+/i,
+            /^\s*flowchart\s+/i,
             /^\s*sequenceDiagram/i,
             /^\s*classDiagram/i,
             /^\s*stateDiagram/i,
@@ -996,32 +978,7 @@ class MarkdownEditor {
             /^\s*mindmap/i
         ];
         
-        const hasValidStart = validStartPatterns.some(pattern => pattern.test(code));
-        if (!hasValidStart) {
-            console.warn('Mermaid code does not start with a recognized diagram type:', code.substring(0, 50));
-            return false;
-        }
-        
-        // Check for obviously malformed syntax
-        const problematicPatterns = [
-            /\{\{.*\}\}/,  // Template syntax
-            /<\/?\w+[^>]*>/,  // HTML tags (except in quotes)
-            /[^\w\s\[\](){}<>|:;.,=+\-*/_"'`~!@#$%^&?\\]/  // Unexpected characters
-        ];
-        
-        // Only flag as invalid if problematic patterns exist outside of quoted strings
-        const quotedStrings = code.match(/"[^"]*"/g) || [];
-        let codeWithoutQuotes = code;
-        quotedStrings.forEach(quote => {
-            codeWithoutQuotes = codeWithoutQuotes.replace(quote, '');
-        });
-        
-        const hasProblematicSyntax = problematicPatterns.some(pattern => pattern.test(codeWithoutQuotes));
-        if (hasProblematicSyntax) {
-            console.warn('Mermaid code contains potentially problematic syntax');
-        }
-        
-        return true; // Let Mermaid handle the detailed validation
+        return validStartPatterns.some(pattern => pattern.test(code));
     }
     
     async printFile() {
