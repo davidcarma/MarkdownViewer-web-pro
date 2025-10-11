@@ -82,8 +82,19 @@ class MarkdownEditor {
         // Store original mermaid code blocks before marked.js processing
         this.mermaidCodeCache = new Map();
         
+        // Configure custom renderer to make all links open in new tab
+        const renderer = new marked.Renderer();
+        
+        // Override link rendering to add target="_blank" and security attributes
+        renderer.link = function(href, title, text) {
+            const link = marked.Renderer.prototype.link.call(this, href, title, text);
+            // Add target="_blank" and rel="noopener noreferrer" for security
+            return link.replace('<a', '<a target="_blank" rel="noopener noreferrer"');
+        };
+        
         // Configure marked.js
         marked.setOptions({
+            renderer: renderer,
             highlight: (code, lang) => {
                 if (lang && hljs.getLanguage(lang)) {
                     try {
@@ -1481,11 +1492,19 @@ class MarkdownEditor {
     }
     
     loadSavedFile() {
-        if (!this.storageManager) return;
+        if (!this.storageManager) {
+            console.warn('❌ Storage manager not initialized');
+            return;
+        }
         
+        console.log('🔍 Checking for saved file in localStorage...');
         const savedFile = this.storageManager.getCurrentFile();
+        
         if (savedFile) {
-            console.log('Loading saved file:', savedFile.name);
+            console.log('✅ Found saved file:', savedFile.name);
+            console.log('   Content length:', savedFile.content?.length || 0);
+            console.log('   Cursor position:', savedFile.cursorPosition);
+            console.log('   Is modified:', savedFile.isModified);
             
             // Restore file content and state
             this.editor.value = savedFile.content || '';
@@ -1505,6 +1524,7 @@ class MarkdownEditor {
             // Show restoration notification
             this.showNotification(`Restored: ${savedFile.name}`, 'info');
         } else {
+            console.log('ℹ️ No saved file found, loading welcome content');
             // No saved file, show welcome content
             this.loadWelcomeContent();
         }

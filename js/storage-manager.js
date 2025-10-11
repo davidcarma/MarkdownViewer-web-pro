@@ -87,7 +87,19 @@ class LocalStorageManager {
     
     getCurrentFile() {
         const data = this.getAllData();
-        if (!data || !data.lastActiveFile) return null;
+        
+        if (!data) {
+            console.log('📦 LocalStorage: No data structure found');
+            return null;
+        }
+        
+        if (!data.lastActiveFile) {
+            console.log('📦 LocalStorage: No lastActiveFile set');
+            return null;
+        }
+        
+        console.log('📦 LocalStorage: lastActiveFile =', data.lastActiveFile);
+        console.log('📦 LocalStorage: Available files =', Object.keys(data.files || {}));
         
         return data.files[data.lastActiveFile] || null;
     }
