@@ -497,20 +497,20 @@ class MarkdownEditor {
                         }
                     }).catch(error => {
                         console.error('Mermaid rendering error:', error);
-                        const encodedCode = encodeURIComponent(code);
-                        const liveEditorUrl = `https://mermaid.live/edit#pako:${btoa(JSON.stringify({code, mermaid: {theme: 'default'}}))}`;
-                        mermaidDiv.innerHTML = `<div class="mermaid-error">
-                            <p><strong>Mermaid Diagram Error:</strong></p>
-                            <pre>${error.message}</pre>
-                            <details>
-                                <summary>Show diagram code</summary>
-                                <pre><code>${this.escapeHtml(code)}</code></pre>
+                        const errorMsg = this.escapeHtml(error.message || error.toString());
+                        const errorCode = this.escapeHtml(code);
+                        mermaidDiv.innerHTML = `<div class="mermaid-error" style="display: block; margin: 1rem 0; padding: 1rem; background: #fef2f2; border: 2px solid #ef4444; border-radius: 8px;">
+                            <p style="margin: 0 0 0.5rem 0;"><strong>❌ Mermaid Diagram Error</strong></p>
+                            <div style="background: white; padding: 0.75rem; border-radius: 4px; margin: 0.5rem 0; font-family: monospace; font-size: 0.9em; white-space: pre-wrap; word-break: break-word; user-select: all; cursor: text;">${errorMsg}</div>
+                            <details style="margin-top: 1rem;">
+                                <summary style="cursor: pointer; font-weight: 600; color: #dc2626;">📋 Show diagram code (click to expand)</summary>
+                                <pre style="margin-top: 0.5rem; background: white; padding: 0.75rem; border-radius: 4px; overflow-x: auto; user-select: all;"><code>${errorCode}</code></pre>
                             </details>
-                            <p style="margin-top: 1rem;">
-                                <a href="https://mermaid.live/edit" target="_blank" style="color: #3b82f6; text-decoration: underline;">
-                                    🔧 Fix syntax in Mermaid Live Editor
+                            <p style="margin-top: 1rem; margin-bottom: 0;">
+                                <a href="https://mermaid.live/edit" target="_blank" style="color: #3b82f6; text-decoration: underline; font-weight: 600;">
+                                    🔧 Test &amp; Fix in Mermaid Live Editor
                                 </a>
-                                <br><small style="color: #666;">Tip: Enclose labels with special characters in double quotes</small>
+                                <br><small style="color: #666; display: block; margin-top: 0.5rem;">💡 Tip: Enclose labels with special characters (like →, •, parentheses) in double quotes</small>
                             </p>
                         </div>`;
                     });
@@ -926,9 +926,11 @@ class MarkdownEditor {
                         mermaidDiv.innerHTML = cleanedSvg;
                     } catch (error) {
                         console.error('Mermaid rendering error during export:', error);
+                        const errorMsg = this.escapeHtml(error.message || error.toString());
+                        const errorCode = this.escapeHtml(code);
                         mermaidDiv.innerHTML = `<div class="mermaid-error">
-                            <p><strong>Mermaid Diagram Error:</strong> ${error.message}</p>
-                            <pre><code>${this.escapeHtml(code)}</code></pre>
+                            <p><strong>Mermaid Diagram Error:</strong> ${errorMsg}</p>
+                            <pre><code>${errorCode}</code></pre>
                         </div>`;
                     }
                 }
