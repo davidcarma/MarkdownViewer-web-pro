@@ -946,6 +946,17 @@ class MarkdownEditor {
         // Fix <br/> to <br> - Mermaid expects non-self-closing tags
         code = code.replace(/<br\s*\/>/gi, '<br>');
         
+        // Fix node labels with parentheses - Mermaid parser gets confused by unquoted parens
+        // Match node definitions like: A[text with (parens)] or B{text with (parens)}
+        code = code.replace(/([A-Z]\d*)([\[\{])([^\]\}]*\([^\]\}]*\)[^\]\}]*)([\]\}])/g, (match, nodeId, openBrace, content, closeBrace) => {
+            // Skip if already quoted
+            if (content.trim().startsWith('"') && content.trim().endsWith('"')) {
+                return match;
+            }
+            // Wrap content in quotes
+            return `${nodeId}${openBrace}"${content.trim()}"${closeBrace}`;
+        });
+        
         // Fix subgraph labels with parentheses or special characters
         // Match: subgraph <unquoted text with parens>
         // Replace with: subgraph "<quoted text>"
