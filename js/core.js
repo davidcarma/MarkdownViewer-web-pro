@@ -936,12 +936,15 @@ class MarkdownEditor {
     sanitizeMermaidCode(code) {
         // Clean up common issues that cause Mermaid parsing errors
         
-        // Remove any stray HTML that might have leaked in (but preserve <br/>!)
+        // Remove any stray HTML that might have leaked in (but preserve <br>!)
         code = code.replace(/<script[\s\S]*?<\/script>/gi, '');
         code = code.replace(/<style[\s\S]*?<\/style>/gi, '');
         
         // Handle problematic template-like syntax
         code = code.replace(/\{\{[^}]*\}\}/g, '');
+        
+        // Fix <br/> to <br> - Mermaid expects non-self-closing tags
+        code = code.replace(/<br\s*\/>/gi, '<br>');
         
         // Fix subgraph labels with parentheses or special characters
         // Match: subgraph <unquoted text with parens>
