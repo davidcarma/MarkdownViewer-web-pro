@@ -936,12 +936,23 @@ class MarkdownEditor {
     sanitizeMermaidCode(code) {
         // Clean up common issues that cause Mermaid parsing errors
         
-        // Remove any stray HTML that might have leaked in
+        // Remove any stray HTML that might have leaked in (but preserve <br/>!)
         code = code.replace(/<script[\s\S]*?<\/script>/gi, '');
         code = code.replace(/<style[\s\S]*?<\/style>/gi, '');
         
         // Handle problematic template-like syntax
         code = code.replace(/\{\{[^}]*\}\}/g, '');
+        
+        // Fix subgraph labels with parentheses or special characters
+        // Match: subgraph <unquoted text with parens>
+        // Replace with: subgraph "<quoted text>"
+        code = code.replace(/^(\s*subgraph\s+)([^"\n]+\([^"\n]+\))$/gm, (match, prefix, label) => {
+            // Only quote if not already quoted
+            if (!label.trim().startsWith('"')) {
+                return `${prefix}"${label.trim()}"`;
+            }
+            return match;
+        });
         
         // Clean up any malformed quotes or brackets
         code = code.replace(/[""]([^""]*)[""]/g, '"$1"');
