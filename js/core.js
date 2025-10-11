@@ -62,10 +62,20 @@ class MarkdownEditor {
             const code = match[1];
             const cacheKey = `mermaid_block_${index}`;
             this.mermaidCodeCache.set(cacheKey, code);
+            console.log(`📦 Cached mermaid block ${index}:`, code.substring(0, 100) + (code.length > 100 ? '...' : ''));
+            console.log(`   Contains <br/>: ${code.includes('<br/>')}`);
             index++;
         }
         
-        console.log(`Extracted ${index} mermaid blocks from markdown`);
+        console.log(`✅ Extracted ${index} mermaid blocks from markdown`);
+        if (index === 0) {
+            console.warn('⚠️ No mermaid blocks found! Checking markdown format...');
+            const hasMermaid = markdownText.includes('```mermaid');
+            console.log(`   Markdown contains \`\`\`mermaid: ${hasMermaid}`);
+            if (hasMermaid) {
+                console.log('   First 200 chars of markdown:', markdownText.substring(0, 200));
+            }
+        }
     }
     
     setupMarked() {
@@ -463,6 +473,8 @@ class MarkdownEditor {
                 }
                 
                 console.log(`Processing Mermaid diagram ${index + 1}:`, code.substring(0, 50) + '...');
+                console.log(`🎨 Rendering Mermaid with code (first 200 chars):`, code.substring(0, 200));
+                console.log(`   Code length: ${code.length}, Has <br/>: ${code.includes('<br/>')}`);
                 
                 const id = `mermaid-diagram-${index}-${Date.now()}`;
                 
