@@ -965,7 +965,16 @@ class MarkdownEditor {
         // 2. Compatibility: Mermaid requires <br> not <br/>
         code = code.replace(/<br\s*\/>/gi, '<br>');
         
-        // 3. Normalize whitespace
+        // 3. Fix unescaped double braces in node labels (common AI hallucination)
+        // Looks for [Text {{val}}] and converts to ["Text {{val}}"] to prevent parsing as shape
+        // Only applies if the content doesn't already contain quotes to avoid breaking complex strings
+        code = code.replace(/\[([^"\]]*?\{\{.*?\}\}[^"\]]*?)\]/g, '["$1"]');
+        
+        // 4. Fix unescaped parentheses in node labels
+        // Looks for [Text (val)] and converts to ["Text (val)"]
+        code = code.replace(/\[([^"\]]*?\(.*?\)[^"\]]*?)\]/g, '["$1"]');
+        
+        // 5. Normalize whitespace
         code = code.replace(/\r\n/g, '\n');
         code = code.trim();
         
