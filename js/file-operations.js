@@ -6,14 +6,61 @@ class FileOperations {
         this.editor = editor;
     }
     
-    newFile() {
-        if (this.editor.isModified) {
-            // Offer to save current work first
-            const shouldSave = confirm('You have unsaved changes. Would you like to save to localStorage before creating a new file?');
-            if (shouldSave) {
-                this.editor.saveToLocalStorage();
+    async newFile() {
+        // Always show dialog to ask what to do with current document
+        const action = await this.showClearDocumentDialog();
+        
+        if (action === 'cancel') {
+            // User canceled, don't clear the document
+            return;
+        } else if (action === 'save-browser') {
+            // Save to IndexedDB (default action)
+            let content = this.editor.editor.value;
+            if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
+                content = this.editor.imageCollapse.getPreviewContent();
+            }
+            
+            if (this.editor.fileBrowser && content.trim()) {
+                const success = await this.editor.fileBrowser.saveCurrentFile();
+                if (!success) {
+                    // Don't proceed if save failed
+                    return;
+                }
+            }
+        } else if (action === 'download') {
+            // Download the file
+            let content = this.editor.editor.value;
+            if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
+                content = this.editor.imageCollapse.getPreviewContent();
+            }
+            
+            if (content.trim()) {
+                const blob = new Blob([content], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = this.editor.currentFileName;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.editor.showNotification(`Downloaded: ${this.editor.currentFileName}`, 'success');
+            }
+        } else if (action === 'delete') {
+            // Delete current file from IndexedDB if it exists
+            if (this.editor.fileBrowser && this.editor.indexedDBManager) {
+                const fileId = this.editor.fileBrowser.generateFileId(this.editor.currentFileName);
+                try {
+                    await this.editor.indexedDBManager.deleteFile(fileId);
+                    this.editor.showNotification('File deleted', 'info');
+                } catch (error) {
+                    console.warn('File may not exist in IndexedDB:', error);
+                }
             }
         }
+        // If action is 'discard', we continue without saving
         
         // Create new file
         this.editor.editor.value = '';
@@ -31,8 +78,77 @@ class FileOperations {
         this.editor.showNotification('New file created', 'success');
     }
     
-    openFile() {
-        this.editor.fileInput.click();
+    showClearDocumentDialog() {
+        return new Promise((resolve) => {
+            // Check if there are unsaved changes
+            const hasChanges = this.editor.isModified || this.editor.editor.value.trim().length > 0;
+            const message = hasChanges 
+                ? '<p>You have unsaved changes in the current document.</p><p>What would you like to do?</p>'
+                : '<p>What would you like to do with the current document?</p>';
+            
+            // Create modal dialog
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-header">
+                        <h3>Clear Document?</h3>
+                    </div>
+                    <div class="modal-body">
+                        ${message}
+                    </div>
+                    <div class="modal-actions clear-document-actions">
+                        <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                        <button class="btn btn-danger" data-action="delete">Delete</button>
+                        <button class="btn btn-primary" data-action="download">Download</button>
+                        <button class="btn btn-primary" data-action="save-browser">Save on Browser</button>
+                    </div>
+                </div>
+            `;
+            
+            // Add event listeners
+            modal.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    // Clicked outside modal - treat as cancel
+                    document.body.removeChild(modal);
+                    resolve('cancel');
+                }
+                
+                const action = e.target.getAttribute('data-action');
+                if (action) {
+                    document.body.removeChild(modal);
+                    resolve(action);
+                }
+            });
+            
+            // Handle escape key
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(modal);
+                    document.removeEventListener('keydown', handleEscape);
+                    resolve('cancel');
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+            
+            document.body.appendChild(modal);
+            
+            // Focus the default "Save on Browser" button
+            const saveButton = modal.querySelector('[data-action="save-browser"]');
+            if (saveButton) {
+                setTimeout(() => saveButton.focus(), 100);
+            }
+        });
+    }
+    
+    async openFile() {
+        // Show file browser instead of file picker
+        if (this.editor.fileBrowser) {
+            await this.editor.fileBrowser.showFileBrowser();
+        } else {
+            // Fallback to file picker if browser not available
+            this.editor.fileInput.click();
+        }
     }
     
     openWordFile() {
@@ -365,16 +481,24 @@ class FileOperations {
         return markdown + '\n';
     }
     
-    saveFile() {
+    async saveFile() {
         // Get expanded content for saving (with full image data URLs)
         let content = this.editor.editor.value;
         if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
             content = this.editor.imageCollapse.getPreviewContent();
         }
         
+        // Save to IndexedDB
+        if (this.editor.fileBrowser) {
+            await this.editor.fileBrowser.saveCurrentFile();
+        }
+        
+        // Also save to localStorage for backward compatibility
+        this.editor.autoSave();
+        
+        // Download the file
         const blob = new Blob([content], { type: 'text/markdown' });
         const url = URL.createObjectURL(blob);
-        
         const a = document.createElement('a');
         a.href = url;
         a.download = this.editor.currentFileName;
@@ -386,9 +510,6 @@ class FileOperations {
         
         this.editor.lastSavedContent = content;
         this.editor.setModified(false);
-        
-        // Also save to localStorage
-        this.editor.autoSave();
         
         // Show notification
         this.editor.showNotification(`File saved: ${this.editor.currentFileName}`, 'success');

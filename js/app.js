@@ -3,9 +3,12 @@
  */
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Create the main editor instance
     window.markdownEditor = new MarkdownEditor();
+    
+    // Initialize file browser
+    window.markdownEditor.fileBrowser = new FileBrowser(window.markdownEditor);
     
     // Initialize additional components
     new EditorEvents(window.markdownEditor);
