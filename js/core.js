@@ -1522,7 +1522,123 @@ class MarkdownEditor {
         }
     }
     
+    async migrateLocalStorageToIndexedDB(clearLocalStorage = false) {
+        // Check if migration has already been done (unless forced)
+        const migrationFlag = localStorage.getItem('markdown-editor-migrated-to-indexeddb');
+        if (migrationFlag === 'true' && !clearLocalStorage) {
+            console.log('ℹ️ Migration already completed, skipping...');
+            return { migrated: 0, skipped: 0, cleared: false };
+        }
+        
+        if (!this.indexedDBManager || !this.indexedDBManager.isSupported) {
+            console.log('ℹ️ IndexedDB not available, skipping migration');
+            return { migrated: 0, skipped: 0, cleared: false };
+        }
+        
+        if (!this.storageManager) {
+            return { migrated: 0, skipped: 0, cleared: false };
+        }
+        
+        try {
+            // Get all files from localStorage
+            const localStorageData = this.storageManager.getAllData();
+            if (!localStorageData || !localStorageData.files) {
+                console.log('ℹ️ No files in localStorage to migrate');
+                // Mark migration as done even if no files
+                localStorage.setItem('markdown-editor-migrated-to-indexeddb', 'true');
+                return { migrated: 0, skipped: 0, cleared: false };
+            }
+            
+            const files = Object.values(localStorageData.files);
+            if (files.length === 0) {
+                console.log('ℹ️ No files in localStorage to migrate');
+                localStorage.setItem('markdown-editor-migrated-to-indexeddb', 'true');
+                return { migrated: 0, skipped: 0, cleared: false };
+            }
+            
+            console.log(`🔄 Migrating ${files.length} file(s) from localStorage to IndexedDB...`);
+            
+            let migratedCount = 0;
+            let skippedCount = 0;
+            
+            // Migrate each file to IndexedDB
+            for (const file of files) {
+                try {
+                    // Check if file already exists in IndexedDB
+                    const existingFile = await this.indexedDBManager.getFile(file.id);
+                    
+                    if (existingFile) {
+                        // File already exists, skip or update if localStorage is newer
+                        const localStorageDate = new Date(file.modified || file.created || 0);
+                        const indexedDBDate = new Date(existingFile.modified || existingFile.created || 0);
+                        
+                        if (localStorageDate > indexedDBDate) {
+                            // localStorage version is newer, update IndexedDB
+                            await this.indexedDBManager.saveFile(file);
+                            migratedCount++;
+                            console.log(`  ✅ Updated: ${file.name}`);
+                        } else {
+                            skippedCount++;
+                            console.log(`  ⏭️ Skipped (already exists): ${file.name}`);
+                        }
+                    } else {
+                        // File doesn't exist in IndexedDB, migrate it
+                        await this.indexedDBManager.saveFile(file);
+                        migratedCount++;
+                        console.log(`  ✅ Migrated: ${file.name}`);
+                    }
+                } catch (error) {
+                    console.error(`  ❌ Failed to migrate ${file.name}:`, error);
+                }
+            }
+            
+            console.log(`✅ Migration complete: ${migratedCount} migrated, ${skippedCount} skipped`);
+            
+            // Mark migration as complete
+            localStorage.setItem('markdown-editor-migrated-to-indexeddb', 'true');
+            
+            // Clear localStorage if requested
+            let cleared = false;
+            if (clearLocalStorage && migratedCount > 0) {
+                try {
+                    this.storageManager.clearAllData();
+                    cleared = true;
+                    console.log('🗑️ localStorage cleared after successful migration');
+                } catch (error) {
+                    console.error('Failed to clear localStorage:', error);
+                }
+            }
+            
+            if (migratedCount > 0) {
+                const message = cleared 
+                    ? `Migrated ${migratedCount} file(s) to IndexedDB and cleared localStorage`
+                    : `Migrated ${migratedCount} file(s) to IndexedDB`;
+                this.showNotification(message, 'success');
+            }
+            
+            return { migrated: migratedCount, skipped: skippedCount, cleared };
+        } catch (error) {
+            console.error('❌ Migration failed:', error);
+            this.showNotification('Migration from localStorage failed', 'error');
+            return { migrated: 0, skipped: 0, cleared: false };
+        }
+    }
+    
+    /**
+     * Manually trigger migration and optionally clear localStorage
+     * @param {boolean} clearLocalStorage - If true, clears localStorage after migration
+     * @returns {Promise<Object>} Migration result with counts
+     */
+    async migrateAndCleanup(clearLocalStorage = true) {
+        // Reset migration flag to force migration
+        localStorage.removeItem('markdown-editor-migrated-to-indexeddb');
+        return await this.migrateLocalStorageToIndexedDB(clearLocalStorage);
+    }
+    
     async loadSavedFile() {
+        // Migrate localStorage files to IndexedDB first (one-time migration)
+        await this.migrateLocalStorageToIndexedDB();
+        
         // Try to load from IndexedDB first (preferred)
         if (this.indexedDBManager && this.indexedDBManager.isSupported) {
             try {
@@ -1561,7 +1677,7 @@ class MarkdownEditor {
             }
         }
         
-        // Fallback to localStorage
+        // Fallback to localStorage (for backward compatibility)
         if (this.storageManager) {
             console.log('🔍 Checking for saved file in localStorage...');
             const savedFile = this.storageManager.getCurrentFile();

@@ -26,10 +26,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup drag and drop
     window.markdownEditor.setupDragAndDrop();
     
+    // Expose migration helper to console
+    window.migrateToIndexedDB = async (clearLocalStorage = true) => {
+        return await window.markdownEditor.migrateAndCleanup(clearLocalStorage);
+    };
+    
     // Add some helpful console messages
     console.log('🚀 Markdown Editor initialized successfully!');
     console.log('📋 Image paste:', window.markdownEditor.imagePaste ? 'enabled' : 'disabled');
     console.log('🖼️ Image collapse:', window.markdownEditor.imageCollapse ? 'enabled' : 'disabled');
+    console.log('💾 Migration helper: Use migrateToIndexedDB(true) to migrate and clear localStorage');
     console.log('💡 Keyboard shortcuts:');
     console.log('   Ctrl/Cmd + N: New file');
     console.log('   Ctrl/Cmd + O: Open file');
