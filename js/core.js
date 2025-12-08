@@ -25,18 +25,24 @@ class MarkdownEditor {
         
         // Undo/Redo handled natively by browser - no custom implementation needed
         
-        // Initialize storage manager
+        // Initialize storage managers
         this.storageManager = new LocalStorageManager();
+        this.indexedDBManager = new IndexedDBManager();
         
         this.init();
     }
     
-    init() {
+    async init() {
         this.setupMarked();
         this.bindEvents();
         
+        // Initialize IndexedDB
+        if (this.indexedDBManager) {
+            await this.indexedDBManager.init();
+        }
+        
         // Load saved file if available
-        this.loadSavedFile();
+        await this.loadSavedFile();
         
         this.updatePreview();
         this.updateStats();
@@ -1476,8 +1482,9 @@ class MarkdownEditor {
     }
     
     // localStorage integration methods
-    autoSave() {
+    async autoSave() {
         // Auto-save content, cursor position, and state changes
+        // Save to localStorage for backward compatibility
         if (this.storageManager) {
             this.storageManager.autoSave(
                 this.currentFileName,
@@ -1485,6 +1492,21 @@ class MarkdownEditor {
                 this.editor.selectionStart,
                 this.isModified
             );
+        }
+        
+        // Also save to IndexedDB (debounced)
+        if (this.fileBrowser && this.indexedDBManager && this.indexedDBManager.isSupported) {
+            // Debounce IndexedDB saves to avoid too frequent writes
+            if (this.indexedDBSaveTimeout) {
+                clearTimeout(this.indexedDBSaveTimeout);
+            }
+            this.indexedDBSaveTimeout = setTimeout(async () => {
+                try {
+                    await this.fileBrowser.saveCurrentFile();
+                } catch (error) {
+                    console.warn('Failed to auto-save to IndexedDB:', error);
+                }
+            }, 1000); // Wait 1 second after last change
         }
     }
     
@@ -1500,43 +1522,73 @@ class MarkdownEditor {
         }
     }
     
-    loadSavedFile() {
-        if (!this.storageManager) {
-            console.warn('❌ Storage manager not initialized');
-            return;
-        }
-        
-        console.log('🔍 Checking for saved file in localStorage...');
-        const savedFile = this.storageManager.getCurrentFile();
-        
-        if (savedFile) {
-            console.log('✅ Found saved file:', savedFile.name);
-            console.log('   Content length:', savedFile.content?.length || 0);
-            console.log('   Cursor position:', savedFile.cursorPosition);
-            console.log('   Is modified:', savedFile.isModified);
-            
-            // Restore file content and state
-            this.editor.value = savedFile.content || '';
-            this.currentFileName = savedFile.name || 'Untitled.md';
-            this.documentTitle.value = this.currentFileName;
-            this.fileName.textContent = this.currentFileName;
-            this.setModified(savedFile.isModified || false);
-            
-            // Restore cursor position
-            if (savedFile.cursorPosition) {
-                setTimeout(() => {
-                    this.editor.setSelectionRange(savedFile.cursorPosition, savedFile.cursorPosition);
-                    this.editor.focus();
-                }, 100);
+    async loadSavedFile() {
+        // Try to load from IndexedDB first (preferred)
+        if (this.indexedDBManager && this.indexedDBManager.isSupported) {
+            try {
+                const files = await this.indexedDBManager.getAllFiles();
+                if (files.length > 0) {
+                    // Load the most recently modified file
+                    const sortedFiles = [...files].sort((a, b) => {
+                        const dateA = new Date(a.modified || a.created || 0);
+                        const dateB = new Date(b.modified || b.created || 0);
+                        return dateB - dateA;
+                    });
+                    
+                    const savedFile = sortedFiles[0];
+                    console.log('✅ Found saved file in IndexedDB:', savedFile.name);
+                    
+                    this.editor.value = savedFile.content || '';
+                    this.currentFileName = savedFile.name || 'Untitled.md';
+                    this.documentTitle.value = this.currentFileName;
+                    this.fileName.textContent = this.currentFileName;
+                    this.lastSavedContent = savedFile.content || '';
+                    this.setModified(false);
+                    
+                    // Restore cursor position
+                    if (savedFile.cursorPosition) {
+                        setTimeout(() => {
+                            this.editor.setSelectionRange(savedFile.cursorPosition, savedFile.cursorPosition);
+                            this.editor.focus();
+                        }, 100);
+                    }
+                    
+                    this.showNotification(`Restored: ${savedFile.name}`, 'info');
+                    return;
+                }
+            } catch (error) {
+                console.warn('Failed to load from IndexedDB, trying localStorage:', error);
             }
-            
-            // Show restoration notification
-            this.showNotification(`Restored: ${savedFile.name}`, 'info');
-        } else {
-            console.log('ℹ️ No saved file found, loading welcome content');
-            // No saved file, show welcome content
-            this.loadWelcomeContent();
         }
+        
+        // Fallback to localStorage
+        if (this.storageManager) {
+            console.log('🔍 Checking for saved file in localStorage...');
+            const savedFile = this.storageManager.getCurrentFile();
+            
+            if (savedFile) {
+                console.log('✅ Found saved file:', savedFile.name);
+                
+                this.editor.value = savedFile.content || '';
+                this.currentFileName = savedFile.name || 'Untitled.md';
+                this.documentTitle.value = this.currentFileName;
+                this.fileName.textContent = this.currentFileName;
+                this.setModified(savedFile.isModified || false);
+                
+                if (savedFile.cursorPosition) {
+                    setTimeout(() => {
+                        this.editor.setSelectionRange(savedFile.cursorPosition, savedFile.cursorPosition);
+                        this.editor.focus();
+                    }, 100);
+                }
+                
+                this.showNotification(`Restored: ${savedFile.name}`, 'info');
+                return;
+            }
+        }
+        
+        console.log('ℹ️ No saved file found, loading welcome content');
+        this.loadWelcomeContent();
     }
     
     loadWelcomeContent() {

@@ -77,6 +77,22 @@
     min-width: 120px;
 }
 
+/* Clear document dialog - button order */
+.clear-document-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.clear-document-actions .btn {
+    min-width: 110px;
+}
+
+/* Make "Save on Browser" button more prominent (default action) */
+.clear-document-actions .btn[data-action="save-browser"] {
+    order: -1; /* Move to end (rightmost) */
+    font-weight: 600;
+}
+
 /* Notification styles */
 .notification {
     position: fixed;
