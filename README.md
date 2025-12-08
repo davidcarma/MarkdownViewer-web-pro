@@ -7,7 +7,9 @@ A fully-featured, modern Markdown editor with live preview, auto-save, and fulls
 ### Core Functionality
 - **Real-time Preview**: See your markdown rendered as you type
 - **Split Pane Layout**: Editor and preview side-by-side with resizable divider
-- **LocalStorage Auto-Save**: Your work is automatically saved as you type (never lose data again!)
+- **IndexedDB Storage**: Large-capacity browser storage (50MB - several GB) for multiple files
+- **File Browser**: Browse and manage all your saved files with a beautiful modal interface
+- **Auto-Save**: Your work is automatically saved to IndexedDB as you type (never lose data again!)
 - **File Persistence**: Resume exactly where you left off across browser sessions
 - **Fullscreen Editing**: Distraction-free editing mode with smooth transitions
 - **Syntax Highlighting**: Code blocks are highlighted using highlight.js
@@ -77,10 +79,11 @@ A fully-featured, modern Markdown editor with live preview, auto-save, and fulls
 5. **Fullscreen Mode**: Click the eye 👁 button for distraction-free editing
 
 ### File Operations
-- **New File**: Use Ctrl/Cmd+N (offers to save current work first)
-- **Open Files**: Use Ctrl/Cmd+O or drag & drop files onto the editor
+- **New File**: Use Ctrl/Cmd+N - Shows dialog with options: Save on Browser (default), Download, Cancel, or Delete
+- **Open Files**: Use Ctrl/Cmd+O - Opens file browser to browse and select from saved files, or open from disk
+- **File Browser**: Browse all saved files, search by name, view metadata, and manage files
 - **Save to Computer**: Use Ctrl/Cmd+S to download your markdown file
-- **Save to Browser**: Use Ctrl/Cmd+L to explicitly save to localStorage
+- **Save to Browser**: Files are automatically saved to IndexedDB (much larger capacity than localStorage)
 - **Format Text**: Use the toolbar buttons or keyboard shortcuts
 
 ### Advanced Features
@@ -109,12 +112,14 @@ Markdown Viewer/
 │   ├── core.js                   # Core editor functionality
 │   ├── events.js                 # Event handling
 │   ├── file-operations.js        # File open/save operations
-│   ├── storage-manager.js        # localStorage management
+│   ├── file-browser.js           # File browser modal interface
+│   ├── indexeddb-manager.js      # IndexedDB storage management
+│   ├── storage-manager.js        # localStorage management (backward compatibility)
 │   ├── drag-drop.js              # Drag & drop functionality
 │   ├── image-paste.js            # Image paste handling
-│   ├── notifications.js          # Toast notifications
-│   ├── pane-resizer.js           # Split pane resizing
-│   ├── syntax-highlight.js       # Editor syntax highlighting
+│   ├── notifications.js         # Toast notifications
+│   ├── pane-resizer.js          # Split pane resizing
+│   ├── syntax-highlight.js      # Editor syntax highlighting
 │   └── simple-image-collapse-v2.js # Image widget system
 ├── test/                         # Test files
 │   ├── debug-mermaid.html        # Mermaid testing
@@ -165,39 +170,50 @@ All dependencies are included locally for offline functionality:
 | `Tab` | Indent line/selection |
 | `Shift + Tab` | Unindent line/selection |
 
-## LocalStorage Auto-Save System
+## IndexedDB Storage System
 
-This editor features a comprehensive localStorage system that automatically saves your work:
+This editor features a powerful IndexedDB storage system that automatically saves your work with much larger capacity than localStorage:
 
 ### ✅ **What's Saved Automatically:**
-- **File Content**: Your markdown text as you type
+- **File Content**: Your markdown text as you type (with full image data URLs)
 - **Cursor Position**: Exact position for seamless resume
 - **File Name**: Document title and metadata
 - **Modified State**: Track unsaved changes
+- **File Metadata**: Creation date, modification date, file size, word count, line count
 
 ### 🔄 **How It Works:**
-1. **Auto-Save**: Saves every 500ms after you stop typing
-2. **Session Restore**: Automatically loads your last file when you return
-3. **Smart Workflow**: Asks before replacing saved work with new files
-4. **Visual Feedback**: Shows "✓ Auto-saved" and "📁 Buffered" notifications
+1. **Auto-Save**: Saves to IndexedDB every 1 second after you stop typing (debounced)
+2. **Session Restore**: Automatically loads your most recently modified file when you return
+3. **Smart Workflow**: Clear document dialog offers 4 options: Save on Browser (default), Download, Cancel, or Delete
+4. **Visual Feedback**: Shows "✓ Auto-saved" and "Saved to IndexedDB" notifications
 
 ### 🗂️ **File Management:**
-- **One File Buffer**: Currently supports one file at a time (multi-file support planned)
+- **Multiple Files**: Store many files in IndexedDB (50MB - several GB capacity)
+- **File Browser**: Beautiful modal interface to browse, search, open, and delete files
 - **User-Controlled**: You decide when to create new files or load existing ones
 - **Data Persistence**: Works completely offline, no server required
-- **Future-Ready**: Architecture designed for multiple files and folders
+- **Search Functionality**: Search files by name or content in the file browser
 
 ### 💾 **Storage Features:**
-- **Export/Import**: Backup and restore your data as JSON
-- **Storage Monitoring**: Check localStorage usage
-- **Error Handling**: Graceful handling of quota limits
+- **Large Capacity**: IndexedDB provides 50MB to several GB (vs 5-10MB for localStorage)
+- **Multiple Files**: Store and manage multiple markdown files
+- **File Browser**: Browse all saved files with metadata (date, size, etc.)
+- **Error Handling**: Graceful handling of storage quota limits
 - **Cross-Session**: Your work persists across browser sessions
+- **Backward Compatible**: Falls back to localStorage if IndexedDB unavailable
 
 ### 📱 **Important Note About Syncing:**
-LocalStorage data does **NOT** automatically sync across devices. Each browser/device maintains its own copy. For cross-device access:
-- Use the export/import feature for manual backup
+IndexedDB data does **NOT** automatically sync across devices. Each browser/device maintains its own copy. For cross-device access:
+- Use the download feature to save files to your computer
 - Future versions will include cloud sync options
 - Consider using a browser extension version for Chrome sync
+
+### 🎯 **Clear Document Dialog:**
+When creating a new file, you'll see a dialog with 4 options:
+- **Save on Browser** (default): Saves current file to IndexedDB
+- **Download**: Downloads the file to your computer
+- **Cancel**: Keeps current document open
+- **Delete**: Removes the file from IndexedDB storage
 
 ## Drag & Drop Feature
 
@@ -424,18 +440,27 @@ The editor uses CSS custom properties (variables) for easy theming. You can modi
 
 See `todo.md` for our comprehensive development roadmap including:
 
-- **Phase 2**: Multi-file support with file browser
-- **Phase 3**: Folder management and organization  
-- **Phase 4**: Advanced editing features
-- **Phase 5**: Cross-device sync and cloud integration
-- **Phase 6**: Collaboration and sharing
-- **Phase 7**: Customization and extensions
+- **✅ Phase 1 Complete**: IndexedDB storage and file browser implemented
+- **Phase 2**: Folder management and organization  
+- **Phase 3**: Advanced editing features
+- **Phase 4**: Cross-device sync and cloud integration
+- **Phase 5**: Collaboration and sharing
+- **Phase 6**: Customization and extensions
 
 ## Technical Documentation
 
-- **`LOCALSTORAGE.md`**: Detailed localStorage implementation docs
+- **`LOCALSTORAGE.md`**: Detailed localStorage implementation docs (legacy, now using IndexedDB)
 - **`todo.md`**: Complete development roadmap and future plans
 - **`test/`**: Test files and debugging tools
+
+## Recent Updates
+
+### Version 2.0 - IndexedDB & File Browser
+- ✅ **IndexedDB Storage**: Upgraded from localStorage to IndexedDB for much larger capacity (50MB - several GB)
+- ✅ **File Browser**: Beautiful modal interface to browse, search, and manage all saved files
+- ✅ **Multiple Files**: Store and manage multiple markdown files in browser storage
+- ✅ **Enhanced Clear Dialog**: New file dialog with 4 options: Save on Browser (default), Download, Cancel, Delete
+- ✅ **Improved File Management**: Search files, view metadata, delete files, and open from browser or disk
 
 ## Browser Support
 
