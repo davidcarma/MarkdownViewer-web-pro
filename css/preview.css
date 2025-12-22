@@ -7,6 +7,17 @@
     transition: all 0.3s ease;
 }
 
+/* Invisible source-line markers used for content-based scroll sync */
+.preview-content .src-line-marker {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+    user-select: none;
+    vertical-align: top;
+}
+
 /* Markdown preview styles */
 .preview-content h1,
 .preview-content h2,

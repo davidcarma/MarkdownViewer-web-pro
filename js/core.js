@@ -32,8 +32,139 @@ class MarkdownEditor {
         // Scroll sync guard (prevents feedback loops when syncing both directions)
         this._isSyncingScroll = false;
 
+        // Content-based scroll sync map: [{ line: number, top: number }]
+        this._scrollMap = null;
+
         // Expose a promise so other modules can reliably run after content restore.
         this.ready = this.init();
+    }
+
+    _escapeRegex(str) {
+        return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    _getEditorLineHeightPx() {
+        try {
+            const cs = window.getComputedStyle(this.editor);
+            const lh = cs.lineHeight;
+            if (lh && lh !== 'normal') {
+                const v = parseFloat(lh);
+                if (Number.isFinite(v) && v > 0) return v;
+            }
+            const fs = parseFloat(cs.fontSize || '14');
+            return (Number.isFinite(fs) && fs > 0) ? fs * 1.4 : 20;
+        } catch (_) {
+            return 20;
+        }
+    }
+
+    _getEditorTopLine() {
+        const lineHeight = this._getEditorLineHeightPx();
+        return Math.max(1, Math.floor(this.editor.scrollTop / Math.max(1, lineHeight)) + 1);
+    }
+
+    _injectSourceLineMarkers(markdownText) {
+        // Insert invisible markers into the markdown so we can build a DOM scroll map.
+        // We append markers at end-of-line (so we don't break markdown syntax at line start),
+        // and we skip fenced code blocks to avoid polluting code/mermaid fences.
+        const lines = String(markdownText || '').split('\n');
+        const total = lines.length;
+        if (total === 0) return markdownText;
+
+        const maxMarkers = 2000;
+        const step = Math.max(1, Math.ceil(total / maxMarkers));
+
+        let inFence = false;
+        let fenceMarker = null; // ``` or ~~~
+
+        for (let i = 0; i < lines.length; i++) {
+            const ln = i + 1;
+            const line = lines[i];
+
+            const fenceMatch = line.match(/^(\s*)(```+|~~~+)\s*/);
+            if (fenceMatch) {
+                const fence = fenceMatch[2];
+                if (!inFence) {
+                    inFence = true;
+                    fenceMarker = fence.startsWith('`') ? '```' : '~~~';
+                } else if (fenceMarker && fence.startsWith(fenceMarker[0])) {
+                    inFence = false;
+                    fenceMarker = null;
+                }
+                continue; // don't append markers to fence delimiter lines
+            }
+            if (inFence) continue;
+
+            // Add markers sparsely to keep DOM light, but dense enough for good sync.
+            if (ln === 1 || ln === total || (ln % step === 0)) {
+                lines[i] = `${line}<span class="src-line-marker" data-line="${ln}" aria-hidden="true"></span>`;
+            }
+        }
+
+        return lines.join('\n');
+    }
+
+    _rebuildScrollMap() {
+        if (!this.preview) return;
+        const markers = Array.from(this.preview.querySelectorAll('.src-line-marker[data-line]'));
+        if (markers.length === 0) {
+            this._scrollMap = null;
+            return;
+        }
+
+        const map = [];
+        for (const el of markers) {
+            const line = parseInt(el.getAttribute('data-line') || '', 10);
+            if (!Number.isFinite(line)) continue;
+            // offsetTop is relative to offsetParent; for our scroll container it's fine.
+            map.push({ line, top: el.offsetTop });
+        }
+
+        map.sort((a, b) => a.line - b.line);
+        this._scrollMap = map;
+    }
+
+    _scrollMapLineToPreviewTop(line) {
+        const map = this._scrollMap;
+        if (!map || map.length === 0) return null;
+
+        // clamp
+        if (line <= map[0].line) return map[0].top;
+        if (line >= map[map.length - 1].line) return map[map.length - 1].top;
+
+        // binary search for first entry with line >= target
+        let lo = 0, hi = map.length - 1;
+        while (lo < hi) {
+            const mid = Math.floor((lo + hi) / 2);
+            if (map[mid].line < line) lo = mid + 1;
+            else hi = mid;
+        }
+        const next = map[lo];
+        const prev = map[Math.max(0, lo - 1)];
+        const denom = Math.max(1, next.line - prev.line);
+        const t = (line - prev.line) / denom;
+        return prev.top + t * (next.top - prev.top);
+    }
+
+    _scrollMapPreviewTopToLine(previewTop) {
+        const map = this._scrollMap;
+        if (!map || map.length === 0) return null;
+
+        if (previewTop <= map[0].top) return map[0].line;
+        if (previewTop >= map[map.length - 1].top) return map[map.length - 1].line;
+
+        // binary search for first entry with top >= previewTop
+        let lo = 0, hi = map.length - 1;
+        while (lo < hi) {
+            const mid = Math.floor((lo + hi) / 2);
+            if (map[mid].top < previewTop) lo = mid + 1;
+            else hi = mid;
+        }
+        const next = map[lo];
+        const prev = map[Math.max(0, lo - 1)];
+        const denom = Math.max(1, next.top - prev.top);
+        const t = (previewTop - prev.top) / denom;
+        return prev.line + t * (next.line - prev.line);
     }
     
     async init() {
@@ -444,13 +575,16 @@ class MarkdownEditor {
             } else {
                 markdownText = rawText;
             }
+
+            // Build content-based scroll markers for preview sync (preview-only)
+            const markdownForRender = this._injectSourceLineMarkers(markdownText);
             
             // Extract and cache mermaid code blocks BEFORE marked.js processes them
             this.extractMermaidBlocks(markdownText);
             
             let html = '';
             try {
-                html = marked.parse(markdownText);
+                html = marked.parse(markdownForRender);
             } catch (e) {
                 console.error('Markdown parsing error:', e);
                 this.preview.innerHTML =
@@ -461,6 +595,7 @@ class MarkdownEditor {
                 return; // Contain failure: keep the rest of the app alive
             }
             this.preview.innerHTML = html;
+            this._rebuildScrollMap();
             
             // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
             if (typeof hljs !== 'undefined' && typeof hljs.highlightElement === 'function') {
@@ -494,6 +629,9 @@ class MarkdownEditor {
                     } catch (e) {
                         console.warn('Mermaid retry failed (non-fatal):', e);
                     }
+
+                    // Mermaid rendering can change layout heights; refresh scroll map after it settles.
+                    setTimeout(() => this._rebuildScrollMap(), 50);
                 }, 100);
             }, 50);
         } catch (error) {
@@ -648,19 +786,41 @@ class MarkdownEditor {
         if (!this.editor || !this.preview) return;
         if (this._isSyncingScroll) return;
 
-        const fromEl = source === 'preview' ? this.preview : this.editor;
-        const toEl = source === 'preview' ? this.editor : this.preview;
+        let nextScrollTop = null;
 
-        const fromScrollable = Math.max(1, fromEl.scrollHeight - fromEl.clientHeight);
-        const toScrollable = Math.max(1, toEl.scrollHeight - toEl.clientHeight);
+        // Prefer content-based mapping if available; fallback to percentage mapping.
+        if (this._scrollMap && this._scrollMap.length > 1) {
+            if (source === 'editor') {
+                const line = this._getEditorTopLine();
+                nextScrollTop = this._scrollMapLineToPreviewTop(line);
+            } else {
+                const line = this._scrollMapPreviewTopToLine(this.preview.scrollTop);
+                if (line != null) {
+                    const lh = this._getEditorLineHeightPx();
+                    nextScrollTop = (line - 1) * lh;
+                }
+            }
+        }
 
-        const pct = fromEl.scrollTop / fromScrollable;
-        const nextScrollTop = pct * toScrollable;
+        if (nextScrollTop == null) {
+            const fromEl = source === 'preview' ? this.preview : this.editor;
+            const toEl = source === 'preview' ? this.editor : this.preview;
+
+            const fromScrollable = Math.max(1, fromEl.scrollHeight - fromEl.clientHeight);
+            const toScrollable = Math.max(1, toEl.scrollHeight - toEl.clientHeight);
+
+            const pct = fromEl.scrollTop / fromScrollable;
+            nextScrollTop = pct * toScrollable;
+        }
 
         this._isSyncingScroll = true;
         // rAF reduces jitter and ensures DOM has settled after layout changes (e.g. Mermaid render).
         requestAnimationFrame(() => {
-            toEl.scrollTop = nextScrollTop;
+            if (source === 'preview') {
+                this.editor.scrollTop = nextScrollTop;
+            } else {
+                this.preview.scrollTop = nextScrollTop;
+            }
             // Release on next tick so the paired scroll event (from setting scrollTop) is ignored.
             setTimeout(() => {
                 this._isSyncingScroll = false;
