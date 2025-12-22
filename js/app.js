@@ -48,6 +48,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('   Ctrl/Cmd + Y: Redo (native browser)');
     console.log('   Tab: Indent');
     console.log('   Shift + Tab: Unindent');
+
+    // Update build info display (offline; uses build-info.js only)
+    try {
+        const buildInfoEl = document.getElementById('buildInfo');
+        const buildInfo = typeof BUILD_INFO !== 'undefined' ? BUILD_INFO : null;
+        if (buildInfoEl && buildInfo && buildInfo.hash) {
+            buildInfoEl.textContent = `(build: ${buildInfo.hash})`;
+            buildInfoEl.title =
+                `Full hash: ${buildInfo.hashFull}\n` +
+                `Build date: ${buildInfo.date}\n` +
+                `Version: ${buildInfo.version || '1.0.0'}`;
+            console.log(`🏗️ Markdown Pro - Build: ${buildInfo.hash} on ${buildInfo.date}`);
+        }
+    } catch (e) {
+        console.warn('Build info display update failed:', e);
+    }
 });
 
 // Export for potential future use

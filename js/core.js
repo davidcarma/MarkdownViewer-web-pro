@@ -85,6 +85,19 @@ class MarkdownEditor {
     }
     
     setupMarked() {
+        // marked.js is required for preview rendering. If it isn't available yet,
+        // we keep the editor usable and retry a few times (helps with stricter
+        // browser load policies / slow disk).
+        if (typeof marked === 'undefined') {
+            console.error('marked.js not loaded yet - delaying setupMarked()');
+            this.preview.innerHTML = '<div class="error">Marked.js library not loaded</div>';
+            this._markedRetryCount = (this._markedRetryCount || 0) + 1;
+            if (this._markedRetryCount <= 20) {
+                setTimeout(() => this.setupMarked(), 50);
+            }
+            return;
+        }
+
         // Store original mermaid code blocks before marked.js processing
         this.mermaidCodeCache = new Map();
         
@@ -102,14 +115,23 @@ class MarkdownEditor {
         marked.setOptions({
             renderer: renderer,
             highlight: (code, lang) => {
-                if (lang && hljs.getLanguage(lang)) {
+                // highlight.js is optional; render code even if it's missing.
+                if (typeof hljs === 'undefined') {
+                    return code;
+                }
+                if (lang && hljs.getLanguage && hljs.getLanguage(lang)) {
                     try {
                         return hljs.highlight(code, { language: lang }).value;
                     } catch (err) {
                         console.error('Highlight.js error:', err);
                     }
                 }
-                return hljs.highlightAuto(code).value;
+                try {
+                    return hljs.highlightAuto ? hljs.highlightAuto(code).value : code;
+                } catch (err) {
+                    console.error('Highlight.js auto error:', err);
+                    return code;
+                }
             },
             breaks: true,
             gfm: true,
@@ -397,9 +419,11 @@ class MarkdownEditor {
             this.preview.innerHTML = html;
             
             // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
-            this.preview.querySelectorAll('pre code:not(.language-mermaid)').forEach((block) => {
-                hljs.highlightElement(block);
-            });
+            if (typeof hljs !== 'undefined' && typeof hljs.highlightElement === 'function') {
+                this.preview.querySelectorAll('pre code:not(.language-mermaid)').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            }
             
             // Render math equations with KaTeX
             this.renderMath();
@@ -1597,21 +1621,21 @@ class MarkdownEditor {
             // Mark migration as complete
             localStorage.setItem('markdown-editor-migrated-to-indexeddb', 'true');
             
-            // Clear localStorage if requested
+            // Clear localStorage if requested (after processing all files)
             let cleared = false;
-            if (clearLocalStorage && migratedCount > 0) {
+            if (clearLocalStorage && files.length > 0) {
                 try {
                     this.storageManager.clearAllData();
                     cleared = true;
-                    console.log('🗑️ localStorage cleared after successful migration');
+                    console.log('🗑️ localStorage cleared after migration');
                 } catch (error) {
                     console.error('Failed to clear localStorage:', error);
                 }
             }
             
-            if (migratedCount > 0) {
+            if (migratedCount > 0 || (cleared && files.length > 0)) {
                 const message = cleared 
-                    ? `Migrated ${migratedCount} file(s) to IndexedDB and cleared localStorage`
+                    ? `Migrated ${migratedCount} file(s) to IndexedDB and cleared localStorage (${files.length} total processed)`
                     : `Migrated ${migratedCount} file(s) to IndexedDB`;
                 this.showNotification(message, 'success');
             }
@@ -1637,7 +1661,8 @@ class MarkdownEditor {
     
     async loadSavedFile() {
         // Migrate localStorage files to IndexedDB first (one-time migration)
-        await this.migrateLocalStorageToIndexedDB();
+        // Automatically clear localStorage after successful migration
+        await this.migrateLocalStorageToIndexedDB(true);
         
         // Try to load from IndexedDB first (preferred)
         if (this.indexedDBManager && this.indexedDBManager.isSupported) {

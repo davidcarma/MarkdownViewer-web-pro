@@ -1,0 +1,7 @@
+## Project rules (hard requirements)
+
+- **No external runtime dependencies**: do not load JS/CSS/fonts from CDNs (no `http(s)://` in `<script src>`, `<link href>`, or CSS `@import`).
+- **Vendored libraries only**: any third-party runtime library must be committed into this repo and referenced via relative paths.
+- **Offline-first**: app should run locally with **zero network access** (no background fetches to external APIs for app functionality).
+
+

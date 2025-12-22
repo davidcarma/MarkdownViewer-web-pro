@@ -420,151 +420,30 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="build-info.js"></script>
-    <script src="marked.min.js"></script>
-    <script src="highlight.min.js"></script>
-    <script src="mermaid.min.js"></script>
-    <script src="mammoth.js"></script>
-    <!-- KaTeX for math rendering -->
-    <script src="katex.min.js"></script>
-    <script src="katex-auto-render.min.js"></script>
-    <script>
-        // Debug mammoth.js loading with detailed information
-        console.log('=== MAMMOTH.JS DEBUG INFO ===');
-        console.log('Window object keys:', Object.keys(window).filter(k => k.toLowerCase().includes('mammoth')));
-        console.log('Global mammoth available:', typeof mammoth !== 'undefined');
-        if (typeof mammoth !== 'undefined') {
-            console.log('✅ mammoth.js loaded successfully');
-            console.log('Mammoth object:', mammoth);
-            console.log('Available methods:', Object.keys(mammoth));
-        } else {
-            console.error('❌ mammoth.js failed to load - checking for alternatives');
-            console.log('All global variables containing "mammoth":', Object.keys(window).filter(k => k.toString().toLowerCase().includes('mammoth')));
-            
-            // Check if the UMD wrapper might have put it somewhere else
-            if (typeof module !== 'undefined' && module.exports) {
-                console.log('Module system detected:', typeof module.exports);
-            }
-            
-            // Try to access it in a few common places
-            const alternatives = [
-                window.mammoth,
-                window.Mammoth,
-                window.MAMMOTH,
-                global && global.mammoth,
-                self && self.mammoth
-            ];
-            
-            alternatives.forEach((alt, index) => {
-                console.log(`Alternative ${index}:`, typeof alt, alt);
-            });
-        }
-        console.log('=== END MAMMOTH DEBUG ===');
-        
-        // If mammoth still isn't available, try to fix it
-        if (typeof mammoth === 'undefined') {
-            console.log('🔧 Attempting to fix mammoth availability...');
-            
-            // Try to manually trigger the UMD wrapper again
-            setTimeout(() => {
-                console.log('Rechecking mammoth after timeout...');
-                if (typeof mammoth !== 'undefined') {
-                    console.log('✅ mammoth became available after timeout');
-                } else {
-                    console.log('❌ mammoth still not available after timeout');
-                    
-                    // Try alternative CDN as fallback
-                    const script = document.createElement('script');
-                    script.src = 'https://unpkg.com/mammoth@1.10.0/lib/mammoth.browser.min.js';
-                    script.onload = () => console.log('✅ CDN fallback loaded');
-                    script.onerror = () => console.error('❌ CDN fallback failed');
-                    document.head.appendChild(script);
-                }
-            }, 100);
-        }
-    </script>
-    <!-- Modular JavaScript -->
-    <script src="js/storage-manager.js"></script>
-    <script src="js/indexeddb-manager.js"></script>
-    <script src="js/core.js"></script>
-    <script src="js/events.js"></script>
-    <script src="js/file-operations.js"></script>
-    <script src="js/file-browser.js"></script>
-    <script src="js/drag-drop.js"></script>
-    <script src="js/image-paste.js"></script>
-    <script src="js/simple-image-collapse-v2.js"></script>
-    <script src="js/syntax-highlight.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/pane-resizer.js"></script>
-    <script src="js/app.js"></script>
-    
-    <!-- Update build info display -->
-    <script>
-        // Configuration: Set your GitHub repo info
-        const GITHUB_REPO = {
-            owner: 'davidcarma',
-            repo: 'MarkdownViewer-web-pro',
-            branch: 'main'
-        };
+    <!-- Scripts (NO inline scripts; works under strict CSP) -->
+    <script src="build-info.js" defer></script>
 
-        // Function to fetch live commit info from GitHub API
-        async function fetchLiveCommitInfo() {
-            try {
-                const url = `https://api.github.com/repos/${GITHUB_REPO.owner}/${GITHUB_REPO.repo}/commits/${GITHUB_REPO.branch}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('API request failed');
-                
-                const data = await response.json();
-                return {
-                    hash: data.sha.substring(0, 7),
-                    hashFull: data.sha,
-                    date: new Date(data.commit.author.date).toLocaleString(),
-                    message: data.commit.message.split('\n')[0],
-                    author: data.commit.author.name,
-                    live: true // Flag to indicate this is live data
-                };
-            } catch (error) {
-                console.warn('Could not fetch live commit info:', error);
-                return null;
-            }
-        }
+    <!-- Vendored runtime libraries (NO CDNs) -->
+    <script src="highlight.min.js" defer></script>
+    <script src="marked.min.js" defer></script>
+    <script src="mermaid.min.js" defer></script>
+    <script src="katex.min.js" defer></script>
+    <script src="katex-auto-render.min.js" defer></script>
+    <script src="mammoth.min.js" defer></script>
 
-        // Update build info in header
-        async function updateBuildInfo() {
-            const buildInfoEl = document.getElementById('buildInfo');
-            if (!buildInfoEl) return;
-
-            // Try to use embedded BUILD_INFO first (from build-info.js)
-            let buildInfo = typeof BUILD_INFO !== 'undefined' ? BUILD_INFO : null;
-            
-            // Fetch live data from GitHub API
-            const liveInfo = await fetchLiveCommitInfo();
-            if (liveInfo) buildInfo = liveInfo;
-
-            if (buildInfo) {
-                buildInfoEl.textContent = `(build: ${buildInfo.hash})`;
-                
-                let tooltip = `Full hash: ${buildInfo.hashFull}\nBuild date: ${buildInfo.date}\nVersion: ${buildInfo.version || '1.0.0'}`;
-                if (buildInfo.message) {
-                    tooltip += `\nCommit: ${buildInfo.message}`;
-                }
-                if (buildInfo.live) {
-                    tooltip += '\n⚡ Live from GitHub';
-                }
-                
-                buildInfoEl.title = tooltip;
-                
-                const logPrefix = buildInfo.live ? '⚡🏗️' : '🏗️';
-                console.log(`${logPrefix} Markdown Pro - Build: ${buildInfo.hash} on ${buildInfo.date}`);
-                if (buildInfo.message) {
-                    console.log(`📝 Latest commit: "${buildInfo.message}"`);
-                }
-            }
-        }
-
-        // Initialize
-        updateBuildInfo();
-    </script>
+    <!-- App modules (loaded in order) -->
+    <script src="js/storage-manager.js" defer></script>
+    <script src="js/indexeddb-manager.js" defer></script>
+    <script src="js/core.js" defer></script>
+    <script src="js/events.js" defer></script>
+    <script src="js/file-operations.js" defer></script>
+    <script src="js/file-browser.js" defer></script>
+    <script src="js/drag-drop.js" defer></script>
+    <script src="js/image-paste.js" defer></script>
+    <script src="js/simple-image-collapse-v2.js" defer></script>
+    <script src="js/syntax-highlight.js" defer></script>
+    <script src="js/notifications.js" defer></script>
+    <script src="js/pane-resizer.js" defer></script>
+    <script src="js/app.js" defer></script>
 </body>
 </html>

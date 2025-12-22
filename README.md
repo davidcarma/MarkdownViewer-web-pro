@@ -144,6 +144,14 @@ All dependencies are included locally for offline functionality:
 - **Mermaid.js**: Diagram and flowchart rendering
 - **Mammoth.js**: Word document to HTML/Markdown conversion
 
+### Hard project rule: NO external runtime dependencies
+
+- **No CDNs**: Do not load runtime JS/CSS/fonts from `http(s)://` (no `<script src="https://...">`, `<link href="https://...">`, or CSS `@import url(https://...)`).
+- **Vendored libraries only**: Any third-party runtime dependency must be committed into this repo and referenced via relative paths.
+- **Offline-first**: The app should run locally with **zero network access** (no background fetches to external APIs for core functionality).
+
+This is enforced by `check-deployment.sh` (it fails if any external runtime assets are detected).
+
 ## Browser Support
 
 - Chrome/Chromium (recommended)
@@ -186,6 +194,7 @@ This editor features a powerful IndexedDB storage system that automatically save
 2. **Session Restore**: Automatically loads your most recently modified file when you return
 3. **Smart Workflow**: Clear document dialog offers 4 options: Save on Browser (default), Download, Cancel, or Delete
 4. **Visual Feedback**: Shows "✓ Auto-saved" and "Saved to IndexedDB" notifications
+5. **Automatic Migration**: On first load, automatically migrates all files from localStorage to IndexedDB and clears localStorage to free up space
 
 ### 🗂️ **File Management:**
 - **Multiple Files**: Store many files in IndexedDB (50MB - several GB capacity)
@@ -201,6 +210,7 @@ This editor features a powerful IndexedDB storage system that automatically save
 - **Error Handling**: Graceful handling of storage quota limits
 - **Cross-Session**: Your work persists across browser sessions
 - **Backward Compatible**: Falls back to localStorage if IndexedDB unavailable
+- **Automatic Migration**: On first load, automatically migrates files from localStorage to IndexedDB and clears localStorage to free up space
 
 ### 📱 **Important Note About Syncing:**
 IndexedDB data does **NOT** automatically sync across devices. Each browser/device maintains its own copy. For cross-device access:
@@ -214,6 +224,14 @@ When creating a new file, you'll see a dialog with 4 options:
 - **Download**: Downloads the file to your computer
 - **Cancel**: Keeps current document open
 - **Delete**: Removes the file from IndexedDB storage
+
+### 🔄 **Migration from localStorage:**
+The editor automatically migrates files from localStorage to IndexedDB on first load:
+- **One-Time Migration**: Runs automatically when you first open the editor
+- **Smart Deduplication**: Skips files already in IndexedDB (unless localStorage version is newer)
+- **Automatic Cleanup**: Clears localStorage after successful migration to free up space
+- **Safe Operation**: Only clears localStorage after confirming files are safely migrated
+- **Manual Trigger**: Use `migrateToIndexedDB(true)` in console to manually trigger migration and cleanup
 
 ## Drag & Drop Feature
 

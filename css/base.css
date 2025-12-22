@@ -368,29 +368,41 @@ textarea:focus {
 /* Fullscreen mode main content adjustments */
 .app.fullscreen-mode .main-content {
     flex: 1;
-    height: 100vh;
+    /* Let flexbox compute the available height (product header may remain visible). */
+    height: auto;
+    min-height: 0;
     transition: all 0.3s ease;
 }
 
 .app.fullscreen-mode .editor-container {
-    height: 100vh;
+    height: 100%;
+    min-height: 0;
     transition: all 0.3s ease;
 }
 
 .app.fullscreen-mode .editor-pane,
 .app.fullscreen-mode .preview-pane {
-    height: 100vh;
+    height: 100%;
+    min-height: 0;
     transition: all 0.3s ease;
 }
 
 /* Ensure editor and preview take full height in fullscreen */
 .app.fullscreen-mode #editor {
-    height: 100vh;
+    /* Don't use 100vh here: the pane has a header, so 100vh would get clipped. */
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 0;
     transition: all 0.3s ease;
 }
 
 .app.fullscreen-mode .preview-content {
-    height: 100vh;
+    /* Don't use 100vh here: the pane has a header, so 100vh would get clipped. */
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    /* Give a little extra room at the bottom (helps on macOS/iOS safe-area + feels nicer). */
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
     transition: all 0.3s ease;
 }
 
