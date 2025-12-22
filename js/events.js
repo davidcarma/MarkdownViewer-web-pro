@@ -20,23 +20,32 @@ class EditorEvents {
             this.handleKeydown(e);
         });
         
-        // Toolbar events
-        document.getElementById('newFile').addEventListener('click', () => this.editor.newFile());
-        document.getElementById('openFile').addEventListener('click', () => this.editor.openFile());
-        document.getElementById('openWordFile').addEventListener('click', () => this.editor.openWordFile());
-        document.getElementById('saveFile').addEventListener('click', () => this.editor.saveFile());
-        document.getElementById('exportToPdf').addEventListener('click', () => this.editor.exportToPdf());
-        document.getElementById('printFile').addEventListener('click', () => this.editor.printFile());
-        document.getElementById('toggleCompact').addEventListener('click', () => this.editor.toggleCompactMode());
-        document.getElementById('unescapeContent').addEventListener('click', () => this.editor.unescapePastedContent());
-        document.getElementById('togglePreview').addEventListener('click', () => this.editor.togglePreview());
-        document.getElementById('toggleTheme').addEventListener('click', () => this.editor.toggleTheme());
-        document.getElementById('copyHtml').addEventListener('click', () => this.editor.copyHtml());
+        // Toolbar events (defensive: missing elements should not break all bindings)
+        const onClick = (id, handler) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('click', handler);
+        };
+
+        onClick('newFile', () => this.editor.newFile());
+        onClick('openFile', () => this.editor.openFile());
+        onClick('openWordFile', () => this.editor.openWordFile());
+        onClick('saveFile', () => this.editor.saveFile());
+        onClick('exportToPdf', () => this.editor.exportToPdf());
+        onClick('printFile', () => this.editor.printFile());
+        onClick('toggleCompact', () => this.editor.toggleCompactMode());
+        onClick('unescapeContent', () => this.editor.unescapePastedContent());
+        onClick('togglePreview', () => this.editor.togglePreview());
+        onClick('toggleTheme', () => this.editor.toggleTheme());
+        onClick('copyHtml', () => this.editor.copyHtml());
         
         // Settings menu events
-        document.getElementById('settingsMenu').addEventListener('click', () => this.openSettingsModal());
-        document.getElementById('closeSettingsBtn').addEventListener('click', () => this.closeSettingsModal());
-        document.getElementById('imageCompressionToggle').addEventListener('change', (e) => this.handleImageCompressionToggle(e));
+        onClick('settingsMenu', () => this.openSettingsModal());
+        onClick('closeSettingsBtn', () => this.closeSettingsModal());
+        const compressionToggle = document.getElementById('imageCompressionToggle');
+        if (compressionToggle) {
+            compressionToggle.addEventListener('change', (e) => this.handleImageCompressionToggle(e));
+        }
         
         // Settings menu navigation
         document.querySelectorAll('.settings-menu-item').forEach(item => {

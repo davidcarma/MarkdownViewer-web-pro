@@ -170,13 +170,29 @@ class FileOperations {
         });
     }
     
-    async openFile() {
-        // Show file browser instead of file picker
-        if (this.editor.fileBrowser) {
-            await this.editor.fileBrowser.showFileBrowser();
-        } else {
-            // Fallback to file picker if browser not available
+    openFile() {
+        // IMPORTANT: `input.click()` must happen synchronously in the original user gesture.
+        // If we `await` first (even microtasks), some browsers will block the file picker.
+
+        const canUseBrowserFiles =
+            !!this.editor.fileBrowser &&
+            !!this.editor.indexedDBManager &&
+            !!this.editor.indexedDBManager.isSupported;
+
+        if (canUseBrowserFiles) {
+            // Open the IndexedDB file browser (async, but does not require user activation).
+            this.editor.fileBrowser.showFileBrowser().catch((e) => {
+                console.warn('File browser failed to open:', e);
+                this.editor.showNotification('File browser failed to open (see console)', 'error');
+            });
+            return;
+        }
+
+        // Fallback: open from disk (must be sync)
+        if (this.editor.fileInput) {
             this.editor.fileInput.click();
+        } else {
+            console.warn('fileInput element not found');
         }
     }
     

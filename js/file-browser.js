@@ -63,6 +63,9 @@ class FileBrowser {
             }
         }
         
+        if (!this.editor.indexedDBManager || !this.editor.indexedDBManager.isSupported) {
+            throw new Error('IndexedDB is not available in this context');
+        }
         const files = await this.editor.indexedDBManager.getAllFiles();
         
         // Create modal

@@ -1719,17 +1719,12 @@ class MarkdownEditor {
     }
     
     async loadSavedFile() {
-        // Clear legacy (large) image store if present to avoid localStorage quota issues.
-        // Images are reconstructed from the document content on load.
-        try {
-            localStorage.removeItem('markdown-editor-image-store');
-        } catch (_) {
-            // ignore
-        }
-
-        // Migrate localStorage files to IndexedDB first (one-time migration)
-        // Automatically clear localStorage after successful migration
-        await this.migrateLocalStorageToIndexedDB(true);
+        // Backward compatibility:
+        // - DO NOT delete legacy localStorage data automatically (annoying and can break older docs).
+        // - Migrate localStorage files to IndexedDB, but keep localStorage as a backup by default.
+        // - If there is a legacy `markdown-editor-image-store`, attempt to migrate it to IndexedDB images store.
+        await this.migrateLegacyImageStoreToIndexedDB();
+        await this.migrateLocalStorageToIndexedDB(false);
         
         // Try to load from IndexedDB first (preferred)
         if (this.indexedDBManager && this.indexedDBManager.isSupported) {
@@ -1959,6 +1954,69 @@ function hello() {
                       .replace(/\\"/g, '"')
                       .replace(/\\\//g, '/')
                       .replace(/\\\\/g, '\\');
+        }
+    }
+
+    /**
+     * Migrate legacy image store from localStorage (if present) into IndexedDB images store.
+     * This prevents older documents that contain `...IMG_...` placeholders from becoming unreadable
+     * after upgrades. This is best-effort and intentionally non-destructive (we keep localStorage).
+     */
+    async migrateLegacyImageStoreToIndexedDB() {
+        try {
+            if (!this.indexedDBManager || !this.indexedDBManager.isSupported) return;
+            if (typeof localStorage === 'undefined') return;
+
+            const raw = localStorage.getItem('markdown-editor-image-store');
+            if (!raw) return;
+
+            let parsed;
+            try {
+                parsed = JSON.parse(raw);
+            } catch (_) {
+                // Unknown format or corrupted; keep it as-is.
+                return;
+            }
+
+            // Support a few common shapes:
+            // - { IMG_...: { id, alt, dataUrl, fullMarkdown } , ... }
+            // - { images: { ... } }
+            // - [ [id, {..}], [id, {..}] ] (Map entries)
+            let entries = [];
+            if (Array.isArray(parsed)) {
+                entries = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+                const obj = parsed.images && typeof parsed.images === 'object' ? parsed.images : parsed;
+                entries = Object.entries(obj);
+            }
+
+            let migrated = 0;
+            for (const [id, value] of entries) {
+                const v = value && typeof value === 'object' ? value : null;
+                const imageId = (v && v.id) ? v.id : id;
+                const dataUrl = v && typeof v.dataUrl === 'string' ? v.dataUrl : null;
+                if (!imageId || !dataUrl) continue;
+
+                const alt = (v && typeof v.alt === 'string') ? v.alt : '';
+                const fullMarkdown =
+                    (v && typeof v.fullMarkdown === 'string')
+                        ? v.fullMarkdown
+                        : `![${alt}](${dataUrl})`;
+
+                await this.indexedDBManager.saveImage({
+                    id: imageId,
+                    alt,
+                    dataUrl,
+                    fullMarkdown
+                });
+                migrated++;
+            }
+
+            if (migrated > 0) {
+                console.log(`✅ Migrated ${migrated} legacy image(s) from localStorage to IndexedDB`);
+            }
+        } catch (e) {
+            console.warn('Legacy image store migration failed (non-fatal):', e);
         }
     }
 
