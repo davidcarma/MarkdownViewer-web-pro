@@ -86,6 +86,56 @@
     font-size: 0.875rem;
 }
 
+/* ---------- Dark theme: code readability (high contrast) ---------- */
+[data-theme="dark"] .preview-content pre {
+    background-color: #070a0f; /* near-black */
+    border-color: rgba(148, 163, 184, 0.25); /* slate-400 @ 25% */
+}
+
+[data-theme="dark"] .preview-content pre code {
+    color: #e5e7eb; /* slate-200 */
+}
+
+[data-theme="dark"] .preview-content code:not(pre code) {
+    background-color: #070a0f;
+    color: #e5e7eb;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+/* highlight.js ships a light theme (white background + dark text). Override for dark mode. */
+[data-theme="dark"] .preview-content .hljs {
+    background: transparent !important;
+    color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .preview-content .hljs-comment,
+[data-theme="dark"] .preview-content .hljs-quote {
+    color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .preview-content .hljs-keyword,
+[data-theme="dark"] .preview-content .hljs-selector-tag,
+[data-theme="dark"] .preview-content .hljs-literal {
+    color: #93c5fd !important;
+}
+
+[data-theme="dark"] .preview-content .hljs-title,
+[data-theme="dark"] .preview-content .hljs-section {
+    color: #c4b5fd !important;
+}
+
+[data-theme="dark"] .preview-content .hljs-string,
+[data-theme="dark"] .preview-content .hljs-regexp {
+    color: #86efac !important;
+}
+
+[data-theme="dark"] .preview-content .hljs-number,
+[data-theme="dark"] .preview-content .hljs-attr,
+[data-theme="dark"] .preview-content .hljs-attribute,
+[data-theme="dark"] .preview-content .hljs-variable {
+    color: #fbbf24 !important;
+}
+
 .preview-content blockquote {
     border-left: 4px solid var(--accent-color);
     padding-left: 1rem;
@@ -239,10 +289,29 @@
 [data-theme="dark"] .preview-content .mermaid-diagram {
     background-color: var(--bg-tertiary);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    color: var(--text-primary);
 }
 
 [data-theme="dark"] .preview-content .mermaid-diagram:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Mermaid dark-mode contrast fixes (guards against low-contrast embedded styles) */
+[data-theme="dark"] .preview-content .mermaid-diagram svg {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .preview-content .mermaid-diagram .label text,
+[data-theme="dark"] .preview-content .mermaid-diagram .edgeLabel text,
+[data-theme="dark"] .preview-content .mermaid-diagram .cluster text {
+    fill: var(--text-primary);
+}
+
+[data-theme="dark"] .preview-content .mermaid-diagram .edgePath .path,
+[data-theme="dark"] .preview-content .mermaid-diagram .flowchart-link,
+[data-theme="dark"] .preview-content .mermaid-diagram line,
+[data-theme="dark"] .preview-content .mermaid-diagram path {
+    stroke: currentColor;
 }
 
 /* Gwyneth theme adaptations for Mermaid diagrams */
