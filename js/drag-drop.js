@@ -88,8 +88,8 @@ class DragDropHandler {
         const reader = new FileReader();
         reader.onload = (e) => {
             this.editor.editor.value = e.target.result;
-            this.editor.currentFileName = file.name;
-            this.editor.fileName.textContent = this.editor.currentFileName;
+            // Keep all title UI/state in sync (toolbar title input, status bar, internal state)
+            this.editor.setDocumentTitle(file.name);
             this.editor.lastSavedContent = e.target.result;
             this.editor.setModified(false);
             this.editor.updatePreview();
@@ -103,6 +103,9 @@ class DragDropHandler {
 
 
             
+            // Replace localStorage buffer with loaded file (if enabled/small enough)
+            this.editor.replaceLocalStorageFile();
+
             this.editor.editor.focus();
             
             this.editor.showNotification(`Loaded "${file.name}" successfully`, 'success');
@@ -177,8 +180,8 @@ class DragDropHandler {
             // Set filename with .md extension
             const originalName = file.name.replace(/\.[^/.]+$/, '');
             const newFileName = originalName + '.md';
-            this.editor.currentFileName = newFileName;
-            this.editor.fileName.textContent = this.editor.currentFileName;
+            // Keep all title UI/state in sync (toolbar title input, status bar, internal state)
+            this.editor.setDocumentTitle(newFileName);
             
             this.editor.lastSavedContent = markdown;
             this.editor.setModified(false);
