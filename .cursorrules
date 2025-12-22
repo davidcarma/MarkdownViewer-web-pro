@@ -5,3 +5,4 @@
 - **Offline-first**: app should run locally with **zero network access** (no background fetches to external APIs for app functionality).
 
 
+

@@ -418,17 +418,31 @@ class MarkdownEditor {
                 return;
             }
             
-            // Get markdown content based on current mode
-            let markdownText = this.editor.value;
-            
-            // Auto-detect escaped content even if not in compact mode
-            const hasEscapedSequences = markdownText.includes('\\n') || markdownText.includes('\\"');
-            
-            // If in compact mode OR content has escaped sequences, unescape for preview
-            if (this.isCompactMode || hasEscapedSequences) {
+            // Get markdown content based on current mode.
+            // IMPORTANT: Do NOT treat any `\\n` inside a normal multi-line document as "escaped mode".
+            // Large docs often contain `\\n` sequences inside code blocks, and auto-unescaping breaks
+            // rendering (including collapsed image placeholders).
+            const rawText = this.editor.value;
+
+            const shouldUnescapeForPreview = () => {
+                if (this.isCompactMode) return true;
+                const trimmed = (rawText || '').trim();
+                if (!trimmed) return false;
+                const hasEscapedNewlines = trimmed.includes('\\n');
+                const hasActualNewlines = trimmed.includes('\n');
+                const wrappedInQuotes = trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 2;
+                // Only unescape if it really looks like a JSON-escaped *whole document*.
+                return wrappedInQuotes || (hasEscapedNewlines && !hasActualNewlines);
+            };
+
+            let markdownText;
+            if (shouldUnescapeForPreview()) {
                 markdownText = this.getLiveUnescapedContent();
             } else if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
+                // Prefer imageCollapse expansion so placeholders never become network URLs.
                 markdownText = this.imageCollapse.getPreviewContent();
+            } else {
+                markdownText = rawText;
             }
             
             // Extract and cache mermaid code blocks BEFORE marked.js processes them
