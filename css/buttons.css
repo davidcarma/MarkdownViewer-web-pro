@@ -79,6 +79,59 @@
     border-color: #bd2130;
 }
 
+/* Success button (used for "Save on Browser" / safe actions) */
+.btn-success {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    filter: brightness(0.95);
+    border-color: color-mix(in srgb, var(--success-color) 85%, black);
+}
+
+/* Icon sizing/alignment inside text buttons */
+.btn-with-icon .btn-icon-svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+}
+
+/* Color “tones” for toolbar icon buttons (icons use currentColor) */
+.btn-icon.btn-tone-danger {
+    color: var(--danger-color);
+    background-color: color-mix(in srgb, var(--danger-color) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--danger-color) 28%, var(--border-color));
+}
+
+.btn-icon.btn-tone-danger:hover {
+    background-color: color-mix(in srgb, var(--danger-color) 18%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--danger-color) 42%, var(--border-color));
+}
+
+.btn-icon.btn-tone-success {
+    color: var(--success-color);
+    background-color: color-mix(in srgb, var(--success-color) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--success-color) 28%, var(--border-color));
+}
+
+.btn-icon.btn-tone-success:hover {
+    background-color: color-mix(in srgb, var(--success-color) 18%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--success-color) 42%, var(--border-color));
+}
+
+.btn-icon.btn-tone-primary {
+    color: var(--accent-color);
+    background-color: color-mix(in srgb, var(--accent-color) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--accent-color) 28%, var(--border-color));
+}
+
+.btn-icon.btn-tone-primary:hover {
+    background-color: color-mix(in srgb, var(--accent-color) 18%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--accent-color) 42%, var(--border-color));
+}
+
 /* Widget Toggle Button */
 .widget-toggle-btn {
     margin-left: auto;
