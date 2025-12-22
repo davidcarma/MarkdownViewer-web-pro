@@ -77,27 +77,20 @@ class SimpleImageCollapseV2 {
     expandPlaceholders(content) {
         if (!content) return content;
         
-        let expandedContent = content;
-        
-        // Replace all placeholders with actual image data
-        for (const [imageId, imageData] of this.imageStore) {
-            // Match the placeholder even if there is whitespace/newlines between `]` and `(`
-            // or around the placeholder inside the parentheses (some browsers/editors wrap long lines).
-            const placeholderRegex = new RegExp(
-                `!\\\\[([^\\\\]]*)\\\\]\\\\s*\\\\(\\\\s*\\\\.\\\\.\\\\.${imageId}\\\\.\\\\.\\\\.\\\\s*\\\\)`,
-                'g'
-            );
-            expandedContent = expandedContent.replace(placeholderRegex, (match, alt) => {
-                const effectiveAlt = typeof alt === 'string' ? alt : (imageData.alt || '');
-                return `![${effectiveAlt}](${imageData.dataUrl})`;
-            });
-            
-            // Also try to recover corrupted placeholders - match partial IDs
-            const corruptedRegex = new RegExp(`\\(\\.\\.\\.${imageId.substring(0, 15)}[^)]*\\.\\.\\.[^)]*\\)`, 'g');
-            expandedContent = expandedContent.replace(corruptedRegex, `(${imageData.dataUrl})`);
-        }
-        
-        return expandedContent;
+        // IMPORTANT: Avoid constructing dynamic RegExp patterns from IDs.
+        // A bad pattern here can throw and break preview + autosave + file browser.
+        //
+        // Match any placeholder image markdown like:
+        //   ![alt](...IMG_123...)
+        // including whitespace and some corruption/wrapping inside the parentheses.
+        return content.replace(
+            /!\[([^\]]*)\]\s*\(\s*\.\.\.\s*(IMG_[A-Za-z0-9_]+)[^)]*\)/g,
+            (match, alt, imageId) => {
+                const imageData = this.imageStore.get(imageId);
+                if (!imageData || !imageData.dataUrl) return match;
+                return `![${alt}](${imageData.dataUrl})`;
+            }
+        );
     }
 
     // Replace any remaining placeholders with a safe, offline-friendly marker so the browser
@@ -135,7 +128,7 @@ class SimpleImageCollapseV2 {
         if (!content) return;
         const getIds = () => {
             const ids = new Set();
-            const re = /\(\.\.\.(IMG_[^.)]+)\.\.\.\)/g;
+            const re = /\(\s*\.\.\.\s*(IMG_[A-Za-z0-9_]+)[^)]*\)/g;
             let m;
             while ((m = re.exec(content)) !== null) {
                 ids.add(m[1]);
