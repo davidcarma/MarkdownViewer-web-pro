@@ -448,7 +448,18 @@ class MarkdownEditor {
             // Extract and cache mermaid code blocks BEFORE marked.js processes them
             this.extractMermaidBlocks(markdownText);
             
-            const html = marked.parse(markdownText);
+            let html = '';
+            try {
+                html = marked.parse(markdownText);
+            } catch (e) {
+                console.error('Markdown parsing error:', e);
+                this.preview.innerHTML =
+                    '<div class="error">' +
+                    '<strong>Error parsing markdown</strong>' +
+                    `<pre style="white-space: pre-wrap; margin-top: .75rem;">${this.escapeHtml(String(e && e.message ? e.message : e))}</pre>` +
+                    '</div>';
+                return; // Contain failure: keep the rest of the app alive
+            }
             this.preview.innerHTML = html;
             
             // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
@@ -458,18 +469,30 @@ class MarkdownEditor {
                 });
             }
             
-            // Render math equations with KaTeX
-            this.renderMath();
+            // Render math equations with KaTeX (non-fatal)
+            try {
+                this.renderMath();
+            } catch (e) {
+                console.warn('Math render failed (non-fatal):', e);
+            }
             
-            // Process Mermaid diagrams with proper timing and retry logic
+            // Process Mermaid diagrams with proper timing and retry logic (non-fatal)
             setTimeout(() => {
-                this.processMermaidDiagrams();
+                try {
+                    this.processMermaidDiagrams();
+                } catch (e) {
+                    console.warn('Mermaid processing failed (non-fatal):', e);
+                }
                 // Retry if no blocks found initially (DOM timing issue)
                 setTimeout(() => {
-                    const blocks = this.preview.querySelectorAll('pre code.language-mermaid');
-                    if (blocks.length > 0) {
-                        console.log('Retrying Mermaid processing for any missed blocks');
-                        this.processMermaidDiagrams();
+                    try {
+                        const blocks = this.preview.querySelectorAll('pre code.language-mermaid');
+                        if (blocks.length > 0) {
+                            console.log('Retrying Mermaid processing for any missed blocks');
+                            this.processMermaidDiagrams();
+                        }
+                    } catch (e) {
+                        console.warn('Mermaid retry failed (non-fatal):', e);
                     }
                 }, 100);
             }, 50);

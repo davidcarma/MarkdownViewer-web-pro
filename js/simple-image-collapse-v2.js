@@ -270,11 +270,17 @@ class SimpleImageCollapseV2 {
     // Get content for preview (always expanded; never generates network image URLs)
     getPreviewContent() {
         const currentContent = this.editor.editor.value;
-        const safeContent = this.replaceUnknownPlaceholders(currentContent);
-        if (this.isCollapsed) {
-            return this.expandPlaceholders(safeContent);
+        try {
+            const safeContent = this.replaceUnknownPlaceholders(currentContent);
+            if (this.isCollapsed) {
+                return this.expandPlaceholders(safeContent);
+            }
+            return safeContent;
+        } catch (e) {
+            // Never let preview expansion break the app (open/save/find/etc).
+            console.warn('getPreviewContent failed; returning raw editor content:', e);
+            return currentContent;
         }
-        return safeContent;
     }
     
     // Initialize with existing content
@@ -344,22 +350,33 @@ class SimpleImageCollapseV2 {
         let hasCorrupted = false;
         let restoredContent = currentContent;
         
+        const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
         // Check for partial image ID patterns that might be corrupted
         for (const [imageId, imageData] of this.imageStore) {
             const partialId = imageId.substring(0, 15);
+            const partialIdEsc = escapeRegex(partialId);
             
             // Look for corrupted patterns like (...IMG_123...corrupted...)
-            const corruptedPattern = new RegExp(`\\(\\.\\.\\.${partialId}[^)]*\\.\\.\\.[^)]*\\)`, 'g');
-            if (corruptedPattern.test(currentContent)) {
-                hasCorrupted = true;
-                restoredContent = restoredContent.replace(corruptedPattern, `(...${imageId}...)`);
+            try {
+                const corruptedPattern = new RegExp(`\\(\\.\\.\\.${partialIdEsc}[^)]*\\.\\.\\.[^)]*\\)`, 'g');
+                if (corruptedPattern.test(currentContent)) {
+                    hasCorrupted = true;
+                    restoredContent = restoredContent.replace(corruptedPattern, `(...${imageId}...)`);
+                }
+            } catch (e) {
+                console.warn('Corrupted placeholder restore regex failed (non-fatal):', e);
             }
             
             // Also look for completely broken markdown image syntax
-            const brokenPattern = new RegExp(`!\\[[^\\]]*\\]\\([^)]*${partialId}[^)]*\\)`, 'g');
-            if (brokenPattern.test(currentContent)) {
-                hasCorrupted = true;
-                restoredContent = restoredContent.replace(brokenPattern, `![${imageData.alt}](...${imageId}...)`);
+            try {
+                const brokenPattern = new RegExp(`!\\[[^\\]]*\\]\\([^)]*${partialIdEsc}[^)]*\\)`, 'g');
+                if (brokenPattern.test(currentContent)) {
+                    hasCorrupted = true;
+                    restoredContent = restoredContent.replace(brokenPattern, `![${imageData.alt}](...${imageId}...)`);
+                }
+            } catch (e) {
+                console.warn('Broken placeholder restore regex failed (non-fatal):', e);
             }
         }
         
