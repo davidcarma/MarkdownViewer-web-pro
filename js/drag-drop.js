@@ -235,9 +235,30 @@ class DragDropHandler {
                         <p>What would you like to do with <strong>"${fileName}"</strong>?</p>
                     </div>
                     <div class="modal-actions">
-                        <button class="btn btn-secondary" data-action="cancel">Cancel</button>
-                        <button class="btn btn-primary" data-action="save">Save Current & Load New</button>
-                        <button class="btn btn-danger" data-action="replace">Replace Without Saving</button>
+                        <button class="btn btn-secondary btn-with-icon" data-action="cancel">
+                            <svg class="btn-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M18 6 6 18"></path>
+                                <path d="M6 6 18 18"></path>
+                            </svg>
+                            Cancel
+                        </button>
+                        <button class="btn btn-primary btn-with-icon" data-action="save">
+                            <svg class="btn-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <path d="M17 21v-8H7v8"></path>
+                                <path d="M7 3v5h8"></path>
+                            </svg>
+                            Save Current & Load New
+                        </button>
+                        <button class="btn btn-danger btn-with-icon" data-action="replace">
+                            <svg class="btn-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 7.2 3.6"></path>
+                                <path d="M21 3v6h-6"></path>
+                                <path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-7.2-3.6"></path>
+                                <path d="M3 21v-6h6"></path>
+                            </svg>
+                            Replace Without Saving
+                        </button>
                     </div>
                 </div>
             `;

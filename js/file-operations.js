@@ -98,10 +98,39 @@ class FileOperations {
                         ${message}
                     </div>
                     <div class="modal-actions clear-document-actions">
-                        <button class="btn btn-secondary" data-action="cancel">Cancel</button>
-                        <button class="btn btn-danger" data-action="delete">Delete</button>
-                        <button class="btn btn-primary" data-action="download">Download</button>
-                        <button class="btn btn-primary" data-action="save-browser">Save on Browser</button>
+                        <button class="btn btn-secondary btn-with-icon" data-action="cancel">
+                            <svg class="btn-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M18 6 6 18"></path>
+                                <path d="M6 6 18 18"></path>
+                            </svg>
+                            Cancel
+                        </button>
+                        <button class="btn btn-danger btn-with-icon" data-action="delete">
+                            <svg class="btn-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M3 6h18"></path>
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                                <path d="M10 11v6"></path>
+                                <path d="M14 11v6"></path>
+                            </svg>
+                            Delete
+                        </button>
+                        <button class="btn btn-primary btn-with-icon" data-action="download">
+                            <svg class="btn-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 3v10"></path>
+                                <path d="M7 11l5 5 5-5"></path>
+                                <path d="M5 21h14"></path>
+                            </svg>
+                            Download
+                        </button>
+                        <button class="btn btn-success btn-with-icon" data-action="save-browser">
+                            <svg class="btn-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M8 17a4 4 0 0 1 0-8 5 5 0 0 1 9.8 1.5A3.5 3.5 0 0 1 18.5 17H8z"></path>
+                                <path d="M12 12v6"></path>
+                                <path d="M9.5 15.5 12 18l2.5-2.5"></path>
+                            </svg>
+                            Save on Browser
+                        </button>
                     </div>
                 </div>
             `;
