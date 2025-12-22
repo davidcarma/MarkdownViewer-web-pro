@@ -29,6 +29,9 @@ class MarkdownEditor {
         this.storageManager = new LocalStorageManager();
         this.indexedDBManager = new IndexedDBManager();
 
+        // Scroll sync guard (prevents feedback loops when syncing both directions)
+        this._isSyncingScroll = false;
+
         // Expose a promise so other modules can reliably run after content restore.
         this.ready = this.init();
     }
@@ -604,10 +607,28 @@ class MarkdownEditor {
         this.cursorPosition.textContent = `Line ${lineNumber}, Column ${columnNumber}`;
     }
     
-    syncScroll() {
-        const editorScrollPercentage = this.editor.scrollTop / (this.editor.scrollHeight - this.editor.clientHeight);
-        const previewScrollTop = editorScrollPercentage * (this.preview.scrollHeight - this.preview.clientHeight);
-        this.preview.scrollTop = previewScrollTop;
+    syncScroll(source = 'editor') {
+        if (!this.editor || !this.preview) return;
+        if (this._isSyncingScroll) return;
+
+        const fromEl = source === 'preview' ? this.preview : this.editor;
+        const toEl = source === 'preview' ? this.editor : this.preview;
+
+        const fromScrollable = Math.max(1, fromEl.scrollHeight - fromEl.clientHeight);
+        const toScrollable = Math.max(1, toEl.scrollHeight - toEl.clientHeight);
+
+        const pct = fromEl.scrollTop / fromScrollable;
+        const nextScrollTop = pct * toScrollable;
+
+        this._isSyncingScroll = true;
+        // rAF reduces jitter and ensures DOM has settled after layout changes (e.g. Mermaid render).
+        requestAnimationFrame(() => {
+            toEl.scrollTop = nextScrollTop;
+            // Release on next tick so the paired scroll event (from setting scrollTop) is ignored.
+            setTimeout(() => {
+                this._isSyncingScroll = false;
+            }, 0);
+        });
     }
     
     setModified(modified) {
@@ -2246,8 +2267,15 @@ function hello() {
         });
         
         this.editor.addEventListener('scroll', () => {
-            this.syncScroll();
+            this.syncScroll('editor');
         });
+
+        // Bidirectional scroll sync: preview -> editor
+        if (this.preview) {
+            this.preview.addEventListener('scroll', () => {
+                this.syncScroll('preview');
+            });
+        }
         
         this.editor.addEventListener('keyup', () => {
             this.updateCursorPosition();

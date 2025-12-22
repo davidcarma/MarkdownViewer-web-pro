@@ -139,6 +139,8 @@ class FileBrowser {
                     <div class="file-item-meta">
                         <span class="file-item-date">${this.formatDate(file.modified || file.created)}</span>
                         <span class="file-item-size">${this.formatFileSize(file.size || file.content?.length || 0)}</span>
+                        <span class="file-item-lines">Lines: ${file.lineCount ?? this.countLines(file.content || '')}</span>
+                        <span class="file-item-words">Words: ${file.wordCount ?? this.countWords(file.content || '')}</span>
                     </div>
                 </div>
                 <div class="file-item-actions">
@@ -434,6 +436,12 @@ class FileBrowser {
         const style = document.createElement('style');
         style.id = 'file-browser-styles';
         style.textContent = `
+            .file-browser-modal {
+                display: flex;
+                flex-direction: column;
+                max-height: 80vh;
+            }
+
             .file-browser-modal .modal-header {
                 display: flex;
                 justify-content: space-between;
@@ -465,6 +473,8 @@ class FileBrowser {
                 display: flex;
                 flex-direction: column;
                 max-height: 60vh;
+                min-height: 0; /* critical: allow inner scroller to receive wheel */
+                overflow: hidden; /* prevent body from eating scroll */
             }
             
             .file-browser-toolbar {
@@ -493,8 +503,10 @@ class FileBrowser {
             .file-list-container {
                 flex: 1;
                 overflow-y: auto;
-                min-height: 200px;
-                max-height: 400px;
+                min-height: 0;
+                max-height: none;
+                overscroll-behavior: contain;
+                -webkit-overflow-scrolling: touch;
             }
             
             .file-list {
@@ -504,7 +516,7 @@ class FileBrowser {
             .file-item {
                 display: flex;
                 align-items: center;
-                padding: 0.75rem 1.5rem;
+                padding: 0.5rem 1rem; /* flatter rows */
                 cursor: pointer;
                 border-bottom: 1px solid var(--border-color);
                 transition: background-color 0.2s;
@@ -528,7 +540,7 @@ class FileBrowser {
             .file-item-name {
                 font-weight: 500;
                 color: var(--text-primary);
-                margin-bottom: 0.25rem;
+                margin-bottom: 0.1rem;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
@@ -536,8 +548,9 @@ class FileBrowser {
             
             .file-item-meta {
                 display: flex;
-                gap: 1rem;
-                font-size: 0.85rem;
+                gap: 0.6rem;
+                flex-wrap: wrap;
+                font-size: 0.75rem;
                 color: var(--text-secondary);
             }
             

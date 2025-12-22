@@ -25,6 +25,7 @@
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
+    min-width: 0; /* allow title field to shrink without clipping siblings */
 }
 
 .app-title svg {
@@ -39,12 +40,18 @@
     font-size: 1.25rem;
     font-weight: 600;
     font-family: inherit;
-    padding: 0.25rem 0.5rem;
+    /* Slightly taller line box so underscores/descenders don't get clipped */
+    line-height: 1.35;
+    padding: 0.35rem 0.5rem;
     border-radius: 4px;
-    min-width: 200px;
-    max-width: 300px;
+    min-width: 180px;
+    width: clamp(180px, 30vw, 440px);
     outline: none;
     transition: all 0.2s ease;
+    /* When the name is too long, keep it readable */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .document-title-input:hover {
