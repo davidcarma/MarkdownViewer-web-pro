@@ -106,7 +106,9 @@ class SimpleImageCollapseV2 {
     storeImage(imageMarkdown) {
         // Extract filename and data URL (including SVG data URLs)
         // More flexible regex to handle various data URL formats
-        const match = imageMarkdown.match(/!\[([^\]]*)\]\((data:image\/[^)]+)\)/);
+        // Allow optional whitespace/newlines between `]` and `(` because long pasted
+        // data URLs often wrap in some editors/copy sources.
+        const match = imageMarkdown.match(/!\[([^\]]*)\]\s*\((data:image\/[^)]+)\)/);
         if (!match) return imageMarkdown;
         
         const [fullMatch, alt, dataUrl] = match;
@@ -160,7 +162,7 @@ class SimpleImageCollapseV2 {
         
         // Replace all data URLs with placeholders
         collapsedContent = content.replace(
-            /!\[([^\]]*)\]\(data:image\/[^)]+\)/g,
+            /!\[([^\]]*)\]\s*\(data:image\/[^)]+\)/g,
             (match) => this.storeImage(match)
         );
         
