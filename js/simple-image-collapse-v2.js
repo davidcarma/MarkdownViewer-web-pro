@@ -7,9 +7,8 @@ class SimpleImageCollapseV2 {
         this.editor = editor;
         this.isCollapsed = true;
         this.imageStore = new Map(); // Global store for all image data
-        // NOTE: We no longer persist imageStore in localStorage because base64 images
-        // routinely exceed localStorage quota and cause random "quota exceeded" errors.
-        // The store is reconstructed from the document content on load.
+        // Persist images in IndexedDB (NOT localStorage) so placeholders can be expanded
+        // after refresh, without quota issues and without any network requests.
         this.setupToggle();
         this.bindInputHandler();
     }
@@ -55,12 +54,20 @@ class SimpleImageCollapseV2 {
         const imageId = `IMG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         // Store the image data
-        this.imageStore.set(imageId, {
+        const entry = {
             id: imageId,
             alt: alt,
             dataUrl: dataUrl,
             fullMarkdown: fullMatch
-        });
+        };
+        this.imageStore.set(imageId, entry);
+
+        // Persist to IndexedDB so refresh/server loads can expand placeholders offline
+        try {
+            this.editor?.indexedDBManager?.saveImage?.(entry);
+        } catch (_) {
+            // best-effort; preview will still work for current session via in-memory map
+        }
         
         // Return collapsed placeholder
         return `![${alt}](...${imageId}...)`;
@@ -74,9 +81,16 @@ class SimpleImageCollapseV2 {
         
         // Replace all placeholders with actual image data
         for (const [imageId, imageData] of this.imageStore) {
-            // Try exact match first
-            const placeholderRegex = new RegExp(`!\\[([^\\]]*)\\]\\(\\.\\.\\.${imageId}\\.\\.\\.\\)`, 'g');
-            expandedContent = expandedContent.replace(placeholderRegex, imageData.fullMarkdown);
+            // Match the placeholder even if there is whitespace/newlines between `]` and `(`
+            // or around the placeholder inside the parentheses (some browsers/editors wrap long lines).
+            const placeholderRegex = new RegExp(
+                `!\\\\[([^\\\\]]*)\\\\]\\\\s*\\\\(\\\\s*\\\\.\\\\.\\\\.${imageId}\\\\.\\\\.\\\\.\\\\s*\\\\)`,
+                'g'
+            );
+            expandedContent = expandedContent.replace(placeholderRegex, (match, alt) => {
+                const effectiveAlt = typeof alt === 'string' ? alt : (imageData.alt || '');
+                return `![${effectiveAlt}](${imageData.dataUrl})`;
+            });
             
             // Also try to recover corrupted placeholders - match partial IDs
             const corruptedRegex = new RegExp(`\\(\\.\\.\\.${imageId.substring(0, 15)}[^)]*\\.\\.\\.[^)]*\\)`, 'g');
@@ -84,6 +98,73 @@ class SimpleImageCollapseV2 {
         }
         
         return expandedContent;
+    }
+
+    // Replace any remaining placeholders with a safe, offline-friendly marker so the browser
+    // never tries to request `/...IMG_...` from the network/server.
+    replaceUnknownPlaceholders(content) {
+        if (!content) return content;
+        // Replace markdown image placeholders with a small inline SVG "missing image" data URL.
+        const missingSvg = (alt, imageId) => {
+            const safeAlt = (alt || 'Missing image').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const safeId = (imageId || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const svg =
+                `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="60" viewBox="0 0 240 60">` +
+                `<rect x="1" y="1" width="238" height="58" rx="10" fill="#111827" stroke="#334155" stroke-width="2"/>` +
+                `<text x="16" y="26" fill="#e5e7eb" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="14" font-weight="600">Image missing</text>` +
+                `<text x="16" y="46" fill="#94a3b8" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial" font-size="12">${safeAlt}${safeId ? ' • ' + safeId : ''}</text>` +
+                `</svg>`;
+            return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+        };
+
+        return content.replace(
+            /!\[([^\]]*)\]\s*\(\s*\.\.\.\s*(IMG_[^.)\s]+)\s*\.\.\.\s*\)/g,
+            (match, alt, imageId) => {
+                // If we have it, expand immediately to a data: URL so the preview NEVER attempts a network fetch.
+                const imageData = this.imageStore.get(imageId);
+                if (imageData && imageData.dataUrl) {
+                    return `![${alt}](${imageData.dataUrl})`;
+                }
+                // Otherwise, render a safe inline placeholder (also data:), not a relative URL.
+                return `![${alt}](${missingSvg(alt, imageId)})`;
+            }
+        );
+    }
+
+    async loadReferencedImagesFromIndexedDB(content) {
+        if (!content) return;
+        const getIds = () => {
+            const ids = new Set();
+            const re = /\(\.\.\.(IMG_[^.)]+)\.\.\.\)/g;
+            let m;
+            while ((m = re.exec(content)) !== null) {
+                ids.add(m[1]);
+            }
+            return [...ids];
+        };
+
+        const ids = getIds();
+        if (ids.length === 0) return;
+
+        const mgr = this.editor?.indexedDBManager;
+        if (!mgr || typeof mgr.getImage !== 'function') return;
+
+        await Promise.all(ids.map(async (id) => {
+            if (this.imageStore.has(id)) return;
+            try {
+                const img = await mgr.getImage(id);
+                if (img && img.id && img.dataUrl) {
+                    this.imageStore.set(img.id, {
+                        id: img.id,
+                        alt: img.alt || '',
+                        dataUrl: img.dataUrl,
+                        fullMarkdown: img.fullMarkdown || `![${img.alt || ''}](${img.dataUrl})`
+                    });
+                }
+            } catch (_) {
+                // ignore
+            }
+        }));
     }
     
     // Collapse all images in content
@@ -193,18 +274,22 @@ class SimpleImageCollapseV2 {
         }
     }
     
-    // Get content for preview (always expanded)
+    // Get content for preview (always expanded; never generates network image URLs)
     getPreviewContent() {
         const currentContent = this.editor.editor.value;
+        const safeContent = this.replaceUnknownPlaceholders(currentContent);
         if (this.isCollapsed) {
-            return this.expandPlaceholders(currentContent);
+            return this.expandPlaceholders(safeContent);
         }
-        return currentContent;
+        return safeContent;
     }
     
     // Initialize with existing content
-    initialize() {
+    async initialize() {
         const content = this.editor.editor.value;
+
+        // If the doc has placeholders, load referenced images so we can expand them on preview.
+        await this.loadReferencedImagesFromIndexedDB(content);
         
         // Check if content has image placeholders (from previous session)
         const hasPlaceholders = /\.\.\.[A-Z0-9_]+\.\.\./g.test(content);

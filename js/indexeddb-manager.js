@@ -6,8 +6,9 @@
 class IndexedDBManager {
     constructor() {
         this.dbName = 'markdown-editor-db';
-        this.dbVersion = 1;
+        this.dbVersion = 2;
         this.storeName = 'files';
+        this.imagesStoreName = 'images';
         this.db = null;
         this.isSupported = this.checkSupport();
     }
@@ -66,6 +67,94 @@ class IndexedDBManager {
                     
                     console.log('Created IndexedDB object store with indexes');
                 }
+
+                // Images store (placeholder -> data URL). Needed for offline-safe collapsed image placeholders.
+                if (!db.objectStoreNames.contains(this.imagesStoreName)) {
+                    const imagesStore = db.createObjectStore(this.imagesStoreName, { keyPath: 'id' });
+                    imagesStore.createIndex('created', 'created', { unique: false });
+                    console.log('Created IndexedDB images store');
+                }
+            };
+        });
+    }
+
+    /**
+     * Save an image entry (id -> dataUrl + metadata) to IndexedDB.
+     * @param {{id: string, alt?: string, dataUrl: string, fullMarkdown?: string, created?: string}} imageData
+     */
+    async saveImage(imageData) {
+        if (!this.db) {
+            await this.init();
+        }
+        if (!this.db) return false;
+
+        const now = new Date().toISOString();
+        const payload = {
+            id: imageData.id,
+            alt: imageData.alt || '',
+            dataUrl: imageData.dataUrl,
+            fullMarkdown: imageData.fullMarkdown || `![${imageData.alt || ''}](${imageData.dataUrl})`,
+            created: imageData.created || now,
+            modified: now
+        };
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.imagesStoreName], 'readwrite');
+            const objectStore = transaction.objectStore(this.imagesStoreName);
+            const request = objectStore.put(payload);
+
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => {
+                console.error('Failed to save image to IndexedDB:', request.error);
+                reject(request.error);
+            };
+        });
+    }
+
+    /**
+     * Get an image entry by id.
+     * @param {string} imageId
+     * @returns {Promise<Object|null>}
+     */
+    async getImage(imageId) {
+        if (!this.db) {
+            await this.init();
+        }
+        if (!this.db) return null;
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.imagesStoreName], 'readonly');
+            const objectStore = transaction.objectStore(this.imagesStoreName);
+            const request = objectStore.get(imageId);
+
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => {
+                console.error('Failed to get image from IndexedDB:', request.error);
+                reject(request.error);
+            };
+        });
+    }
+
+    /**
+     * Delete an image entry by id.
+     * @param {string} imageId
+     * @returns {Promise<boolean>}
+     */
+    async deleteImage(imageId) {
+        if (!this.db) {
+            await this.init();
+        }
+        if (!this.db) return false;
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.imagesStoreName], 'readwrite');
+            const objectStore = transaction.objectStore(this.imagesStoreName);
+            const request = objectStore.delete(imageId);
+
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => {
+                console.error('Failed to delete image from IndexedDB:', request.error);
+                reject(request.error);
             };
         });
     }
