@@ -53,20 +53,29 @@ class FileBrowser {
      * Show file browser modal
      */
     async showFileBrowser() {
-        // Check if we have unsaved changes
-        if (this.editor.isModified) {
-            const action = await this.showUnsavedChangesDialog();
-            if (action === 'cancel') {
-                return;
-            } else if (action === 'save') {
-                await this.saveCurrentFile();
+        try {
+            // Check if we have unsaved changes
+            const hasUnsavedChanges =
+                !!this.editor.isModified &&
+                typeof this.editor.lastSavedContent === 'string' &&
+                this.editor.editor &&
+                this.editor.editor.value !== this.editor.lastSavedContent;
+
+            if (hasUnsavedChanges) {
+                const action = await this.showUnsavedChangesDialog();
+                if (action === 'cancel') {
+                    return;
+                } else if (action === 'save') {
+                    const ok = await this.saveCurrentFile();
+                    // If save fails, do not proceed; keep the app interactive.
+                    if (!ok) return;
+                }
             }
-        }
-        
-        if (!this.editor.indexedDBManager || !this.editor.indexedDBManager.isSupported) {
-            throw new Error('IndexedDB is not available in this context');
-        }
-        const files = await this.editor.indexedDBManager.getAllFiles();
+            
+            if (!this.editor.indexedDBManager || !this.editor.indexedDBManager.isSupported) {
+                throw new Error('IndexedDB is not available in this context');
+            }
+            const files = await this.editor.indexedDBManager.getAllFiles();
         
         // Create modal
         const modal = document.createElement('div');
@@ -98,19 +107,28 @@ class FileBrowser {
             </div>
         `;
         
-        document.body.appendChild(modal);
-        this.currentModal = modal;
+            document.body.appendChild(modal);
+            this.currentModal = modal;
         
-        // Add styles if not already added
-        this.addStyles();
-        
-        // Setup event listeners
-        this.setupFileBrowserEvents(modal, files);
-        
-        // Focus search input
-        const searchInput = modal.querySelector('#fileSearch');
-        if (searchInput) {
-            searchInput.focus();
+            // Add styles if not already added
+            this.addStyles();
+            
+            // Setup event listeners
+            this.setupFileBrowserEvents(modal, files);
+            
+            // Focus search input
+            const searchInput = modal.querySelector('#fileSearch');
+            if (searchInput) {
+                searchInput.focus();
+            }
+        } catch (e) {
+            console.error('Failed to open file browser:', e);
+            this.editor?.showNotification?.('Failed to open file browser (see console)', 'error');
+            // Ensure no half-rendered modal blocks the UI
+            if (this.currentModal && document.body.contains(this.currentModal)) {
+                document.body.removeChild(this.currentModal);
+            }
+            this.currentModal = null;
         }
     }
     
@@ -346,8 +364,15 @@ class FileBrowser {
      */
     async saveCurrentFile() {
         let content = this.editor.editor.value;
-        if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
-            content = this.editor.imageCollapse.getPreviewContent();
+        try {
+            if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
+                content = this.editor.imageCollapse.getPreviewContent();
+            }
+        } catch (e) {
+            // Never block saving / opening just because preview expansion failed.
+            console.warn('getPreviewContent failed; saving raw editor content instead:', e);
+            this.editor.showNotification('Preview expansion failed — saving raw content', 'info');
+            content = this.editor.editor.value;
         }
         
         const fileId = this.generateFileId(this.editor.currentFileName);
