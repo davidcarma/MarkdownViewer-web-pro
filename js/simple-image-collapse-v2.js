@@ -7,81 +7,16 @@ class SimpleImageCollapseV2 {
         this.editor = editor;
         this.isCollapsed = true;
         this.imageStore = new Map(); // Global store for all image data
-        this.storageKey = 'markdown-editor-image-store';
-        this.loadImageStore(); // Load persisted images
+        // NOTE: We no longer persist imageStore in localStorage because base64 images
+        // routinely exceed localStorage quota and cause random "quota exceeded" errors.
+        // The store is reconstructed from the document content on load.
         this.setupToggle();
         this.bindInputHandler();
     }
     
-    // Load image store from localStorage
-    loadImageStore() {
-        try {
-            const storedData = localStorage.getItem(this.storageKey);
-            if (storedData) {
-                const imageData = JSON.parse(storedData);
-                // Convert back to Map
-                this.imageStore = new Map(Object.entries(imageData));
-                console.log(`Loaded ${this.imageStore.size} images from localStorage`);
-            }
-        } catch (error) {
-            console.error('Error loading image store:', error);
-            this.imageStore = new Map();
-        }
-    }
-    
-    // Save image store to localStorage
-    saveImageStore() {
-        try {
-            // Convert Map to object for JSON serialization
-            const imageData = Object.fromEntries(this.imageStore);
-            localStorage.setItem(this.storageKey, JSON.stringify(imageData));
-        } catch (error) {
-            console.error('Error saving image store:', error);
-            // If storage is full, try cleaning up old images
-            if (error.name === 'QuotaExceededError') {
-                this.cleanupOldImages();
-                // Try saving again after cleanup
-                try {
-                    const imageData = Object.fromEntries(this.imageStore);
-                    localStorage.setItem(this.storageKey, JSON.stringify(imageData));
-                } catch (retryError) {
-                    console.error('Error saving image store after cleanup:', retryError);
-                }
-            }
-        }
-    }
-    
-    // Clean up old images (older than 30 days) to free up localStorage space
-    cleanupOldImages() {
-        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-        let cleanedCount = 0;
-        
-        for (const [imageId, imageData] of this.imageStore) {
-            // Extract timestamp from image ID (format: IMG_timestamp_randomstring)
-            const timestampMatch = imageId.match(/IMG_(\d+)_/);
-            if (timestampMatch) {
-                const timestamp = parseInt(timestampMatch[1]);
-                if (timestamp < thirtyDaysAgo) {
-                    this.imageStore.delete(imageId);
-                    cleanedCount++;
-                }
-            }
-        }
-        
-        if (cleanedCount > 0) {
-            console.log(`Cleaned up ${cleanedCount} old images from storage`);
-            this.saveImageStore();
-        }
-    }
-    
-    // Clear all stored images (for debugging or manual cleanup)
+    // Clear all stored images (in-memory only)
     clearImageStore() {
         this.imageStore.clear();
-        try {
-            localStorage.removeItem(this.storageKey);
-        } catch (error) {
-            console.error('Error clearing image store:', error);
-        }
     }
     
     setupToggle() {
@@ -126,9 +61,6 @@ class SimpleImageCollapseV2 {
             dataUrl: dataUrl,
             fullMarkdown: fullMatch
         });
-        
-        // Save to localStorage
-        this.saveImageStore();
         
         // Return collapsed placeholder
         return `![${alt}](...${imageId}...)`;
@@ -487,5 +419,12 @@ class SimpleImageCollapseV2 {
 // Replace the main MarkdownEditor setupImageCollapse method
 MarkdownEditor.prototype.setupImageCollapse = function() {
     this.imageCollapse = new SimpleImageCollapseV2(this);
-    this.imageCollapse.initialize();
+    // Initialize after the editor has finished restoring content (prevents
+    // "sometimes not collapsed after refresh" timing issues).
+    const initCollapse = () => this.imageCollapse?.initialize?.();
+    if (this.ready && typeof this.ready.then === 'function') {
+        this.ready.then(() => setTimeout(initCollapse, 0));
+    } else {
+        setTimeout(initCollapse, 0);
+    }
 };

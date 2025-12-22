@@ -28,8 +28,9 @@ class MarkdownEditor {
         // Initialize storage managers
         this.storageManager = new LocalStorageManager();
         this.indexedDBManager = new IndexedDBManager();
-        
-        this.init();
+
+        // Expose a promise so other modules can reliably run after content restore.
+        this.ready = this.init();
     }
     
     async init() {
@@ -222,55 +223,70 @@ class MarkdownEditor {
         if (currentTheme === 'dark') {
             mermaidConfig.themeVariables = {
                 darkMode: true,
-                background: '#1f2937',
-                primaryColor: '#818cf8',
-                primaryTextColor: '#f9fafb',
-                primaryBorderColor: '#6366f1',
-                lineColor: '#9ca3af',
-                secondaryColor: '#374151',
-                tertiaryColor: '#4b5563',
-                mainBkg: '#374151',
-                secondBkg: '#4b5563',
-                tertiaryBkg: '#6b7280',
-                nodeBorder: '#818cf8',
-                clusterBkg: '#374151',
-                clusterBorder: '#6366f1',
-                defaultLinkColor: '#9ca3af',
-                titleColor: '#f9fafb',
-                edgeLabelBackground: '#374151',
-                actorBorder: '#818cf8',
-                actorBkg: '#4b5563',
-                actorTextColor: '#f9fafb',
-                actorLineColor: '#9ca3af',
-                signalColor: '#f9fafb',
-                signalTextColor: '#f9fafb',
-                labelBoxBkgColor: '#4b5563',
-                labelBoxBorderColor: '#818cf8',
-                labelTextColor: '#f9fafb',
-                loopTextColor: '#f9fafb',
-                noteBorderColor: '#818cf8',
-                noteBkgColor: '#374151',
-                noteTextColor: '#f9fafb',
-                activationBorderColor: '#6366f1',
-                activationBkgColor: '#4b5563',
-                sequenceNumberColor: '#1f2937',
-                sectionBkgColor: '#4b5563',
-                altSectionBkgColor: '#374151',
-                sectionBkgColor2: '#6b7280',
-                excludeBkgColor: '#6b7280',
-                taskBorderColor: '#818cf8',
-                taskBkgColor: '#4b5563',
-                taskTextColor: '#f9fafb',
+                // High-contrast dark palette (avoid "bright on bright" labels)
+                background: '#0b1220',
+                mainBkg: '#0f172a',
+                secondBkg: '#111827',
+                tertiaryBkg: '#1f2937',
+                primaryColor: '#111827',
+                secondaryColor: '#0f172a',
+                tertiaryColor: '#1f2937',
+                primaryBorderColor: '#60a5fa',
+                nodeBorder: '#60a5fa',
+                lineColor: '#94a3b8',
+                defaultLinkColor: '#94a3b8',
+                gridColor: '#334155',
+
+                // Global text colors (Mermaid uses these broadly; missing them can yield black text)
+                textColor: '#e5e7eb',
+                primaryTextColor: '#e5e7eb',
+                labelColor: '#e5e7eb',
+                labelTextColor: '#e5e7eb',
+                nodeTextColor: '#e5e7eb',
+                clusterTextColor: '#e5e7eb',
+                titleColor: '#e5e7eb',
+
+                // Clusters / labels
+                clusterBkg: '#0f172a',
+                clusterBorder: '#334155',
+                edgeLabelBackground: '#111827',
+                labelBoxBkgColor: '#111827',
+                labelBoxBorderColor: '#334155',
+
+                // Sequence diagrams
+                actorBorder: '#60a5fa',
+                actorBkg: '#111827',
+                actorTextColor: '#e5e7eb',
+                actorLineColor: '#94a3b8',
+                signalColor: '#e5e7eb',
+                signalTextColor: '#e5e7eb',
+                loopTextColor: '#e5e7eb',
+                noteBorderColor: '#60a5fa',
+                noteBkgColor: '#111827',
+                noteTextColor: '#e5e7eb',
+                activationBorderColor: '#60a5fa',
+                activationBkgColor: '#1f2937',
+                sequenceNumberColor: '#e5e7eb',
+                sectionBkgColor: '#111827',
+                altSectionBkgColor: '#0f172a',
+                sectionBkgColor2: '#1f2937',
+                excludeBkgColor: '#1f2937',
+
+                // Gantt / journey task colors
+                taskBorderColor: '#60a5fa',
+                taskBkgColor: '#111827',
+                taskTextColor: '#e5e7eb',
                 activeTaskBorderColor: '#a78bfa',
-                activeTaskBkgColor: '#6366f1',
-                gridColor: '#6b7280',
-                doneTaskBkgColor: '#10b981',
-                doneTaskBorderColor: '#059669',
+                activeTaskBkgColor: '#1f2937',
+                doneTaskBkgColor: '#065f46',
+                doneTaskBorderColor: '#10b981',
                 critBorderColor: '#ef4444',
-                critBkgColor: '#dc2626',
-                todayLineColor: '#f59e0b',
-                personBorder: '#818cf8',
-                personBkg: '#4b5563'
+                critBkgColor: '#7f1d1d',
+                todayLineColor: '#fbbf24',
+
+                // ER / misc
+                personBorder: '#60a5fa',
+                personBkg: '#111827'
             };
         } else if (currentTheme === 'gwyneth') {
             mermaidConfig.themeVariables = {
@@ -1509,10 +1525,15 @@ class MarkdownEditor {
     async autoSave() {
         // Auto-save content, cursor position, and state changes
         // Save to localStorage for backward compatibility
-        if (this.storageManager) {
+        // Avoid writing very large documents (especially base64 images) to localStorage,
+        // which causes "quota exceeded" warnings. IndexedDB handles large content.
+        const content = this.editor?.value || '';
+        const tooLargeForLocalStorage = content.length > 200_000 || content.includes('data:image/');
+
+        if (this.storageManager && !tooLargeForLocalStorage) {
             this.storageManager.autoSave(
                 this.currentFileName,
-                this.editor.value,
+                content,
                 this.editor.selectionStart,
                 this.isModified
             );
@@ -1536,10 +1557,13 @@ class MarkdownEditor {
     
     // Replace current localStorage file (for new file or file loading)
     replaceLocalStorageFile() {
-        if (this.storageManager) {
+        const content = this.editor?.value || '';
+        const tooLargeForLocalStorage = content.length > 200_000 || content.includes('data:image/');
+
+        if (this.storageManager && !tooLargeForLocalStorage) {
             this.storageManager.replaceCurrentFile(
                 this.currentFileName,
-                this.editor.value,
+                content,
                 this.editor.selectionStart,
                 this.isModified
             );
@@ -1660,6 +1684,14 @@ class MarkdownEditor {
     }
     
     async loadSavedFile() {
+        // Clear legacy (large) image store if present to avoid localStorage quota issues.
+        // Images are reconstructed from the document content on load.
+        try {
+            localStorage.removeItem('markdown-editor-image-store');
+        } catch (_) {
+            // ignore
+        }
+
         // Migrate localStorage files to IndexedDB first (one-time migration)
         // Automatically clear localStorage after successful migration
         await this.migrateLocalStorageToIndexedDB(true);
