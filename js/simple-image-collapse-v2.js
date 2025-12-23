@@ -236,6 +236,11 @@ class SimpleImageCollapseV2 {
             setTimeout(() => {
                 const currentContent = this.editor.editor.value;
                 const cursorPos = this.editor.editor.selectionStart;
+                const prevScrollTop = this.editor.editor.scrollTop;
+                const prevScrollLeft = this.editor.editor.scrollLeft;
+                const previewEl = this.editor.preview;
+                const prevPreviewTop = previewEl ? previewEl.scrollTop : 0;
+                const prevPreviewLeft = previewEl ? previewEl.scrollLeft : 0;
                 
                 if (currentContent.includes('data:image/')) {
                     const collapsedContent = this.collapseImages(currentContent);
@@ -251,6 +256,15 @@ class SimpleImageCollapseV2 {
                     setTimeout(() => {
                         this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
                         this.editor.editor.focus();
+
+                        // Preserve viewport: selection/focus can scroll-jump (often to EOF).
+                        this.editor.editor.scrollTop = prevScrollTop;
+                        this.editor.editor.scrollLeft = prevScrollLeft;
+                        if (previewEl) {
+                            previewEl.scrollTop = prevPreviewTop;
+                            previewEl.scrollLeft = prevPreviewLeft;
+                        }
+                        this.editor._ignoringScrollUntil = Date.now() + 250;
                         
                         // Update editor state
                         this.editor.updatePreview();
@@ -472,6 +486,9 @@ class SimpleImageCollapseV2 {
             if (this.editor.showNotification) {
                 this.editor.showNotification(`Cleaned up ${cleanedCount} old images`, 'success');
             }
+            // Keep preview in sync in case placeholders can no longer be expanded.
+            this.editor.updatePreview?.();
+            this.editor.updateStats?.();
             document.body.removeChild(menu);
         };
         
@@ -490,6 +507,9 @@ class SimpleImageCollapseV2 {
                 if (this.editor.showNotification) {
                     this.editor.showNotification(`Cleared ${count} stored images`, 'info');
                 }
+                // Keep preview in sync in case placeholders can no longer be expanded.
+                this.editor.updatePreview?.();
+                this.editor.updateStats?.();
             }
             document.body.removeChild(menu);
         };

@@ -307,6 +307,14 @@ class ImagePasteHandler {
         const start = editor.selectionStart;
         const end = editor.selectionEnd;
         const value = editor.value;
+
+        // Preserve viewport: changing value/selection can cause the browser to
+        // auto-scroll the textarea (often all the way to the insertion point).
+        const prevEditorScrollTop = editor.scrollTop;
+        const prevEditorScrollLeft = editor.scrollLeft;
+        const previewEl = this.editor.preview;
+        const prevPreviewScrollTop = previewEl ? previewEl.scrollTop : 0;
+        const prevPreviewScrollLeft = previewEl ? previewEl.scrollLeft : 0;
         
         // Create markdown image syntax with data URL
         const imageMarkdown = `![${fileName}](${dataUrl})`;
@@ -325,6 +333,16 @@ class ImagePasteHandler {
             setTimeout(() => {
                 editor.setSelectionRange(newCursorPos, newCursorPos);
                 editor.focus();
+
+                // Restore scroll positions AFTER selection/focus (these can trigger scroll jumps)
+                // and keep scroll sync from reacting to any incidental scroll events.
+                editor.scrollTop = prevEditorScrollTop;
+                editor.scrollLeft = prevEditorScrollLeft;
+                if (previewEl) {
+                    previewEl.scrollTop = prevPreviewScrollTop;
+                    previewEl.scrollLeft = prevPreviewScrollLeft;
+                }
+                this.editor._ignoringScrollUntil = Date.now() + 250;
                 
                 // Update editor state after cursor is positioned
                 this.editor.updatePreview();

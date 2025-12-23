@@ -53,6 +53,18 @@ class MarkdownEditor {
         // Track when user is actively typing (to suppress scroll sync)
         this._lastInputAt = 0;
 
+        // ═══════════════════════════════════════════════════════════════════
+        // EDITOR WRAP-AWARE METRICS (for accurate scroll→line mapping)
+        // Textarea uses white-space: pre-wrap, so scrollTop/lineHeight is NOT a
+        // reliable way to infer the top logical line when lines wrap.
+        // We build an offscreen mirror to map logical line starts to pixel Y.
+        // ═══════════════════════════════════════════════════════════════════
+        this._editorMirrorEl = null;
+        this._editorLineTops = null; // number[] (0-based line index -> y px)
+        this._editorMetricsDirty = true;
+        this._editorMetricsBuilding = false;
+        this._editorMetricsKey = '';
+
         // Expose a promise so other modules can reliably run after content restore.
         this.ready = this.init();
     }
@@ -90,11 +102,172 @@ class MarkdownEditor {
     }
 
     /**
-     * Get the current top line in the editor (fractional for smooth mapping)
+     * Ensure the offscreen editor mirror exists.
      */
-    _getEditorScrollLine() {
-        const lh = this._getEditorLineHeight();
-        return 1 + this.editor.scrollTop / lh;
+    _ensureEditorMirror() {
+        if (this._editorMirrorEl) return this._editorMirrorEl;
+        const el = document.createElement('div');
+        el.setAttribute('aria-hidden', 'true');
+        el.style.position = 'absolute';
+        el.style.left = '-100000px';
+        el.style.top = '0';
+        el.style.visibility = 'hidden';
+        el.style.pointerEvents = 'none';
+        el.style.whiteSpace = 'pre-wrap';
+        el.style.wordBreak = 'break-word';
+        el.style.overflow = 'hidden';
+        el.style.boxSizing = 'border-box';
+        document.body.appendChild(el);
+        this._editorMirrorEl = el;
+        return el;
+    }
+
+    /**
+     * Mark editor metrics dirty (call when text or layout changes).
+     */
+    _markEditorMetricsDirty() {
+        this._editorMetricsDirty = true;
+    }
+
+    /**
+     * Rebuild wrap-aware mapping from logical line index -> pixel Y in editor.
+     * This is critical for scroll sync accuracy on wrapped lines.
+     */
+    _rebuildEditorLineTops() {
+        if (!this.editor) return;
+        if (this._editorMetricsBuilding) return;
+        this._editorMetricsBuilding = true;
+
+        try {
+            const textarea = this.editor;
+            const mirror = this._ensureEditorMirror();
+            const style = getComputedStyle(textarea);
+
+            // Key includes factors that affect wrapping/layout.
+            const key = [
+                textarea.clientWidth,
+                style.fontFamily,
+                style.fontSize,
+                style.fontWeight,
+                style.letterSpacing,
+                style.lineHeight,
+                style.paddingTop,
+                style.paddingRight,
+                style.paddingBottom,
+                style.paddingLeft,
+                textarea.value.length
+            ].join('|');
+
+            // If not dirty and key unchanged, skip.
+            if (!this._editorMetricsDirty && this._editorMetricsKey === key && Array.isArray(this._editorLineTops)) {
+                return;
+            }
+
+            this._editorMetricsKey = key;
+            this._editorMetricsDirty = false;
+
+            // Mirror must match textarea content box sizing and wrapping.
+            mirror.style.width = `${textarea.clientWidth}px`;
+            mirror.style.fontFamily = style.fontFamily;
+            mirror.style.fontSize = style.fontSize;
+            mirror.style.fontWeight = style.fontWeight;
+            mirror.style.fontStyle = style.fontStyle;
+            mirror.style.letterSpacing = style.letterSpacing;
+            mirror.style.lineHeight = style.lineHeight;
+            mirror.style.paddingTop = style.paddingTop;
+            mirror.style.paddingRight = style.paddingRight;
+            mirror.style.paddingBottom = style.paddingBottom;
+            mirror.style.paddingLeft = style.paddingLeft;
+            mirror.style.borderTopWidth = '0px';
+            mirror.style.borderRightWidth = '0px';
+            mirror.style.borderBottomWidth = '0px';
+            mirror.style.borderLeftWidth = '0px';
+
+            // Build a marker span at the start of each logical line.
+            // We measure marker.offsetTop to map logical lines → pixel Y.
+            mirror.innerHTML = '';
+            const frag = document.createDocumentFragment();
+            const lines = String(textarea.value || '').split('\n');
+
+            for (let i = 0; i < lines.length; i++) {
+                const marker = document.createElement('span');
+                marker.className = '__editor_line_marker';
+                // Zero-size marker, but still in flow for offsetTop.
+                marker.style.display = 'inline-block';
+                marker.style.width = '0px';
+                marker.style.height = '0px';
+                frag.appendChild(marker);
+                frag.appendChild(document.createTextNode(lines[i]));
+                // Preserve explicit newlines so wrapping matches textarea.
+                frag.appendChild(document.createTextNode('\n'));
+            }
+
+            mirror.appendChild(frag);
+
+            const markers = mirror.querySelectorAll('span.__editor_line_marker');
+            const tops = new Array(markers.length);
+            for (let i = 0; i < markers.length; i++) {
+                tops[i] = markers[i].offsetTop;
+            }
+            this._editorLineTops = tops;
+        } catch (err) {
+            // If mirror measurement fails for any reason, keep syncing functional.
+            console.warn('Editor mirror metrics rebuild failed; falling back to lineHeight model.', err);
+            this._editorLineTops = null;
+            this._editorMetricsDirty = true;
+        } finally {
+            this._editorMetricsBuilding = false;
+        }
+    }
+
+    /**
+     * Get the current top logical line in the editor (wrap-aware), fractional.
+     * Returns: { exactTopLine0, topLineInt, lineFraction, totalLines }
+     * - exactTopLine0 is 0-based logical line index + fraction into that line.
+     */
+    _getEditorTopLogicalLine() {
+        const totalLines = Math.max(1, String(this.editor?.value || '').split('\n').length);
+
+        // Attempt wrap-aware mapping; build metrics if needed.
+        const currentWidth = this.editor?.clientWidth || 0;
+        const prevWidth = this._editorMetricsKey ? parseInt(String(this._editorMetricsKey).split('|')[0], 10) : null;
+        const widthChanged = Number.isFinite(prevWidth) ? (prevWidth !== currentWidth) : true;
+        if (this._editorMetricsDirty || widthChanged || !Array.isArray(this._editorLineTops) || this._editorLineTops.length !== totalLines) {
+            // Rebuild synchronously once; if it fails, we fall back below.
+            this._rebuildEditorLineTops();
+        }
+
+        const tops = this._editorLineTops;
+        const scrollTop = this.editor.scrollTop;
+
+        if (!Array.isArray(tops) || tops.length === 0) {
+            // Fallback: assumes no wraps (less accurate).
+            const lh = this._getEditorLineHeight();
+            const exactTopLine0 = scrollTop / lh;
+            const topLineInt = Math.floor(exactTopLine0) + 1;
+            const lineFraction = exactTopLine0 - Math.floor(exactTopLine0);
+            return { exactTopLine0, topLineInt, lineFraction, totalLines, usedFallback: true };
+        }
+
+        // Binary search: find greatest i such that tops[i] <= scrollTop.
+        let lo = 0;
+        let hi = tops.length - 1;
+        while (lo < hi) {
+            const mid = ((lo + hi + 1) >> 1);
+            if (tops[mid] <= scrollTop) lo = mid;
+            else hi = mid - 1;
+        }
+
+        const lineIdx0 = Math.max(0, Math.min(tops.length - 1, lo));
+        const lineTop = tops[lineIdx0];
+        const nextTop = (lineIdx0 + 1 < tops.length) ? tops[lineIdx0 + 1] : (lineTop + this._getEditorLineHeight());
+        const linePx = Math.max(1, nextTop - lineTop);
+
+        const lineFraction = Math.max(0, Math.min(0.999, (scrollTop - lineTop) / linePx));
+        const exactTopLine0 = lineIdx0 + lineFraction;
+        const topLineInt = lineIdx0 + 1;
+
+        return { exactTopLine0, topLineInt, lineFraction, totalLines, usedFallback: false };
     }
 
     /**
@@ -223,20 +396,18 @@ class MarkdownEditor {
     _performSync() {
         if (!this.editor || !this.preview) return;
         
-        // Debug flag - set to false to disable logging
-        const DEBUG_SCROLL = true;
+        // Debug flag - enable by setting localStorage key:
+        // localStorage.setItem('markdownpro-debug-scroll', '1')
+        const DEBUG_SCROLL = (localStorage.getItem('markdownpro-debug-scroll') === '1');
 
         const previewMax = Math.max(1, this.preview.scrollHeight - this.preview.clientHeight);
-        const editorMax = Math.max(1, this.editor.scrollHeight - this.editor.clientHeight);
+        const editorMax = Math.max(0, this.editor.scrollHeight - this.editor.clientHeight);
         
         // ─────────────────────────────────────────────────────────────────
-        // Calculate which LINE is at TOP of editor viewport (fractional)
+        // Calculate which LOGICAL line is at TOP of editor viewport (fractional)
+        // Wrap-aware via mirror metrics; falls back to lineHeight model if needed.
         // ─────────────────────────────────────────────────────────────────
-        const lineHeight = this._getEditorLineHeight();
-        const exactTopLine = this.editor.scrollTop / lineHeight;  // 0-based, fractional
-        const topLineInt = Math.floor(exactTopLine) + 1;  // 1-based integer
-        const lineFraction = exactTopLine - Math.floor(exactTopLine);
-        const totalLines = Math.max(1, (this.editor.value || '').split('\n').length);
+        const { exactTopLine0, topLineInt, lineFraction, totalLines, usedFallback } = this._getEditorTopLogicalLine();
 
         // ─────────────────────────────────────────────────────────────────
         // EDGE SNAPPING: At top or bottom, snap cleanly
@@ -258,11 +429,13 @@ class MarkdownEditor {
         // ─────────────────────────────────────────────────────────────────
         // Build LINE MAP: Map editor lines to preview pixel positions
         // ─────────────────────────────────────────────────────────────────
-        const lineElements = this.preview.querySelectorAll('[data-line]');
+        // Prefer leaf block markers (paragraphs/headings/fences/etc.).
+        // Container markers (ul/ol/li/blockquote) span large ranges and distort interpolation.
+        const lineElements = this.preview.querySelectorAll('[data-line][data-line-end]');
         
         if (lineElements.length === 0) {
             // FALLBACK: No line markers, use simple ratio
-            const lineRatio = Math.max(0, Math.min(1, exactTopLine / Math.max(1, totalLines - 1)));
+            const lineRatio = Math.max(0, Math.min(1, exactTopLine0 / Math.max(1, totalLines - 1)));
             const targetScrollTop = lineRatio * previewMax;
             const delta = Math.abs(this.preview.scrollTop - targetScrollTop);
             if (delta >= 3) {
@@ -277,6 +450,10 @@ class MarkdownEditor {
         const previewRect = this.preview.getBoundingClientRect();
         
         for (const el of lineElements) {
+            const tag = el.tagName ? el.tagName.toLowerCase() : '';
+            if (tag === 'ul' || tag === 'ol' || tag === 'li' || tag === 'blockquote') {
+                continue;
+            }
             const line = parseInt(el.getAttribute('data-line'), 10);
             const lineEnd = parseInt(el.getAttribute('data-line-end'), 10) || line;
             if (Number.isFinite(line)) {
@@ -336,6 +513,11 @@ class MarkdownEditor {
         // ─────────────────────────────────────────────────────────────────
         if (DEBUG_SCROLL) {
             console.log(`[SCROLL] Editor: line ${topLineInt} + ${lineFraction.toFixed(3)} frac | scrollTop: ${this.editor.scrollTop.toFixed(0)}px`);
+            if (usedFallback) {
+                console.log(`[SCROLL] Editor mapping: FALLBACK (lineHeight model) - wraps may reduce accuracy`);
+            } else {
+                console.log(`[SCROLL] Editor mapping: WRAP-AWARE (mirror model)`);
+            }
             console.log(`[SCROLL] Before element: line ${before.line}-${before.lineEnd} (${before.lineSpan} lines) @ ${before.top.toFixed(0)}px, height: ${before.height.toFixed(0)}px`);
             if (after) {
                 console.log(`[SCROLL] After element: line ${after.line}-${after.lineEnd} (${after.lineSpan} lines) @ ${after.top.toFixed(0)}px, height: ${after.height.toFixed(0)}px`);
@@ -674,9 +856,13 @@ class MarkdownEditor {
         
         // Override renderers for block elements to add data-line and data-line-end
         const blockElements = [
-            'paragraph_open', 'heading_open', 'blockquote_open',
-            'bullet_list_open', 'ordered_list_open', 'list_item_open',
-            'code_block', 'fence', 'table_open', 'hr'
+            // Leaf blocks only (avoid container wrappers that span huge ranges)
+            'paragraph_open',
+            'heading_open',
+            'code_block',
+            'fence',
+            'table_open',
+            'hr'
         ];
         
         for (const rule of blockElements) {
@@ -2874,25 +3060,39 @@ function hello() {
         
         // Skip if in compact mode or content is too short
         if (this.isCompactMode || content.length < 10) return;
-        
-        // Check for escaped newlines (the main indicator)
-        const hasEscapedNewlines = content.includes('\\n');
-        
-        // Check for other JSON escape sequences
-        const hasEscapedQuotes = content.includes('\\"');
-        const hasEscapedBackslashes = content.includes('\\\\');
-        
-        // More sophisticated check: content should look like it has multiple lines but all on one line
-        const looksLikeSingleLineMarkdown = hasEscapedNewlines && !content.includes('\n');
-        
-        // Check if it starts with markdown-like content (after potential quote removal)
-        const testContent = content.startsWith('"') ? content.slice(1) : content;
-        const startsWithMarkdown = /^#\s+\w+|^\*\*\w+|^-\s+\w+/i.test(testContent);
-        
-        // Only show notification if it really looks like escaped markdown
-        if (hasEscapedNewlines && (looksLikeSingleLineMarkdown || startsWithMarkdown || hasEscapedQuotes)) {
-            this.showUnescapeNotification();
+
+        // If the document contains embedded images or placeholders, never prompt.
+        // Those strings are common in normal docs and can contain escape-like sequences.
+        if (content.includes('data:image/') || content.includes('(...IMG_') || content.includes('...IMG_')) {
+            return;
         }
+        
+        // Only prompt when the *entire document* looks like a JSON-escaped single-line string.
+        // Rationale: normal markdown often legitimately contains literal "\\n" inside code blocks.
+        const hasEscapedNewlines = content.includes('\\n');
+        const hasActualNewlines = content.includes('\n');
+        const wrappedInQuotes = content.startsWith('"') && content.endsWith('"') && content.length > 2;
+        const hasEscapedQuotes = content.includes('\\"');
+
+        const looksLikeWholeDocumentJsonEscaped =
+            wrappedInQuotes || (hasEscapedNewlines && !hasActualNewlines);
+
+        if (!looksLikeWholeDocumentJsonEscaped) return;
+
+        // Additional sanity: if it's not wrapped, require at least a couple escapes to avoid false positives.
+        if (!wrappedInQuotes) {
+            const escapeCount =
+                (content.match(/\\n/g) || []).length +
+                (content.match(/\\"/g) || []).length;
+            if (escapeCount < 2) return;
+        }
+
+        // If it starts with markdown-like content after stripping one leading quote, it's a good candidate.
+        const testContent = wrappedInQuotes ? content.slice(1, -1) : content;
+        const startsWithMarkdown = /^(\s*#|\s*[-*+]\s+|\s*\d+\.\s+|\s*>)/.test(testContent);
+        if (!startsWithMarkdown && !hasEscapedQuotes && !hasEscapedNewlines) return;
+
+        this.showUnescapeNotification();
     }
 
     showUnescapeNotification() {
@@ -3030,6 +3230,8 @@ function hello() {
         this.editor.addEventListener('input', () => {
             // Track typing to suppress scroll sync during input
             this._lastInputAt = Date.now();
+            // Text and wrapping can change even when length doesn't; rebuild mirror map.
+            this._markEditorMetricsDirty();
             
             try {
                 this.updatePreview();
@@ -3052,7 +3254,53 @@ function hello() {
 
         // Add paste event listener for auto-detection of escaped strings
         this.editor.addEventListener('paste', (e) => {
+            // If this paste includes an image/SVG, do NOT run escaped-content detection.
+            // Image paste flow rewrites the editor value and may contain escape-like sequences.
+            // Also, users don't want an unescape prompt when pasting images.
+            try {
+                const cd = e.clipboardData;
+                if (cd && cd.items && cd.items.length) {
+                    for (const it of Array.from(cd.items)) {
+                        if (!it || !it.type) continue;
+                        if (it.type.startsWith('image/') || it.type === 'image/svg+xml') {
+                            // Still preserve viewport (below), but skip unescape detection.
+                            // We'll early-return after setting up the viewport preservation.
+                            // Mark on the event so downstream code can see it.
+                            e.__markdownProSkipUnescape = true;
+                            break;
+                        }
+                    }
+                }
+            } catch (_) {
+                // ignore
+            }
+
+            // Preserve viewport position on paste.
+            // Browsers often auto-scroll the textarea to the caret after paste;
+            // we want the page to stay where it is (user expectation for this app).
+            try {
+                const st = this.editor.scrollTop;
+                const sl = this.editor.scrollLeft;
+                const pst = this.preview ? this.preview.scrollTop : 0;
+                const psl = this.preview ? this.preview.scrollLeft : 0;
+
+                requestAnimationFrame(() => {
+                    if (this.editor) {
+                        this.editor.scrollTop = st;
+                        this.editor.scrollLeft = sl;
+                    }
+                    if (this.preview) {
+                        this.preview.scrollTop = pst;
+                        this.preview.scrollLeft = psl;
+                    }
+                });
+            } catch (_) {
+                // best-effort only
+            }
+
             setTimeout(() => {
+                // Skip unescape detection for image/SVG pastes.
+                if (e && e.__markdownProSkipUnescape) return;
                 this.detectAndOfferUnescape();
             }, 100);
         });
@@ -3062,6 +3310,11 @@ function hello() {
         });
 
         // Note: Preview scroll is independent (one-way sync: editor → preview only)
+
+        // Layout changes (resize / pane divider / fullscreen transitions) can change wrapping.
+        window.addEventListener('resize', () => {
+            this._markEditorMetricsDirty();
+        });
         
         this.editor.addEventListener('keyup', () => {
             this.updateCursorPosition();
