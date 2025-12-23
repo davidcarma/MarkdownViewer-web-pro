@@ -269,17 +269,21 @@ class MarkdownEditor {
         }
 
         // Build sorted line map with accurate positions
+        // Includes both start line and end line for multi-line blocks
         const lineMap = [];
         const previewRect = this.preview.getBoundingClientRect();
         
         for (const el of lineElements) {
             const line = parseInt(el.getAttribute('data-line'), 10);
+            const lineEnd = parseInt(el.getAttribute('data-line-end'), 10) || line;
             if (Number.isFinite(line)) {
                 const rect = el.getBoundingClientRect();
                 // Position relative to preview scroll container
                 const top = rect.top - previewRect.top + this.preview.scrollTop;
                 const height = rect.height;
-                lineMap.push({ line, top, height, el });
+                // lineSpan = how many editor lines this element covers
+                const lineSpan = Math.max(1, lineEnd - line);
+                lineMap.push({ line, lineEnd, lineSpan, top, height, el });
             }
         }
         lineMap.sort((a, b) => a.line - b.line);
@@ -308,46 +312,70 @@ class MarkdownEditor {
 
         // ─────────────────────────────────────────────────────────────────
         // CALCULATE TARGET SCROLL with adaptive interpolation
+        // Handles both acceleration (images) and deceleration (compact code)
         // ─────────────────────────────────────────────────────────────────
         let targetScrollTop;
+        
+        // Debug: Log what we're working with (comment out in production)
+        // console.log(`Sync: editor line ${topLineInt}+${lineFraction.toFixed(2)}, before: line ${before.line}-${before.lineEnd} (${before.lineSpan} lines, ${before.height}px), after: ${after ? `line ${after.line}` : 'none'}`);
 
-        if (before.line === topLineInt) {
-            // EXACT MATCH: We're on a marked line
-            // Scroll so this element is at top, offset by line fraction
+        // Check if we're WITHIN the 'before' element's line range
+        const withinBeforeElement = topLineInt >= before.line && topLineInt < before.lineEnd;
+        
+        if (withinBeforeElement) {
+            // ─────────────────────────────────────────────────────────────
+            // WITHIN A MULTI-LINE BLOCK (e.g., code fence, long paragraph)
+            // Use proportional scroll within the element itself
+            // ─────────────────────────────────────────────────────────────
+            
+            // How far into this element are we? (in editor lines from element start)
+            const linesIntoElement = (topLineInt - before.line) + lineFraction;
+            
+            // What fraction of the element have we traversed?
+            const elementProgress = linesIntoElement / before.lineSpan;
+            
+            // Scroll proportionally through the element's rendered height
+            // This gives us:
+            // - SLOW scroll for dense code blocks (many lines, similar height)
+            // - FAST scroll for images/diagrams (few lines, large height)
+            const pixelOffset = elementProgress * before.height;
+            targetScrollTop = before.top + pixelOffset;
+            
+        } else if (before.line === topLineInt || before.lineEnd === topLineInt) {
+            // EXACTLY on a boundary line - use element top
             targetScrollTop = before.top;
             
-            // If there's a next element, interpolate within
-            if (after && after.line > before.line) {
-                const editorLinesInGap = after.line - before.line;
-                const previewPixelsInGap = after.top - before.top;
-                
-                // How far through this gap are we (in editor lines)?
-                const linesScrolled = lineFraction;
-                
-                // Convert to preview pixels
-                // For text: ~linear. For images/diagrams: we jump quickly
-                const pixelOffset = (linesScrolled / editorLinesInGap) * previewPixelsInGap;
-                targetScrollTop = before.top + pixelOffset;
+            // Add fractional offset toward next element if available
+            if (after && after.line > before.lineEnd) {
+                const gapLines = after.line - before.lineEnd;
+                const gapPixels = after.top - (before.top + before.height);
+                const fractionIntoGap = lineFraction;
+                targetScrollTop = before.top + before.height + (fractionIntoGap / gapLines) * gapPixels;
             }
-        } else if (before && after && after.line > before.line) {
-            // BETWEEN MARKERS: Interpolate between before and after
-            const editorLinesInGap = after.line - before.line;
-            const previewPixelsInGap = after.top - before.top;
             
-            // How many editor lines into the gap are we?
-            const linesIntoGap = (topLineInt - before.line) + lineFraction;
+        } else if (before && after && after.line > before.lineEnd) {
+            // ─────────────────────────────────────────────────────────────
+            // BETWEEN ELEMENTS: In the gap after 'before' ends
+            // ─────────────────────────────────────────────────────────────
             
-            // Calculate progress through the gap (0 to 1)
-            const progress = linesIntoGap / editorLinesInGap;
+            // Gap between end of 'before' element and start of 'after' element
+            const gapStartLine = before.lineEnd;
+            const gapEndLine = after.line;
+            const gapStartPixel = before.top + before.height;
+            const gapEndPixel = after.top;
             
-            // Apply progress to preview pixel range
-            // This naturally handles acceleration/deceleration:
-            // - Dense text: many lines, gradual pixel change
-            // - Images: few lines, large pixel jump (fast-forward)
-            targetScrollTop = before.top + (progress * previewPixelsInGap);
+            const gapLines = gapEndLine - gapStartLine;
+            const gapPixels = gapEndPixel - gapStartPixel;
+            
+            // How far into the gap are we?
+            const linesIntoGap = (topLineInt - gapStartLine) + lineFraction;
+            const gapProgress = gapLines > 0 ? linesIntoGap / gapLines : 0;
+            
+            targetScrollTop = gapStartPixel + (gapProgress * gapPixels);
+            
         } else {
-            // EDGE CASE: At or beyond last marker
-            targetScrollTop = before.top;
+            // EDGE CASE: Beyond last marker or other fallback
+            targetScrollTop = before.top + before.height;
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -606,21 +634,14 @@ class MarkdownEditor {
     /**
      * Plugin to add data-line attributes to rendered HTML elements.
      * This enables accurate scroll sync between editor and preview.
+     * 
+     * Adds both start line (data-line) and end line (data-line-end) for
+     * multi-line blocks like code fences, allowing proportional scroll within.
      */
     _addSourceLinePlugin() {
         const md = this.md;
         
-        // Helper to inject line number into opening tag
-        const injectLineAttr = (tokens, idx, options, env, self) => {
-            const token = tokens[idx];
-            if (token.map && token.map.length >= 1) {
-                // map[0] is the starting line (0-based), add 1 for 1-based
-                token.attrSet('data-line', token.map[0] + 1);
-            }
-            return self.renderToken(tokens, idx, options);
-        };
-        
-        // Override renderers for block elements to add data-line
+        // Override renderers for block elements to add data-line and data-line-end
         const blockElements = [
             'paragraph_open', 'heading_open', 'blockquote_open',
             'bullet_list_open', 'ordered_list_open', 'list_item_open',
@@ -635,8 +656,10 @@ class MarkdownEditor {
             
             md.renderer.rules[rule] = (tokens, idx, options, env, self) => {
                 const token = tokens[idx];
-                if (token.map && token.map.length >= 1) {
+                if (token.map && token.map.length >= 2) {
+                    // map[0] = start line (0-based), map[1] = end line (exclusive)
                     token.attrSet('data-line', token.map[0] + 1);
+                    token.attrSet('data-line-end', token.map[1]);  // End line for multi-line blocks
                 }
                 return defaultRender(tokens, idx, options, env, self);
             };
