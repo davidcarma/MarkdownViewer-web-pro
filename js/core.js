@@ -1167,6 +1167,17 @@ class MarkdownEditor {
                 // Replace the code block with the mermaid div
                 const preElement = block.closest('pre');
                 if (preElement && preElement.parentNode) {
+                    // PRESERVE data-line attributes for scroll sync!
+                    // Check both <pre> and <code> for the attributes
+                    const dataLine = preElement.getAttribute('data-line') || block.getAttribute('data-line');
+                    const dataLineEnd = preElement.getAttribute('data-line-end') || block.getAttribute('data-line-end');
+                    if (dataLine) {
+                        mermaidDiv.setAttribute('data-line', dataLine);
+                    }
+                    if (dataLineEnd) {
+                        mermaidDiv.setAttribute('data-line-end', dataLineEnd);
+                    }
+                    
                     preElement.parentNode.replaceChild(mermaidDiv, preElement);
                     
                     // Render the mermaid diagram
