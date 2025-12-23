@@ -69,11 +69,6 @@ class FileOperations {
         this.editor.updatePreview();
         this.editor.updateStats();
         
-        // Reset scroll state so scroll sync works immediately
-        if (this.editor.resetScrollState) {
-            this.editor.resetScrollState();
-        }
-        
         // Replace localStorage buffer with new empty file
         this.editor.replaceLocalStorageFile();
         
@@ -81,6 +76,13 @@ class FileOperations {
         
         // Show notification
         this.editor.showNotification('New file created', 'success');
+        
+        // Reset scroll state AFTER everything is loaded and rendered
+        setTimeout(() => {
+            if (this.editor.resetScrollState) {
+                this.editor.resetScrollState();
+            }
+        }, 50);
     }
     
     showClearDocumentDialog() {
@@ -223,11 +225,6 @@ class FileOperations {
                 this.editor.imageCollapse.initialize();
             }
             
-            // Reset scroll state so scroll sync works immediately
-            if (this.editor.resetScrollState) {
-                this.editor.resetScrollState();
-            }
-
             // Replace localStorage buffer with loaded file
             this.editor.replaceLocalStorageFile();
             
@@ -235,6 +232,13 @@ class FileOperations {
             
             // Show notification
             this.editor.showNotification(`File loaded to localStorage: ${file.name}`, 'success');
+            
+            // Reset scroll state AFTER everything is loaded and rendered
+            setTimeout(() => {
+                if (this.editor.resetScrollState) {
+                    this.editor.resetScrollState();
+                }
+            }, 50);
         };
         reader.readAsText(file);
         
@@ -303,16 +307,18 @@ class FileOperations {
             if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
                 this.editor.imageCollapse.initialize();
             }
-            
-            // Reset scroll state so scroll sync works immediately
-            if (this.editor.resetScrollState) {
-                this.editor.resetScrollState();
-            }
 
             // Replace localStorage buffer with converted file
             this.editor.replaceLocalStorageFile();
             
             this.editor.editor.focus();
+            
+            // Reset scroll state AFTER everything is loaded and rendered
+            setTimeout(() => {
+                if (this.editor.resetScrollState) {
+                    this.editor.resetScrollState();
+                }
+            }, 50);
             
             // Show success notification with any warnings
             const warnings = result.messages.filter(msg => msg.type === 'warning');

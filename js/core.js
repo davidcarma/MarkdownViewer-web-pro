@@ -2231,6 +2231,9 @@ class MarkdownEditor {
                     }
                     
                     this.showNotification(`Restored: ${savedFile.name}`, 'info');
+                    
+                    // Reset scroll state so scroll sync works immediately
+                    this.resetScrollState();
                     return;
                 }
             } catch (error) {
@@ -2260,12 +2263,18 @@ class MarkdownEditor {
                 }
                 
                 this.showNotification(`Restored: ${savedFile.name}`, 'info');
+                
+                // Reset scroll state so scroll sync works immediately
+                this.resetScrollState();
                 return;
             }
         }
         
         console.log('ℹ️ No saved file found, loading welcome content');
         this.loadWelcomeContent();
+        
+        // Reset scroll state for welcome content too
+        this.resetScrollState();
     }
     
     loadWelcomeContent() {
