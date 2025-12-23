@@ -284,8 +284,9 @@ class MarkdownEditor {
                 // Position relative to preview scroll container
                 const top = rect.top - previewRect.top + this.preview.scrollTop;
                 const height = rect.height;
-                // lineSpan = how many editor lines this element covers
-                const lineSpan = Math.max(1, lineEnd - line);
+                // lineSpan = how many editor lines this element covers (inclusive)
+                // lineEnd is the LAST line of the element (inclusive), so span = end - start + 1
+                const lineSpan = Math.max(1, lineEnd - line + 1);
                 lineMap.push({ line, lineEnd, lineSpan, top, height, el });
             }
         }
@@ -298,7 +299,8 @@ class MarkdownEditor {
             console.log(`[LINE MAP] Total ${lineMap.length} markers for ${totalLines} editor lines:`);
             for (const entry of lineMap) {
                 const tag = entry.el.tagName.toLowerCase();
-                console.log(`  Line ${entry.line}-${entry.lineEnd} (${entry.lineSpan} lines) → <${tag}> @ ${entry.top.toFixed(0)}px, h=${entry.height.toFixed(0)}px`);
+                // Show inclusive range: lineEnd is the LAST line (inclusive)
+                console.log(`  Lines ${entry.line}-${entry.lineEnd} (${entry.lineSpan} lines, inclusive) → <${tag}> @ ${entry.top.toFixed(0)}px, h=${entry.height.toFixed(0)}px`);
             }
             this._lastLineMapLog = true;
         }
@@ -341,7 +343,8 @@ class MarkdownEditor {
         }
 
         // Check if we're WITHIN the 'before' element's line range
-        const withinBeforeElement = topLineInt >= before.line && topLineInt < before.lineEnd;
+        // Use <= for lineEnd since it's the LAST line (inclusive) of the element
+        const withinBeforeElement = topLineInt >= before.line && topLineInt <= before.lineEnd;
         
         if (withinBeforeElement) {
             // ─────────────────────────────────────────────────────────────
@@ -367,25 +370,7 @@ class MarkdownEditor {
                 console.log(`[SCROLL] MODE: WITHIN element | progress: ${(elementProgress * 100).toFixed(1)}% | ${pxPerLine.toFixed(1)}px/line | target: ${targetScrollTop.toFixed(0)}px`);
             }
             
-        } else if (before.line === topLineInt || before.lineEnd === topLineInt) {
-            // EXACTLY on a boundary line - use element top
-            targetScrollTop = before.top;
-            
-            // Add fractional offset toward next element if available
-            if (after && after.line > before.lineEnd) {
-                const gapLines = after.line - before.lineEnd;
-                const gapPixels = after.top - (before.top + before.height);
-                const fractionIntoGap = lineFraction;
-                targetScrollTop = before.top + before.height + (fractionIntoGap / gapLines) * gapPixels;
-                
-                if (DEBUG_SCROLL) {
-                    console.log(`[SCROLL] MODE: BOUNDARY | gapLines: ${gapLines} | gapPixels: ${gapPixels.toFixed(0)} | target: ${targetScrollTop.toFixed(0)}px`);
-                }
-            } else if (DEBUG_SCROLL) {
-                console.log(`[SCROLL] MODE: BOUNDARY (no gap) | target: ${targetScrollTop.toFixed(0)}px`);
-            }
-            
-        } else if (before && after && after.line > before.lineEnd) {
+        } else if (before && after && topLineInt > before.lineEnd && topLineInt < after.line) {
             // ─────────────────────────────────────────────────────────────
             // BETWEEN ELEMENTS: In the gap after 'before' ends
             // ─────────────────────────────────────────────────────────────
