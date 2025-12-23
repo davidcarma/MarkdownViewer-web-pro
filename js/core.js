@@ -381,8 +381,11 @@ class MarkdownEditor {
             this._scrollRAF = null;
         }
         
-        // Scroll both panes to the top
-        if (this.editor) this.editor.scrollTop = 0;
+        // Move cursor to beginning to prevent browser from scrolling to cursor
+        if (this.editor) {
+            this.editor.setSelectionRange(0, 0);
+            this.editor.scrollTop = 0;
+        }
         if (this.preview) this.preview.scrollTop = 0;
         
         // Rebuild scroll map after a short delay to let DOM settle
@@ -2222,18 +2225,17 @@ class MarkdownEditor {
                     this.lastSavedContent = savedFile.content || '';
                     this.setModified(false);
                     
-                    // Restore cursor position
-                    if (savedFile.cursorPosition) {
-                        setTimeout(() => {
-                            this.editor.setSelectionRange(savedFile.cursorPosition, savedFile.cursorPosition);
-                            this.editor.focus();
-                        }, 100);
-                    }
-                    
                     this.showNotification(`Restored: ${savedFile.name}`, 'info');
                     
-                    // Reset scroll state so scroll sync works immediately
-                    this.resetScrollState();
+                    // Update preview first, then reset scroll state
+                    this.updatePreview();
+                    
+                    // Reset scroll state AFTER content AND preview are loaded
+                    // Use longer delay to ensure DOM is fully rendered
+                    setTimeout(() => {
+                        this.resetScrollState();
+                        this.editor.focus();
+                    }, 200);
                     return;
                 }
             } catch (error) {
@@ -2255,17 +2257,16 @@ class MarkdownEditor {
                 this.fileName.textContent = this.currentFileName;
                 this.setModified(savedFile.isModified || false);
                 
-                if (savedFile.cursorPosition) {
-                    setTimeout(() => {
-                        this.editor.setSelectionRange(savedFile.cursorPosition, savedFile.cursorPosition);
-                        this.editor.focus();
-                    }, 100);
-                }
-                
                 this.showNotification(`Restored: ${savedFile.name}`, 'info');
                 
-                // Reset scroll state so scroll sync works immediately
-                this.resetScrollState();
+                // Update preview first, then reset scroll state
+                this.updatePreview();
+                
+                // Reset scroll state AFTER content AND preview are loaded
+                setTimeout(() => {
+                    this.resetScrollState();
+                    this.editor.focus();
+                }, 200);
                 return;
             }
         }
@@ -2273,8 +2274,14 @@ class MarkdownEditor {
         console.log('ℹ️ No saved file found, loading welcome content');
         this.loadWelcomeContent();
         
-        // Reset scroll state for welcome content too
-        this.resetScrollState();
+        // Update preview first
+        this.updatePreview();
+        
+        // Reset scroll state for welcome content too (with delay for DOM)
+        setTimeout(() => {
+            this.resetScrollState();
+            this.editor.focus();
+        }, 200);
     }
     
     loadWelcomeContent() {
