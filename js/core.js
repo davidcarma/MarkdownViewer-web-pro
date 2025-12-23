@@ -29,11 +29,29 @@ class MarkdownEditor {
         this.storageManager = new LocalStorageManager();
         this.indexedDBManager = new IndexedDBManager();
 
-        // Scroll sync guard (prevents feedback loops when syncing both directions)
-        this._isSyncingScroll = false;
-
-        // Content-based scroll sync map: [{ line: number, top: number }]
+        // ═══════════════════════════════════════════════════════════════════
+        // SCROLL SYNC STATE (clean rewrite - minimal state, single code path)
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // Content-based scroll mapping: [{ line: number, top: number }]
         this._scrollMap = null;
+        
+        // Which pane currently "owns" the scroll (the user is actively scrolling it)
+        // null = no active scroll, 'editor' or 'preview' = that pane is driving
+        this._scrollOwner = null;
+        this._scrollOwnerTimeout = null;
+        
+        // Single pending RAF for scroll sync (prevents multiple queued syncs)
+        this._scrollRAF = null;
+        
+        // Guard against programmatic scroll triggering re-sync
+        this._ignoringScrollUntil = 0;
+        
+        // Saved anchor for restoring scroll position after re-render
+        this._savedScrollAnchor = null;
+        
+        // Track when user is actively typing (to suppress scroll sync)
+        this._lastInputAt = 0;
 
         // Expose a promise so other modules can reliably run after content restore.
         this.ready = this.init();
@@ -43,128 +61,334 @@ class MarkdownEditor {
         return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    _getEditorLineHeightPx() {
+    // ═══════════════════════════════════════════════════════════════════════
+    // SCROLL SYNC - CLEAN BIDIRECTIONAL IMPLEMENTATION
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Design principles:
+    // 1. Single "owner" model - whichever pane the user is scrolling owns sync
+    // 2. Content-based mapping via line markers (no percentage fallback)
+    // 3. Dead-zone threshold prevents micro-corrections / jitter
+    // 4. Edge snapping at top/bottom for clean behavior at boundaries
+    // 5. Single RAF-throttled execution prevents race conditions
+    //
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Get the editor's computed line height in pixels
+     */
+    _getEditorLineHeight() {
         try {
-            const cs = window.getComputedStyle(this.editor);
-            const lh = cs.lineHeight;
-            if (lh && lh !== 'normal') {
-                const v = parseFloat(lh);
-                if (Number.isFinite(v) && v > 0) return v;
-            }
-            const fs = parseFloat(cs.fontSize || '14');
-            return (Number.isFinite(fs) && fs > 0) ? fs * 1.4 : 20;
-        } catch (_) {
+            const style = getComputedStyle(this.editor);
+            const lh = parseFloat(style.lineHeight);
+            if (Number.isFinite(lh) && lh > 0) return lh;
+            const fs = parseFloat(style.fontSize) || 14;
+            return fs * 1.4;
+        } catch {
             return 20;
         }
     }
 
-    _getEditorTopLine() {
-        const lineHeight = this._getEditorLineHeightPx();
-        return Math.max(1, Math.floor(this.editor.scrollTop / Math.max(1, lineHeight)) + 1);
+    /**
+     * Get the current top line in the editor (fractional for smooth mapping)
+     */
+    _getEditorScrollLine() {
+        const lh = this._getEditorLineHeight();
+        return 1 + this.editor.scrollTop / lh;
     }
 
-    _injectSourceLineMarkers(markdownText) {
-        // Insert invisible markers into the markdown so we can build a DOM scroll map.
-        // We append markers at end-of-line (so we don't break markdown syntax at line start),
-        // and we skip fenced code blocks to avoid polluting code/mermaid fences.
-        const lines = String(markdownText || '').split('\n');
-        const total = lines.length;
-        if (total === 0) return markdownText;
-
-        const maxMarkers = 2000;
-        const step = Math.max(1, Math.ceil(total / maxMarkers));
-
-        let inFence = false;
-        let fenceMarker = null; // ``` or ~~~
-
-        for (let i = 0; i < lines.length; i++) {
-            const ln = i + 1;
-            const line = lines[i];
-
-            const fenceMatch = line.match(/^(\s*)(```+|~~~+)\s*/);
-            if (fenceMatch) {
-                const fence = fenceMatch[2];
-                if (!inFence) {
-                    inFence = true;
-                    fenceMarker = fence.startsWith('`') ? '```' : '~~~';
-                } else if (fenceMarker && fence.startsWith(fenceMarker[0])) {
-                    inFence = false;
-                    fenceMarker = null;
-                }
-                continue; // don't append markers to fence delimiter lines
-            }
-            if (inFence) continue;
-
-            // Add markers sparsely to keep DOM light, but dense enough for good sync.
-            if (ln === 1 || ln === total || (ln % step === 0)) {
-                lines[i] = `${line}<span class="src-line-marker" data-line="${ln}" aria-hidden="true"></span>`;
-            }
-        }
-
-        return lines.join('\n');
+    /**
+     * Line markers disabled - they were breaking code fences and mermaid blocks.
+     * Using simple line-ratio sync instead which doesn't need markers.
+     */
+    _injectLineMarkers(markdown) {
+        // Return unchanged - markers caused parsing issues with code blocks
+        return markdown;
     }
 
-    _rebuildScrollMap() {
+    /**
+     * Build the scroll map from preview DOM markers.
+     * Creates array of { line, top } sorted by line number.
+     */
+    _buildScrollMap() {
         if (!this.preview) return;
-        const markers = Array.from(this.preview.querySelectorAll('.src-line-marker[data-line]'));
+        
+        const markers = this.preview.querySelectorAll('.src-line-marker[data-line]');
         if (markers.length === 0) {
             this._scrollMap = null;
             return;
         }
 
         const map = [];
-        for (const el of markers) {
-            const line = parseInt(el.getAttribute('data-line') || '', 10);
-            if (!Number.isFinite(line)) continue;
-            // offsetTop is relative to offsetParent; for our scroll container it's fine.
-            map.push({ line, top: el.offsetTop });
+        for (const marker of markers) {
+            const line = parseInt(marker.dataset.line, 10);
+            if (Number.isFinite(line)) {
+                map.push({ line, top: marker.offsetTop });
+            }
         }
 
         map.sort((a, b) => a.line - b.line);
         this._scrollMap = map;
     }
 
-    _scrollMapLineToPreviewTop(line) {
+    /**
+     * Interpolate: given an editor line number, find the preview scrollTop
+     */
+    _lineToPreviewTop(line) {
         const map = this._scrollMap;
-        if (!map || map.length === 0) return null;
+        if (!map || map.length < 2) return null;
 
-        // clamp
+        // Clamp to bounds
         if (line <= map[0].line) return map[0].top;
         if (line >= map[map.length - 1].line) return map[map.length - 1].top;
 
-        // binary search for first entry with line >= target
+        // Binary search for bracketing entries
         let lo = 0, hi = map.length - 1;
         while (lo < hi) {
-            const mid = Math.floor((lo + hi) / 2);
+            const mid = (lo + hi) >> 1;
             if (map[mid].line < line) lo = mid + 1;
             else hi = mid;
         }
-        const next = map[lo];
-        const prev = map[Math.max(0, lo - 1)];
-        const denom = Math.max(1, next.line - prev.line);
-        const t = (line - prev.line) / denom;
-        return prev.top + t * (next.top - prev.top);
+
+        const upper = map[lo];
+        const lower = map[Math.max(0, lo - 1)];
+        
+        // Linear interpolation between the two markers
+        const ratio = (line - lower.line) / Math.max(1, upper.line - lower.line);
+        return lower.top + ratio * (upper.top - lower.top);
     }
 
-    _scrollMapPreviewTopToLine(previewTop) {
+    /**
+     * Interpolate: given a preview scrollTop, find the editor line number
+     */
+    _previewTopToLine(scrollTop) {
         const map = this._scrollMap;
-        if (!map || map.length === 0) return null;
+        if (!map || map.length < 2) return null;
 
-        if (previewTop <= map[0].top) return map[0].line;
-        if (previewTop >= map[map.length - 1].top) return map[map.length - 1].line;
+        // Clamp to bounds
+        if (scrollTop <= map[0].top) return map[0].line;
+        if (scrollTop >= map[map.length - 1].top) return map[map.length - 1].line;
 
-        // binary search for first entry with top >= previewTop
+        // Binary search for bracketing entries
         let lo = 0, hi = map.length - 1;
         while (lo < hi) {
-            const mid = Math.floor((lo + hi) / 2);
-            if (map[mid].top < previewTop) lo = mid + 1;
+            const mid = (lo + hi) >> 1;
+            if (map[mid].top < scrollTop) lo = mid + 1;
             else hi = mid;
         }
-        const next = map[lo];
-        const prev = map[Math.max(0, lo - 1)];
-        const denom = Math.max(1, next.top - prev.top);
-        const t = (previewTop - prev.top) / denom;
-        return prev.line + t * (next.line - prev.line);
+
+        const upper = map[lo];
+        const lower = map[Math.max(0, lo - 1)];
+        
+        // Linear interpolation between the two markers
+        const ratio = (scrollTop - lower.top) / Math.max(1, upper.top - lower.top);
+        return lower.line + ratio * (upper.line - lower.line);
+    }
+
+    /**
+     * Called when user scrolls the editor. Syncs preview to match.
+     * ONE-WAY SYNC: Editor drives preview. Preview scrolling is independent.
+     */
+    _onScroll(source) {
+        // Only sync when editor scrolls - preview scrolling is independent
+        if (source !== 'editor') return;
+        
+        const now = Date.now();
+
+        // If we're in the ignore window (programmatic scroll), skip
+        if (now < this._ignoringScrollUntil) return;
+        
+        // If user is actively typing, don't sync
+        if (now - this._lastInputAt < 200) return;
+
+        // Schedule sync on next frame (if not already scheduled)
+        if (this._scrollRAF) return;
+        
+        this._scrollRAF = requestAnimationFrame(() => {
+            this._scrollRAF = null;
+            this._performSync();
+        });
+    }
+
+    /**
+     * Execute scroll synchronization: Editor → Preview (one-way)
+     * 
+     * LINE-RATIO approach:
+     * - Calculate which LINE is at top of editor
+     * Uses data-line attributes from markdown-it for accurate content sync.
+     * Falls back to line-ratio if no data-line elements are found.
+     */
+    _performSync() {
+        if (!this.editor || !this.preview) return;
+
+        const previewMax = Math.max(1, this.preview.scrollHeight - this.preview.clientHeight);
+        
+        // ─────────────────────────────────────────────────────────────────
+        // Calculate which LINE is at top of editor viewport
+        // ─────────────────────────────────────────────────────────────────
+        const lineHeight = this._getEditorLineHeight();
+        const topLine = Math.floor(this.editor.scrollTop / lineHeight) + 1;  // 1-based
+        const totalLines = Math.max(1, (this.editor.value || '').split('\n').length);
+        
+        // Line ratio for edge detection and fallback
+        const lineRatio = Math.max(0, Math.min(1, (topLine - 1) / Math.max(1, totalLines - 1)));
+
+        // ─────────────────────────────────────────────────────────────────
+        // EDGE SNAPPING: At top or bottom, snap cleanly
+        // ─────────────────────────────────────────────────────────────────
+        if (lineRatio < 0.01) {
+            if (this.preview.scrollTop > 2) {
+                this._setScrollWithIgnore(this.preview, 0);
+            }
+            return;
+        }
+
+        if (lineRatio > 0.99) {
+            if (this.preview.scrollTop < previewMax - 2) {
+                this._setScrollWithIgnore(this.preview, previewMax);
+            }
+            return;
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // CONTENT-BASED SYNC using data-line attributes
+        // ─────────────────────────────────────────────────────────────────
+        let targetScrollTop = null;
+        
+        // Find all elements with data-line attributes
+        const lineElements = this.preview.querySelectorAll('[data-line]');
+        
+        if (lineElements.length > 0) {
+            // Build a sorted array of { line, top } for binary search
+            const lineMap = [];
+            for (const el of lineElements) {
+                const line = parseInt(el.getAttribute('data-line'), 10);
+                if (Number.isFinite(line)) {
+                    lineMap.push({ line, top: el.offsetTop });
+                }
+            }
+            lineMap.sort((a, b) => a.line - b.line);
+            
+            if (lineMap.length >= 2) {
+                // Find bracketing elements and interpolate
+                let lower = lineMap[0];
+                let upper = lineMap[lineMap.length - 1];
+                
+                for (let i = 0; i < lineMap.length - 1; i++) {
+                    if (lineMap[i].line <= topLine && lineMap[i + 1].line > topLine) {
+                        lower = lineMap[i];
+                        upper = lineMap[i + 1];
+                        break;
+                    }
+                }
+                
+                // Interpolate between the two elements
+                const lineDiff = upper.line - lower.line;
+                const topDiff = upper.top - lower.top;
+                const progress = lineDiff > 0 ? (topLine - lower.line) / lineDiff : 0;
+                targetScrollTop = lower.top + (progress * topDiff);
+            } else if (lineMap.length === 1) {
+                targetScrollTop = lineMap[0].top;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // FALLBACK: Line ratio if no data-line elements found
+        // ─────────────────────────────────────────────────────────────────
+        if (targetScrollTop == null) {
+            targetScrollTop = lineRatio * previewMax;
+        }
+
+        // Clamp to valid range
+        targetScrollTop = Math.max(0, Math.min(previewMax, targetScrollTop));
+
+        // ─────────────────────────────────────────────────────────────────
+        // DEAD ZONE: Skip tiny adjustments to prevent jitter
+        // ─────────────────────────────────────────────────────────────────
+        const DEAD_ZONE = 5;
+        const delta = Math.abs(this.preview.scrollTop - targetScrollTop);
+        if (delta < DEAD_ZONE) return;
+
+        // Apply the scroll
+        this._setScrollWithIgnore(this.preview, targetScrollTop);
+    }
+
+    /**
+     * Set scrollTop on an element and ignore scroll events briefly
+     */
+    _setScrollWithIgnore(element, scrollTop) {
+        this._ignoringScrollUntil = Date.now() + 50;
+        element.scrollTop = Math.max(0, Math.round(scrollTop));
+    }
+
+    /**
+     * Capture current scroll position for restoration after re-render
+     */
+    _captureScrollAnchor() {
+        const source = this._scrollOwner || 'editor';
+        this._savedScrollAnchor = {
+            source,
+            editorLine: this._getEditorScrollLine(),
+            previewTop: this.preview ? this.preview.scrollTop : 0
+        };
+    }
+
+    /**
+     * Restore scroll position after preview re-render
+     */
+    _restoreScrollAnchor() {
+        const anchor = this._savedScrollAnchor;
+        if (!anchor) return;
+        this._savedScrollAnchor = null;
+
+        // Wait for layout to settle
+        requestAnimationFrame(() => {
+            this._ignoringScrollUntil = Date.now() + 100;
+
+            if (this._scrollMap && this._scrollMap.length >= 2 && anchor.editorLine) {
+                // Use content-based restoration
+                const previewTop = this._lineToPreviewTop(anchor.editorLine);
+                if (previewTop != null && this.preview) {
+                    this.preview.scrollTop = previewTop;
+                }
+            } else if (anchor.source === 'preview' && this.preview) {
+                // Fallback: restore raw preview position
+                this.preview.scrollTop = anchor.previewTop;
+            }
+        });
+    }
+
+    // Legacy method name for compatibility
+    _rebuildScrollMap() {
+        this._buildScrollMap();
+    }
+
+    /**
+     * Reset scroll sync state - call this after loading a new document
+     * to ensure scroll sync works immediately without needing to type first.
+     * Also scrolls both panes to the top.
+     */
+    resetScrollState() {
+        this._scrollOwner = null;
+        this._ignoringScrollUntil = 0;
+        this._lastInputAt = 0;
+        if (this._scrollOwnerTimeout) {
+            clearTimeout(this._scrollOwnerTimeout);
+            this._scrollOwnerTimeout = null;
+        }
+        if (this._scrollRAF) {
+            cancelAnimationFrame(this._scrollRAF);
+            this._scrollRAF = null;
+        }
+        
+        // Scroll both panes to the top
+        if (this.editor) this.editor.scrollTop = 0;
+        if (this.preview) this.preview.scrollTop = 0;
+        
+        // Rebuild scroll map after a short delay to let DOM settle
+        setTimeout(() => {
+            this._buildScrollMap();
+        }, 100);
     }
     
     async init() {
@@ -220,12 +444,16 @@ class MarkdownEditor {
     }
     
     setupMarked() {
-        // marked.js is required for preview rendering. If it isn't available yet,
-        // we keep the editor usable and retry a few times (helps with stricter
-        // browser load policies / slow disk).
+        // Try markdown-it first (has source line support), fallback to marked.js
+        if (typeof markdownit !== 'undefined') {
+            this.setupMarkdownIt();
+            return;
+        }
+        
+        // Fallback to marked.js
         if (typeof marked === 'undefined') {
-            console.error('marked.js not loaded yet - delaying setupMarked()');
-            this.preview.innerHTML = '<div class="error">Marked.js library not loaded</div>';
+            console.error('No markdown parser loaded - delaying setupMarked()');
+            this.preview.innerHTML = '<div class="error">Markdown library not loaded</div>';
             this._markedRetryCount = (this._markedRetryCount || 0) + 1;
             if (this._markedRetryCount <= 20) {
                 setTimeout(() => this.setupMarked(), 50);
@@ -233,6 +461,9 @@ class MarkdownEditor {
             return;
         }
 
+        console.log('Using marked.js (fallback)');
+        this.useMarkdownIt = false;
+        
         // Store original mermaid code blocks before marked.js processing
         this.mermaidCodeCache = new Map();
         
@@ -242,7 +473,6 @@ class MarkdownEditor {
         // Override link rendering to add target="_blank" and security attributes
         renderer.link = function(href, title, text) {
             const link = marked.Renderer.prototype.link.call(this, href, title, text);
-            // Add target="_blank" and rel="noopener noreferrer" for security
             return link.replace('<a', '<a target="_blank" rel="noopener noreferrer"');
         };
         
@@ -250,10 +480,7 @@ class MarkdownEditor {
         marked.setOptions({
             renderer: renderer,
             highlight: (code, lang) => {
-                // highlight.js is optional; render code even if it's missing.
-                if (typeof hljs === 'undefined') {
-                    return code;
-                }
+                if (typeof hljs === 'undefined') return code;
                 if (lang && hljs.getLanguage && hljs.getLanguage(lang)) {
                     try {
                         return hljs.highlight(code, { language: lang }).value;
@@ -264,7 +491,6 @@ class MarkdownEditor {
                 try {
                     return hljs.highlightAuto ? hljs.highlightAuto(code).value : code;
                 } catch (err) {
-                    console.error('Highlight.js auto error:', err);
                     return code;
                 }
             },
@@ -274,8 +500,96 @@ class MarkdownEditor {
             mangle: false
         });
         
-        // Initialize Mermaid
         this.setupMermaid();
+    }
+    
+    /**
+     * Setup markdown-it with source line tracking for accurate scroll sync.
+     * Each rendered element gets a data-line attribute with its source line number.
+     */
+    setupMarkdownIt() {
+        console.log('Using markdown-it with source line tracking');
+        this.useMarkdownIt = true;
+        this.mermaidCodeCache = new Map();
+        
+        // Create markdown-it instance with common options
+        this.md = markdownit({
+            html: true,
+            breaks: true,
+            linkify: true,
+            typographer: false,
+            highlight: (code, lang) => {
+                if (typeof hljs === 'undefined') return '';
+                if (lang && hljs.getLanguage && hljs.getLanguage(lang)) {
+                    try {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } catch (err) {}
+                }
+                try {
+                    return hljs.highlightAuto ? hljs.highlightAuto(code).value : '';
+                } catch (err) {
+                    return '';
+                }
+            }
+        });
+        
+        // Add source line tracking to tokens
+        // markdown-it tokens have a 'map' property: [startLine, endLine]
+        this._addSourceLinePlugin();
+        
+        // Make links open in new tab
+        const defaultLinkRender = this.md.renderer.rules.link_open || 
+            function(tokens, idx, options, env, self) {
+                return self.renderToken(tokens, idx, options);
+            };
+        
+        this.md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+            tokens[idx].attrSet('target', '_blank');
+            tokens[idx].attrSet('rel', 'noopener noreferrer');
+            return defaultLinkRender(tokens, idx, options, env, self);
+        };
+        
+        this.setupMermaid();
+    }
+    
+    /**
+     * Plugin to add data-line attributes to rendered HTML elements.
+     * This enables accurate scroll sync between editor and preview.
+     */
+    _addSourceLinePlugin() {
+        const md = this.md;
+        
+        // Helper to inject line number into opening tag
+        const injectLineAttr = (tokens, idx, options, env, self) => {
+            const token = tokens[idx];
+            if (token.map && token.map.length >= 1) {
+                // map[0] is the starting line (0-based), add 1 for 1-based
+                token.attrSet('data-line', token.map[0] + 1);
+            }
+            return self.renderToken(tokens, idx, options);
+        };
+        
+        // Override renderers for block elements to add data-line
+        const blockElements = [
+            'paragraph_open', 'heading_open', 'blockquote_open',
+            'bullet_list_open', 'ordered_list_open', 'list_item_open',
+            'code_block', 'fence', 'table_open', 'hr'
+        ];
+        
+        for (const rule of blockElements) {
+            const defaultRender = md.renderer.rules[rule] || 
+                function(tokens, idx, options, env, self) {
+                    return self.renderToken(tokens, idx, options);
+                };
+            
+            md.renderer.rules[rule] = (tokens, idx, options, env, self) => {
+                const token = tokens[idx];
+                if (token.map && token.map.length >= 1) {
+                    token.attrSet('data-line', token.map[0] + 1);
+                }
+                return defaultRender(tokens, idx, options, env, self);
+            };
+        }
     }
     
     setupMermaid() {
@@ -576,15 +890,22 @@ class MarkdownEditor {
                 markdownText = rawText;
             }
 
-            // Build content-based scroll markers for preview sync (preview-only)
-            const markdownForRender = this._injectSourceLineMarkers(markdownText);
-            
-            // Extract and cache mermaid code blocks BEFORE marked.js processes them
+            // Extract and cache mermaid code blocks BEFORE parsing
             this.extractMermaidBlocks(markdownText);
             
             let html = '';
             try {
-                html = marked.parse(markdownForRender);
+                // Pause scroll sync while we update the preview to prevent jumping
+                this._ignoringScrollUntil = Date.now() + 150;
+                
+                // Use markdown-it if available (has source line tracking)
+                if (this.useMarkdownIt && this.md) {
+                    html = this.md.render(markdownText);
+                } else if (typeof marked !== 'undefined') {
+                    html = marked.parse(markdownText);
+                } else {
+                    throw new Error('No markdown parser available');
+                }
             } catch (e) {
                 console.error('Markdown parsing error:', e);
                 this.preview.innerHTML =
@@ -631,7 +952,9 @@ class MarkdownEditor {
                     }
 
                     // Mermaid rendering can change layout heights; refresh scroll map after it settles.
-                    setTimeout(() => this._rebuildScrollMap(), 50);
+                    setTimeout(() => {
+                        this._rebuildScrollMap();
+                    }, 50);
                 }, 100);
             }, 50);
         } catch (error) {
@@ -783,49 +1106,7 @@ class MarkdownEditor {
     }
     
     syncScroll(source = 'editor') {
-        if (!this.editor || !this.preview) return;
-        if (this._isSyncingScroll) return;
-
-        let nextScrollTop = null;
-
-        // Prefer content-based mapping if available; fallback to percentage mapping.
-        if (this._scrollMap && this._scrollMap.length > 1) {
-            if (source === 'editor') {
-                const line = this._getEditorTopLine();
-                nextScrollTop = this._scrollMapLineToPreviewTop(line);
-            } else {
-                const line = this._scrollMapPreviewTopToLine(this.preview.scrollTop);
-                if (line != null) {
-                    const lh = this._getEditorLineHeightPx();
-                    nextScrollTop = (line - 1) * lh;
-                }
-            }
-        }
-
-        if (nextScrollTop == null) {
-            const fromEl = source === 'preview' ? this.preview : this.editor;
-            const toEl = source === 'preview' ? this.editor : this.preview;
-
-            const fromScrollable = Math.max(1, fromEl.scrollHeight - fromEl.clientHeight);
-            const toScrollable = Math.max(1, toEl.scrollHeight - toEl.clientHeight);
-
-            const pct = fromEl.scrollTop / fromScrollable;
-            nextScrollTop = pct * toScrollable;
-        }
-
-        this._isSyncingScroll = true;
-        // rAF reduces jitter and ensures DOM has settled after layout changes (e.g. Mermaid render).
-        requestAnimationFrame(() => {
-            if (source === 'preview') {
-                this.editor.scrollTop = nextScrollTop;
-            } else {
-                this.preview.scrollTop = nextScrollTop;
-            }
-            // Release on next tick so the paired scroll event (from setting scrollTop) is ignored.
-            setTimeout(() => {
-                this._isSyncingScroll = false;
-            }, 0);
-        });
+        this._onScroll(source);
     }
     
     setModified(modified) {
@@ -2115,6 +2396,112 @@ function hello() {
         }, 3000);
     }
 
+    async exportData() {
+        try {
+            const buildInfo = (typeof BUILD_INFO !== 'undefined') ? BUILD_INFO : null;
+            const localData = this.storageManager ? this.storageManager.getAllData() : null;
+
+            let files = [];
+            let images = [];
+            if (this.indexedDBManager && this.indexedDBManager.isSupported) {
+                files = await this.indexedDBManager.getAllFiles();
+                if (typeof this.indexedDBManager.getAllImages === 'function') {
+                    images = await this.indexedDBManager.getAllImages();
+                }
+            }
+
+            const payload = {
+                schema: 'markdown-pro-backup',
+                schemaVersion: 1,
+                exportedAt: new Date().toISOString(),
+                origin: window.location.origin,
+                build: buildInfo,
+                localStorage: localData,
+                indexedDB: {
+                    files,
+                    images
+                }
+            };
+
+            const json = JSON.stringify(payload, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `markdown-pro-backup-${stamp}.json`;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            this.showNotification('Backup exported', 'success');
+        } catch (e) {
+            console.error('Export failed:', e);
+            this.showNotification('Export failed (see console)', 'error');
+        }
+    }
+
+    async importData(file) {
+        try {
+            if (!file) return;
+            const text = await file.text();
+            const payload = JSON.parse(text);
+
+            if (!payload || payload.schema !== 'markdown-pro-backup') {
+                this.showNotification('Invalid backup file', 'error');
+                return;
+            }
+
+            if (!confirm('Importing a backup will merge/overwrite saved browser data. Continue?')) {
+                return;
+            }
+
+            // Restore localStorage data (non-destructive merge: we replace the root object)
+            if (this.storageManager && payload.localStorage) {
+                this.storageManager.saveAllData(payload.localStorage);
+            }
+
+            // Restore IndexedDB files/images
+            if (this.indexedDBManager && this.indexedDBManager.isSupported && payload.indexedDB) {
+                const files = Array.isArray(payload.indexedDB.files) ? payload.indexedDB.files : [];
+                for (const f of files) {
+                    if (!f || !f.id) continue;
+                    await this.indexedDBManager.saveFile({
+                        ...f,
+                        // ensure minimal required fields
+                        id: f.id,
+                        name: f.name || 'Untitled.md',
+                        content: f.content || ''
+                    });
+                }
+
+                const images = Array.isArray(payload.indexedDB.images) ? payload.indexedDB.images : [];
+                for (const img of images) {
+                    if (!img || !img.id || !img.dataUrl) continue;
+                    await this.indexedDBManager.saveImage({
+                        id: img.id,
+                        alt: img.alt || '',
+                        dataUrl: img.dataUrl,
+                        fullMarkdown: img.fullMarkdown || `![${img.alt || ''}](${img.dataUrl})`,
+                        created: img.created
+                    });
+                }
+            }
+
+            // Reload most recent file
+            await this.loadSavedFile();
+            this.updatePreview();
+            this.updateStats();
+            this.showNotification('Backup imported', 'success');
+        } catch (e) {
+            console.error('Import failed:', e);
+            this.showNotification('Import failed (see console)', 'error');
+        }
+    }
+
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
@@ -2495,6 +2882,9 @@ function hello() {
         }
         
         this.editor.addEventListener('input', () => {
+            // Track typing to suppress scroll sync during input
+            this._lastInputAt = Date.now();
+            
             try {
                 this.updatePreview();
                 this.updateStats();
@@ -2525,12 +2915,7 @@ function hello() {
             this.syncScroll('editor');
         });
 
-        // Bidirectional scroll sync: preview -> editor
-        if (this.preview) {
-            this.preview.addEventListener('scroll', () => {
-                this.syncScroll('preview');
-            });
-        }
+        // Note: Preview scroll is independent (one-way sync: editor → preview only)
         
         this.editor.addEventListener('keyup', () => {
             this.updateCursorPosition();

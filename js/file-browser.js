@@ -323,6 +323,11 @@ class FileBrowser {
             this.editor.imageCollapse.initialize();
         }
         
+        // Reset scroll state so scroll sync works immediately
+        if (this.editor.resetScrollState) {
+            this.editor.resetScrollState();
+        }
+        
         this.editor.showNotification(`Opened: ${file.name}`, 'success');
     }
     

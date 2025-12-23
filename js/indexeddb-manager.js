@@ -136,6 +136,34 @@ class IndexedDBManager {
     }
 
     /**
+     * Get all images from IndexedDB
+     * @returns {Promise<Array>}
+     */
+    async getAllImages() {
+        if (!this.db) {
+            await this.init();
+        }
+        if (!this.db) {
+            return [];
+        }
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.imagesStoreName], 'readonly');
+            const objectStore = transaction.objectStore(this.imagesStoreName);
+            const request = objectStore.getAll();
+
+            request.onsuccess = () => {
+                resolve(request.result || []);
+            };
+
+            request.onerror = () => {
+                console.error('Failed to get all images from IndexedDB:', request.error);
+                reject(request.error);
+            };
+        });
+    }
+
+    /**
      * Delete an image entry by id.
      * @param {string} imageId
      * @returns {Promise<boolean>}

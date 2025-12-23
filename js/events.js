@@ -46,6 +46,17 @@ class EditorEvents {
         if (compressionToggle) {
             compressionToggle.addEventListener('change', (e) => this.handleImageCompressionToggle(e));
         }
+
+        // Backup/Restore events
+        onClick('exportData', () => this.editor.exportData?.());
+        onClick('importData', () => {
+            const input = document.getElementById('importDataInput');
+            if (input) input.click();
+        });
+        const importInput = document.getElementById('importDataInput');
+        if (importInput) {
+            importInput.addEventListener('change', (e) => this.handleImportData(e));
+        }
         
         // Settings menu navigation
         document.querySelectorAll('.settings-menu-item').forEach(item => {
@@ -123,7 +134,15 @@ class EditorEvents {
             }
             
             if (e.ctrlKey || e.metaKey) {
-                switch (e.key.toLowerCase()) {
+                const key = e.key.toLowerCase();
+                
+                // ALWAYS allow native browser shortcuts - do NOT intercept these
+                if (key === 'a' || key === 'c' || key === 'v' || key === 'x' || 
+                    key === 'z' || key === 'y' || key === 'f') {
+                    return; // Let browser handle: select all, copy, paste, cut, undo, redo, find
+                }
+                
+                switch (key) {
                     case 'n':
                         e.preventDefault();
                         this.editor.newFile();
@@ -160,9 +179,6 @@ class EditorEvents {
                         e.preventDefault();
                         this.editor.unescapePastedContent();
                         break;
-                    // Let browser handle undo/redo natively
-                    // case 'z': - Removed to allow native undo
-                    // case 'y': - Removed to allow native redo
                 }
             }
         });
@@ -226,6 +242,17 @@ class EditorEvents {
             'Image compression disabled - Images will be pasted at full resolution';
         
         this.editor.showNotification(message, 'info');
+    }
+
+    async handleImportData(e) {
+        try {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            await this.editor.importData?.(file);
+        } finally {
+            // allow selecting the same file again
+            e.target.value = '';
+        }
     }
     
     handleThemeSelection(e) {
@@ -421,6 +448,16 @@ class EditorEvents {
     }
     
     handleKeydown(e) {
+        // ALWAYS allow native browser shortcuts with Ctrl/Cmd - don't intercept them
+        if (e.ctrlKey || e.metaKey) {
+            return; // Let browser handle Ctrl+A, Ctrl+C, Ctrl+V, etc.
+        }
+        
+        // Safety check - ensure editor element exists
+        if (!this.editor || !this.editor.editor) {
+            return;
+        }
+        
         // Tab handling
         if (e.key === 'Tab') {
             e.preventDefault();
@@ -453,9 +490,10 @@ class EditorEvents {
             
             this.editor.updatePreview();
             this.editor.setModified(true);
+            return;
         }
         
-        // Auto-close brackets and quotes
+        // Auto-close brackets and quotes (only when no modifier keys)
         const pairs = {
             '(': ')',
             '[': ']',

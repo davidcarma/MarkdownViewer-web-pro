@@ -128,3 +128,31 @@
 .file-status.saved {
     color: var(--success-color);
 }
+
+/* Save LED indicator */
+.save-led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+    opacity: 0.3;
+    transition: all 0.3s ease;
+}
+
+.save-led.saving {
+    background-color: var(--success-color);
+    opacity: 1;
+    animation: led-pulse 0.6s ease-in-out 3;
+    box-shadow: 0 0 6px var(--success-color);
+}
+
+@keyframes led-pulse {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 6px var(--success-color);
+    }
+    50% {
+        opacity: 0.4;
+        box-shadow: 0 0 2px var(--success-color);
+    }
+}

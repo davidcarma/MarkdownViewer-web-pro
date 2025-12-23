@@ -7,6 +7,12 @@
     transition: all 0.3s ease;
 }
 
+/* Extra scroll runway so the end of the document can always be brought fully into view.
+   Also reduces "bounce-back" artifacts when scroll sync clamps at the bottom. */
+.preview-content {
+    padding-bottom: calc(1rem + 30vh);
+}
+
 /* Invisible source-line markers used for content-based scroll sync */
 .preview-content .src-line-marker {
     display: inline-block;

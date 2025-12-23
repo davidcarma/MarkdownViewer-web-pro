@@ -69,6 +69,11 @@ class FileOperations {
         this.editor.updatePreview();
         this.editor.updateStats();
         
+        // Reset scroll state so scroll sync works immediately
+        if (this.editor.resetScrollState) {
+            this.editor.resetScrollState();
+        }
+        
         // Replace localStorage buffer with new empty file
         this.editor.replaceLocalStorageFile();
         
@@ -217,6 +222,11 @@ class FileOperations {
             if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
                 this.editor.imageCollapse.initialize();
             }
+            
+            // Reset scroll state so scroll sync works immediately
+            if (this.editor.resetScrollState) {
+                this.editor.resetScrollState();
+            }
 
             // Replace localStorage buffer with loaded file
             this.editor.replaceLocalStorageFile();
@@ -292,6 +302,11 @@ class FileOperations {
             // Auto-collapse images if collapse is enabled
             if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
                 this.editor.imageCollapse.initialize();
+            }
+            
+            // Reset scroll state so scroll sync works immediately
+            if (this.editor.resetScrollState) {
+                this.editor.resetScrollState();
             }
 
             // Replace localStorage buffer with converted file
