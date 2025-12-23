@@ -1114,6 +1114,16 @@ class MarkdownEditor {
         this.fileStatus.textContent = modified ? '●' : '';
         this.fileStatus.className = modified ? 'file-status' : 'file-status saved';
         this.updateDocumentTitle();
+        
+        // Update LED indicator - unsaved (orange) vs saved (green)
+        const led = document.getElementById('saveLed');
+        if (led) {
+            if (modified) {
+                led.classList.add('unsaved');
+            } else {
+                led.classList.remove('unsaved');
+            }
+        }
     }
     
     loadTheme() {
@@ -2315,9 +2325,13 @@ function hello() {
             );
             
             if (success) {
-                this.showNotification('Saved to local storage', 'success');
+                // Flash LED instead of notification
+                if (this.storageManager && this.storageManager.showAutoSaveIndicator) {
+                    this.storageManager.showAutoSaveIndicator();
+                }
                 return true;
             } else {
+                // Keep error notification - user needs to know about failures
                 this.showNotification('Failed to save to local storage', 'error');
                 return false;
             }
