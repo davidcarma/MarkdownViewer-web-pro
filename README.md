@@ -2,6 +2,10 @@
 
 A fully-featured, modern Markdown editor with live preview, auto-save, and fullscreen editing built with HTML, CSS, and JavaScript.
 
+## System reference (recommended)
+
+See **`SYSTEM.md`** for the **current** architecture, invariants, storage model, scroll-sync design, and the offline/deployment checklist.
+
 ## Features
 
 ### Core Functionality
@@ -74,7 +78,7 @@ A fully-featured, modern Markdown editor with live preview, auto-save, and fulls
 ### Getting Started
 1. **Open the Editor**: Open `index.html` in any modern web browser
 2. **Start Writing**: Begin typing markdown in the left pane
-3. **Auto-Save**: Your work is automatically saved to localStorage as you type
+3. **Auto-Save**: Your work is automatically saved to **IndexedDB** (debounced). A small **localStorage** buffer is used only for small docs/compatibility.
 4. **Live Preview**: See the rendered output in the right pane
 5. **Fullscreen Mode**: Click the eye 👁 button for distraction-free editing
 
@@ -139,7 +143,8 @@ Markdown Viewer/
 
 All dependencies are included locally for offline functionality:
 
-- **Marked.js**: Fast markdown parser and compiler
+- **markdown-it**: Markdown parser with source line tracking (primary renderer)
+- **Marked.js**: Legacy/auxiliary parser (kept vendored)
 - **Highlight.js**: Syntax highlighting for code blocks
 - **Mermaid.js**: Diagram and flowchart rendering
 - **Mammoth.js**: Word document to HTML/Markdown conversion
@@ -193,8 +198,8 @@ This editor features a powerful IndexedDB storage system that automatically save
 1. **Auto-Save**: Saves to IndexedDB every 1 second after you stop typing (debounced)
 2. **Session Restore**: Automatically loads your most recently modified file when you return
 3. **Smart Workflow**: Clear document dialog offers 4 options: Save on Browser (default), Download, Cancel, or Delete
-4. **Visual Feedback**: Shows "✓ Auto-saved" and "Saved to IndexedDB" notifications
-5. **Automatic Migration**: On first load, automatically migrates all files from localStorage to IndexedDB and clears localStorage to free up space
+4. **Visual Feedback**: Uses a subtle LED indicator (footer) to show save activity/state
+5. **Migration**: On load, migrates localStorage → IndexedDB **non-destructively by default** (does not clear localStorage unless explicitly requested)
 
 ### 🗂️ **File Management:**
 - **Multiple Files**: Store many files in IndexedDB (50MB - several GB capacity)
@@ -229,9 +234,8 @@ When creating a new file, you'll see a dialog with 4 options:
 The editor automatically migrates files from localStorage to IndexedDB on first load:
 - **One-Time Migration**: Runs automatically when you first open the editor
 - **Smart Deduplication**: Skips files already in IndexedDB (unless localStorage version is newer)
-- **Automatic Cleanup**: Clears localStorage after successful migration to free up space
-- **Safe Operation**: Only clears localStorage after confirming files are safely migrated
-- **Manual Trigger**: Use `migrateToIndexedDB(true)` in console to manually trigger migration and cleanup
+- **Non-Destructive by Default**: localStorage is kept as a backup unless you explicitly clear it
+- **Manual Cleanup**: Use `migrateToIndexedDB(true)` in console to migrate and clear localStorage
 
 ## Drag & Drop Feature
 

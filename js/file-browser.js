@@ -345,6 +345,28 @@ class FileBrowser {
         try {
             await this.editor.indexedDBManager.deleteFile(file.id);
             this.editor.showNotification(`Deleted: ${file.name}`, 'success');
+
+            // If the user deleted the file that is currently open in the editor,
+            // clear the editor + preview immediately to avoid stale preview content.
+            try {
+                const currentId = this.generateFileId(this.editor.currentFileName);
+                if (file.id === currentId) {
+                    this.editor.editor.value = '';
+                    this.editor.lastSavedContent = '';
+                    this.editor.setDocumentTitle('Untitled.md');
+                    this.editor.setModified(false);
+                    this.editor.updatePreview();
+                    this.editor.updateStats();
+
+                    // Keep the localStorage buffer consistent
+                    this.editor.replaceLocalStorageFile?.();
+
+                    // Reset scroll state after DOM settles
+                    setTimeout(() => this.editor.resetScrollState?.(), 50);
+                }
+            } catch (_) {
+                // best-effort only
+            }
             
             // Refresh file list
             const updatedFiles = await this.editor.indexedDBManager.getAllFiles();
