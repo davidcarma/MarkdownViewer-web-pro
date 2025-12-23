@@ -213,37 +213,37 @@ class MarkdownEditor {
     /**
      * Execute scroll synchronization: Editor → Preview (one-way)
      * 
-     * LINE-RATIO approach:
-     * - Calculate which LINE is at top of editor
-     * Uses data-line attributes from markdown-it for accurate content sync.
-     * Falls back to line-ratio if no data-line elements are found.
+     * TOP-ALIGNED SYNC:
+     * - Find the source line at the TOP of the editor viewport
+     * - Scroll preview so that line's content is at the TOP of preview viewport
+     * - Uses data-line attributes from markdown-it for accurate content mapping
      */
     _performSync() {
         if (!this.editor || !this.preview) return;
 
         const previewMax = Math.max(1, this.preview.scrollHeight - this.preview.clientHeight);
+        const editorMax = Math.max(1, this.editor.scrollHeight - this.editor.clientHeight);
         
         // ─────────────────────────────────────────────────────────────────
-        // Calculate which LINE is at top of editor viewport
+        // Calculate which LINE is at TOP of editor viewport (fractional)
         // ─────────────────────────────────────────────────────────────────
         const lineHeight = this._getEditorLineHeight();
-        const topLine = Math.floor(this.editor.scrollTop / lineHeight) + 1;  // 1-based
+        const exactTopLine = this.editor.scrollTop / lineHeight;  // 0-based, fractional
+        const topLineInt = Math.floor(exactTopLine) + 1;  // 1-based integer
+        const lineFraction = exactTopLine - Math.floor(exactTopLine);  // fraction of line scrolled past
         const totalLines = Math.max(1, (this.editor.value || '').split('\n').length);
-        
-        // Line ratio for edge detection and fallback
-        const lineRatio = Math.max(0, Math.min(1, (topLine - 1) / Math.max(1, totalLines - 1)));
 
         // ─────────────────────────────────────────────────────────────────
         // EDGE SNAPPING: At top or bottom, snap cleanly
         // ─────────────────────────────────────────────────────────────────
-        if (lineRatio < 0.01) {
+        if (this.editor.scrollTop <= 2) {
             if (this.preview.scrollTop > 2) {
                 this._setScrollWithIgnore(this.preview, 0);
             }
             return;
         }
 
-        if (lineRatio > 0.99) {
+        if (this.editor.scrollTop >= editorMax - 2) {
             if (this.preview.scrollTop < previewMax - 2) {
                 this._setScrollWithIgnore(this.preview, previewMax);
             }
@@ -252,43 +252,70 @@ class MarkdownEditor {
 
         // ─────────────────────────────────────────────────────────────────
         // CONTENT-BASED SYNC using data-line attributes
+        // Find the preview element that corresponds to the top editor line
         // ─────────────────────────────────────────────────────────────────
         let targetScrollTop = null;
+        
+        // Get preview container's scroll offset for correct position calculation
+        const previewContent = this.preview.querySelector('.preview-content') || this.preview;
         
         // Find all elements with data-line attributes
         const lineElements = this.preview.querySelectorAll('[data-line]');
         
         if (lineElements.length > 0) {
-            // Build a sorted array of { line, top } for binary search
+            // Build a sorted array of { line, element, top }
             const lineMap = [];
             for (const el of lineElements) {
                 const line = parseInt(el.getAttribute('data-line'), 10);
                 if (Number.isFinite(line)) {
-                    lineMap.push({ line, top: el.offsetTop });
+                    // Get element position relative to preview scroll container
+                    const rect = el.getBoundingClientRect();
+                    const previewRect = this.preview.getBoundingClientRect();
+                    const relativeTop = rect.top - previewRect.top + this.preview.scrollTop;
+                    lineMap.push({ line, top: relativeTop, el });
                 }
             }
             lineMap.sort((a, b) => a.line - b.line);
             
-            if (lineMap.length >= 2) {
-                // Find bracketing elements and interpolate
-                let lower = lineMap[0];
-                let upper = lineMap[lineMap.length - 1];
+            if (lineMap.length >= 1) {
+                // Find the element for our target line (or closest match)
+                let targetEntry = null;
+                let nextEntry = null;
                 
-                for (let i = 0; i < lineMap.length - 1; i++) {
-                    if (lineMap[i].line <= topLine && lineMap[i + 1].line > topLine) {
-                        lower = lineMap[i];
-                        upper = lineMap[i + 1];
+                // Find exact match or bracketing entries
+                for (let i = 0; i < lineMap.length; i++) {
+                    if (lineMap[i].line === topLineInt) {
+                        targetEntry = lineMap[i];
+                        nextEntry = lineMap[i + 1] || null;
+                        break;
+                    } else if (lineMap[i].line > topLineInt) {
+                        // Use previous entry (or first if none)
+                        targetEntry = lineMap[i - 1] || lineMap[0];
+                        nextEntry = lineMap[i];
                         break;
                     }
                 }
                 
-                // Interpolate between the two elements
-                const lineDiff = upper.line - lower.line;
-                const topDiff = upper.top - lower.top;
-                const progress = lineDiff > 0 ? (topLine - lower.line) / lineDiff : 0;
-                targetScrollTop = lower.top + (progress * topDiff);
-            } else if (lineMap.length === 1) {
-                targetScrollTop = lineMap[0].top;
+                // If no entry found, use the last one
+                if (!targetEntry) {
+                    targetEntry = lineMap[lineMap.length - 1];
+                }
+                
+                // Calculate target scroll position
+                // Position should put targetEntry at top of preview viewport
+                targetScrollTop = targetEntry.top;
+                
+                // If we have a next entry, interpolate based on line fraction
+                if (nextEntry && lineFraction > 0) {
+                    const pixelRange = nextEntry.top - targetEntry.top;
+                    const lineRange = nextEntry.line - targetEntry.line;
+                    if (lineRange > 0) {
+                        // How many lines into the gap are we?
+                        const linesIntoGap = (topLineInt - targetEntry.line) + lineFraction;
+                        const interpolation = linesIntoGap / lineRange;
+                        targetScrollTop = targetEntry.top + (interpolation * pixelRange);
+                    }
+                }
             }
         }
 
@@ -296,6 +323,7 @@ class MarkdownEditor {
         // FALLBACK: Line ratio if no data-line elements found
         // ─────────────────────────────────────────────────────────────────
         if (targetScrollTop == null) {
+            const lineRatio = Math.max(0, Math.min(1, exactTopLine / Math.max(1, totalLines - 1)));
             targetScrollTop = lineRatio * previewMax;
         }
 
@@ -305,7 +333,7 @@ class MarkdownEditor {
         // ─────────────────────────────────────────────────────────────────
         // DEAD ZONE: Skip tiny adjustments to prevent jitter
         // ─────────────────────────────────────────────────────────────────
-        const DEAD_ZONE = 5;
+        const DEAD_ZONE = 3;
         const delta = Math.abs(this.preview.scrollTop - targetScrollTop);
         if (delta < DEAD_ZONE) return;
 
