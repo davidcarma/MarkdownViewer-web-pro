@@ -400,7 +400,10 @@ class FileBrowser {
             await this.editor.indexedDBManager.saveFile(fileData);
             this.editor.lastSavedContent = content;
             this.editor.setModified(false);
-            this.editor.showNotification('Saved to IndexedDB', 'success');
+            // Flash LED indicator instead of notification
+            if (this.editor.storageManager && this.editor.storageManager.showAutoSaveIndicator) {
+                this.editor.storageManager.showAutoSaveIndicator();
+            }
             return true;
         } catch (error) {
             console.error('Failed to save file:', error);
