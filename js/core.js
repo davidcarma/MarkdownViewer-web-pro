@@ -222,6 +222,9 @@ class MarkdownEditor {
      */
     _performSync() {
         if (!this.editor || !this.preview) return;
+        
+        // Debug flag - set to false to disable logging
+        const DEBUG_SCROLL = true;
 
         const previewMax = Math.max(1, this.preview.scrollHeight - this.preview.clientHeight);
         const editorMax = Math.max(1, this.editor.scrollHeight - this.editor.clientHeight);
@@ -291,7 +294,6 @@ class MarkdownEditor {
         if (lineMap.length === 0) return;
         
         // Log full line map once per render (on first scroll after update)
-        const DEBUG_SCROLL = true;
         if (DEBUG_SCROLL && !this._lastLineMapLog) {
             console.log(`[LINE MAP] Total ${lineMap.length} markers for ${totalLines} editor lines:`);
             for (const entry of lineMap) {
@@ -330,7 +332,6 @@ class MarkdownEditor {
         // ─────────────────────────────────────────────────────────────────
         // DEBUG LOGGING - Enable to diagnose scroll sync issues
         // ─────────────────────────────────────────────────────────────────
-        const DEBUG_SCROLL = true;
         if (DEBUG_SCROLL) {
             console.log(`[SCROLL] Editor: line ${topLineInt} + ${lineFraction.toFixed(3)} frac | scrollTop: ${this.editor.scrollTop.toFixed(0)}px`);
             console.log(`[SCROLL] Before element: line ${before.line}-${before.lineEnd} (${before.lineSpan} lines) @ ${before.top.toFixed(0)}px, height: ${before.height.toFixed(0)}px`);
