@@ -289,6 +289,17 @@ class MarkdownEditor {
         lineMap.sort((a, b) => a.line - b.line);
 
         if (lineMap.length === 0) return;
+        
+        // Log full line map once per render (on first scroll after update)
+        const DEBUG_SCROLL = true;
+        if (DEBUG_SCROLL && !this._lastLineMapLog) {
+            console.log(`[LINE MAP] Total ${lineMap.length} markers for ${totalLines} editor lines:`);
+            for (const entry of lineMap) {
+                const tag = entry.el.tagName.toLowerCase();
+                console.log(`  Line ${entry.line}-${entry.lineEnd} (${entry.lineSpan} lines) → <${tag}> @ ${entry.top.toFixed(0)}px, h=${entry.height.toFixed(0)}px`);
+            }
+            this._lastLineMapLog = true;
+        }
 
         // ─────────────────────────────────────────────────────────────────
         // FIND BRACKETING ELEMENTS: Elements before and after our target line
@@ -316,8 +327,17 @@ class MarkdownEditor {
         // ─────────────────────────────────────────────────────────────────
         let targetScrollTop;
         
-        // Debug: Log what we're working with (comment out in production)
-        // console.log(`Sync: editor line ${topLineInt}+${lineFraction.toFixed(2)}, before: line ${before.line}-${before.lineEnd} (${before.lineSpan} lines, ${before.height}px), after: ${after ? `line ${after.line}` : 'none'}`);
+        // ─────────────────────────────────────────────────────────────────
+        // DEBUG LOGGING - Enable to diagnose scroll sync issues
+        // ─────────────────────────────────────────────────────────────────
+        const DEBUG_SCROLL = true;
+        if (DEBUG_SCROLL) {
+            console.log(`[SCROLL] Editor: line ${topLineInt} + ${lineFraction.toFixed(3)} frac | scrollTop: ${this.editor.scrollTop.toFixed(0)}px`);
+            console.log(`[SCROLL] Before element: line ${before.line}-${before.lineEnd} (${before.lineSpan} lines) @ ${before.top.toFixed(0)}px, height: ${before.height.toFixed(0)}px`);
+            if (after) {
+                console.log(`[SCROLL] After element: line ${after.line}-${after.lineEnd} (${after.lineSpan} lines) @ ${after.top.toFixed(0)}px, height: ${after.height.toFixed(0)}px`);
+            }
+        }
 
         // Check if we're WITHIN the 'before' element's line range
         const withinBeforeElement = topLineInt >= before.line && topLineInt < before.lineEnd;
@@ -341,6 +361,11 @@ class MarkdownEditor {
             const pixelOffset = elementProgress * before.height;
             targetScrollTop = before.top + pixelOffset;
             
+            if (DEBUG_SCROLL) {
+                const pxPerLine = before.height / before.lineSpan;
+                console.log(`[SCROLL] MODE: WITHIN element | progress: ${(elementProgress * 100).toFixed(1)}% | ${pxPerLine.toFixed(1)}px/line | target: ${targetScrollTop.toFixed(0)}px`);
+            }
+            
         } else if (before.line === topLineInt || before.lineEnd === topLineInt) {
             // EXACTLY on a boundary line - use element top
             targetScrollTop = before.top;
@@ -351,6 +376,12 @@ class MarkdownEditor {
                 const gapPixels = after.top - (before.top + before.height);
                 const fractionIntoGap = lineFraction;
                 targetScrollTop = before.top + before.height + (fractionIntoGap / gapLines) * gapPixels;
+                
+                if (DEBUG_SCROLL) {
+                    console.log(`[SCROLL] MODE: BOUNDARY | gapLines: ${gapLines} | gapPixels: ${gapPixels.toFixed(0)} | target: ${targetScrollTop.toFixed(0)}px`);
+                }
+            } else if (DEBUG_SCROLL) {
+                console.log(`[SCROLL] MODE: BOUNDARY (no gap) | target: ${targetScrollTop.toFixed(0)}px`);
             }
             
         } else if (before && after && after.line > before.lineEnd) {
@@ -373,9 +404,17 @@ class MarkdownEditor {
             
             targetScrollTop = gapStartPixel + (gapProgress * gapPixels);
             
+            if (DEBUG_SCROLL) {
+                console.log(`[SCROLL] MODE: BETWEEN | gap: lines ${gapStartLine}-${gapEndLine} (${gapLines}), pixels ${gapStartPixel.toFixed(0)}-${gapEndPixel.toFixed(0)} (${gapPixels.toFixed(0)}) | progress: ${(gapProgress * 100).toFixed(1)}% | target: ${targetScrollTop.toFixed(0)}px`);
+            }
+            
         } else {
             // EDGE CASE: Beyond last marker or other fallback
             targetScrollTop = before.top + before.height;
+            
+            if (DEBUG_SCROLL) {
+                console.log(`[SCROLL] MODE: FALLBACK (beyond markers) | target: ${targetScrollTop.toFixed(0)}px`);
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -384,6 +423,12 @@ class MarkdownEditor {
         targetScrollTop = Math.max(0, Math.min(previewMax, targetScrollTop));
         
         const delta = Math.abs(this.preview.scrollTop - targetScrollTop);
+        
+        if (DEBUG_SCROLL) {
+            console.log(`[SCROLL] Preview: current ${this.preview.scrollTop.toFixed(0)}px → target ${targetScrollTop.toFixed(0)}px | delta: ${delta.toFixed(0)}px | previewMax: ${previewMax.toFixed(0)}px`);
+            console.log(`[SCROLL] ─────────────────────────────────────────────────────`);
+        }
+        
         if (delta < 2) return;  // Very small dead zone for responsiveness
 
         this._setScrollWithIgnore(this.preview, targetScrollTop);
@@ -924,6 +969,9 @@ class MarkdownEditor {
     }
     
     updatePreview() {
+        // Reset line map log flag so we log the new map on first scroll
+        this._lastLineMapLog = false;
+        
         try {
             // Clear old mermaid cache entries and extract new ones
             if (this.mermaidCodeCache) {
