@@ -101,17 +101,19 @@ class DragDropHandler {
                 this.editor.imageCollapse.initialize();
             }
             
-            // Reset scroll state so scroll sync works immediately
-            if (this.editor.resetScrollState) {
-                this.editor.resetScrollState();
-            }
-            
             // Replace localStorage buffer with loaded file (if enabled/small enough)
             this.editor.replaceLocalStorageFile();
 
             this.editor.editor.focus();
             
             this.editor.showNotification(`Loaded "${file.name}" successfully`, 'success');
+            
+            // Reset scroll state AFTER everything is loaded and rendered
+            setTimeout(() => {
+                if (this.editor.resetScrollState) {
+                    this.editor.resetScrollState();
+                }
+            }, 50);
         };
         
         reader.onerror = () => {
@@ -197,11 +199,6 @@ class DragDropHandler {
                 this.editor.imageCollapse.initialize();
             }
             
-            // Reset scroll state so scroll sync works immediately
-            if (this.editor.resetScrollState) {
-                this.editor.resetScrollState();
-            }
-            
             // Replace localStorage buffer with converted file
             this.editor.replaceLocalStorageFile();
             
@@ -214,6 +211,13 @@ class DragDropHandler {
                 message += ` (${warnings.length} formatting warnings)`;
             }
             this.editor.showNotification(message, 'success');
+            
+            // Reset scroll state AFTER everything is loaded and rendered
+            setTimeout(() => {
+                if (this.editor.resetScrollState) {
+                    this.editor.resetScrollState();
+                }
+            }, 50);
             
         } catch (error) {
             console.error('Word conversion error:', error);
