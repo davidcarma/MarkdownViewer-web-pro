@@ -100,8 +100,11 @@ class DragDropHandler {
             if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
                 this.editor.imageCollapse.initialize();
             }
-
-
+            
+            // Reset scroll state so scroll sync works immediately
+            if (this.editor.resetScrollState) {
+                this.editor.resetScrollState();
+            }
             
             // Replace localStorage buffer with loaded file (if enabled/small enough)
             this.editor.replaceLocalStorageFile();
@@ -192,6 +195,11 @@ class DragDropHandler {
             // Auto-collapse images if collapse is enabled
             if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
                 this.editor.imageCollapse.initialize();
+            }
+            
+            // Reset scroll state so scroll sync works immediately
+            if (this.editor.resetScrollState) {
+                this.editor.resetScrollState();
             }
             
             // Replace localStorage buffer with converted file

@@ -289,6 +289,7 @@
         <!-- Status bar -->
         <footer class="status-bar">
             <div class="status-left">
+                <span id="saveLed" class="save-led" title="Saving indicator"></span>
                 <span id="fileName">Untitled.md</span>
                 <span id="fileStatus" class="file-status">●</span>
             </div>
@@ -335,6 +336,14 @@
                                 <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                             </svg>
                             <span>Appearance</span>
+                        </button>
+                        <button class="settings-menu-item" data-section="data">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                                <path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5"></path>
+                                <path d="M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"></path>
+                            </svg>
+                            <span>Data</span>
                         </button>
                     </div>
                     <div class="settings-content">
@@ -416,6 +425,30 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Data Section -->
+                        <div class="settings-section" id="section-data">
+                            <h4>Backup &amp; Restore</h4>
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <label>Export saved content</label>
+                                    <p class="setting-description">Download a JSON backup of all browser-saved files and embedded images (IndexedDB + localStorage). Use this before clearing site data.</p>
+                                </div>
+                                <div class="setting-value">
+                                    <button class="btn btn-primary" id="exportData">Export Backup</button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <label>Import backup</label>
+                                    <p class="setting-description">Restore files and images from a previously exported JSON backup.</p>
+                                </div>
+                                <div class="setting-value">
+                                    <button class="btn btn-secondary" id="importData">Import Backup</button>
+                                    <input type="file" id="importDataInput" accept="application/json,.json" style="display:none;">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -430,6 +463,7 @@
 
     <!-- Vendored runtime libraries (NO CDNs) -->
     <script src="highlight.min.js" defer></script>
+    <script src="markdown-it.min.js" defer></script>
     <script src="marked.min.js" defer></script>
     <script src="mermaid.min.js" defer></script>
     <script src="katex.min.js" defer></script>

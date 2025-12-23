@@ -1,8 +1,8 @@
 // Auto-generated build information
 // This file is updated automatically on each commit
 window.BUILD_INFO = {
-    hash: 'f919837',
-    hashFull: 'f91983702ca471e0c48ee1197463333457597b54',
-    date: '2025-11-20 12:17:54',
+    hash: '2da75b0',
+    hashFull: '2da75b0a1bd57244db9d0b39c65882c2d5f4a581',
+    date: '2025-12-23 12:51:54',
     version: '1.0.0'
 };

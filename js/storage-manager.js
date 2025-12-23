@@ -182,37 +182,20 @@ class LocalStorageManager {
     }
     
     showAutoSaveIndicator() {
-        // Create temporary indicator
-        const indicator = document.createElement('div');
-        indicator.textContent = '✓ Auto-saved';
-        indicator.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: var(--success-color);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 14px;
-            z-index: 10001;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        `;
-        
-        document.body.appendChild(indicator);
-        
-        // Animate in
-        setTimeout(() => indicator.style.opacity = '1', 10);
-        
-        // Remove after delay
-        setTimeout(() => {
-            indicator.style.opacity = '0';
+        // Flash the LED indicator in the status bar
+        const led = document.getElementById('saveLed');
+        if (led) {
+            // Remove class first to restart animation if already running
+            led.classList.remove('saving');
+            // Force reflow to restart animation
+            void led.offsetWidth;
+            led.classList.add('saving');
+            
+            // Remove class after animation completes (3 pulses × 0.6s = 1.8s)
             setTimeout(() => {
-                if (indicator.parentNode) {
-                    indicator.parentNode.removeChild(indicator);
-                }
-            }, 300);
-        }, 2000);
+                led.classList.remove('saving');
+            }, 2000);
+        }
     }
     
     // File management (for future multi-file support)

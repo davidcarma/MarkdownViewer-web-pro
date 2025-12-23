@@ -21,7 +21,7 @@ done
 
 echo ""
 echo "📦 Checking vendored runtime JS libraries (NO CDNs)..."
-for file in marked.min.js highlight.min.js mermaid.min.js mammoth.min.js; do
+for file in markdown-it.min.js marked.min.js highlight.min.js mermaid.min.js mammoth.min.js; do
     if [ -f "$file" ]; then
         size=$(ls -lh "$file" | awk '{print $5}')
         echo "  ✅ $file ($size)"
@@ -48,7 +48,30 @@ fi
 
 echo ""
 echo "📄 Checking updated files..."
-for file in "js/core.js" "css/preview.css" "index.html"; do
+for file in \
+    "index.html" \
+    "build-info.js" \
+    "css/base.css" \
+    "css/buttons.css" \
+    "css/editor.css" \
+    "css/modals.css" \
+    "css/preview.css" \
+    "css/responsive.css" \
+    "css/toolbar.css" \
+    "css/variables.css" \
+    "js/app.js" \
+    "js/core.js" \
+    "js/drag-drop.js" \
+    "js/events.js" \
+    "js/file-browser.js" \
+    "js/file-operations.js" \
+    "js/image-paste.js" \
+    "js/indexeddb-manager.js" \
+    "js/notifications.js" \
+    "js/pane-resizer.js" \
+    "js/simple-image-collapse-v2.js" \
+    "js/storage-manager.js" \
+    "js/syntax-highlight.js"; do
     if [ -f "$file" ]; then
         echo "  ✅ $file"
     else
@@ -92,13 +115,19 @@ if [ $error -eq 0 ]; then
     echo "✨ All files present! Ready to deploy."
     echo ""
     echo "📤 To deploy, upload these to your server:"
+    echo "   • index.html"
+    echo "   • build-info.js (IMPORTANT: run ./build.sh before deploying so this changes)"
+    echo "   • css/ (entire directory)"
+    echo "   • js/ (entire directory)"
     echo "   • katex.min.css"
     echo "   • katex.min.js"
     echo "   • katex-auto-render.min.js"
     echo "   • fonts/ (entire directory)"
-    echo "   • js/core.js"
-    echo "   • css/preview.css"
-    echo "   • index.html"
+    echo "   • markdown-it.min.js"
+    echo "   • marked.min.js"
+    echo "   • highlight.min.js"
+    echo "   • mermaid.min.js"
+    echo "   • mammoth.min.js"
 else
     echo "❌ Some files are missing! Check above for details."
 fi
