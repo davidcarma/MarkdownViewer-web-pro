@@ -158,3 +158,4 @@ To avoid “can’t scroll far enough to see the bottom” and to keep both pane
   - Wrap-aware mapping missing/broken; invariant is “textarea mirror must be used for top-line mapping”.
 
 
+
