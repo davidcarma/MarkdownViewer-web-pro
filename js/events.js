@@ -461,6 +461,8 @@ class EditorEvents {
         // Tab handling
         if (e.key === 'Tab') {
             e.preventDefault();
+            // Tab indent uses programmatic value updates; preserve undo history.
+            this.editor.recordUndoSnapshot?.(true);
             const start = this.editor.editor.selectionStart;
             const end = this.editor.editor.selectionEnd;
             const value = this.editor.editor.value;
@@ -507,6 +509,8 @@ class EditorEvents {
             const start = this.editor.editor.selectionStart;
             const value = this.editor.editor.value;
             
+            // Auto-pair insertion uses programmatic value updates; preserve undo history.
+            this.editor.recordUndoSnapshot?.(true);
             this.editor.editor.value = value.substring(0, start) + e.key + pairs[e.key] + value.substring(start);
             this.editor.editor.setSelectionRange(start + 1, start + 1);
             e.preventDefault();

@@ -23,12 +23,23 @@ class MarkdownEditor {
         this.isCompactMode = false;
         this.expandedContent = '';
         
-        // Undo/Redo handled natively by browser - no custom implementation needed
+        // ═══════════════════════════════════════════════════════════════════
+        // UNDO / REDO (CUSTOM, RELIABLE)
+        // ═══════════════════════════════════════════════════════════════════
+        // Native textarea undo history can be wiped by programmatic `.value = ...`
+        // (we do that for image collapse, unescape, tab indent, etc).
+        // Implement a lightweight history so Cmd+Z / Cmd+Shift+Z / Cmd+Y works reliably.
+        this._undoStack = [];
+        this._redoStack = [];
+        this._historyApplying = false;
+        this._historyLastSnapshotAt = 0;
+        this._historySnapshotMinIntervalMs = 250;
+        this._historyMaxDepth = 200;
         
         // Initialize storage managers
         this.storageManager = new LocalStorageManager();
         this.indexedDBManager = new IndexedDBManager();
-
+        
         // ═══════════════════════════════════════════════════════════════════
         // SCROLL SYNC STATE (clean rewrite - minimal state, single code path)
         // ═══════════════════════════════════════════════════════════════════
@@ -67,6 +78,111 @@ class MarkdownEditor {
 
         // Expose a promise so other modules can reliably run after content restore.
         this.ready = this.init();
+    }
+
+    _captureEditorState() {
+        const el = this.editor;
+        return {
+            value: el ? el.value : '',
+            selectionStart: el ? (el.selectionStart || 0) : 0,
+            selectionEnd: el ? (el.selectionEnd || 0) : 0,
+            scrollTop: el ? (el.scrollTop || 0) : 0,
+            scrollLeft: el ? (el.scrollLeft || 0) : 0
+        };
+    }
+
+    _applyEditorState(state) {
+        if (!state || !this.editor) return;
+        this._historyApplying = true;
+        try {
+            this.editor.value = state.value || '';
+            try {
+                this.editor.setSelectionRange(
+                    state.selectionStart || 0,
+                    state.selectionEnd || 0
+                );
+            } catch (_) {
+                // ignore
+            }
+            this.editor.scrollTop = state.scrollTop || 0;
+            this.editor.scrollLeft = state.scrollLeft || 0;
+        } finally {
+            this._historyApplying = false;
+        }
+
+        // Refresh UI derived from editor content
+        try {
+            this.updatePreview();
+            this.updateStats();
+            this.updateCursorPosition();
+            this.setModified((this.editor.value || '') !== (this.lastSavedContent || ''));
+            if (this.syntaxHighlighter) {
+                this.syntaxHighlighter.debouncedHighlight?.();
+            }
+        } catch (_) {
+            // best-effort
+        }
+    }
+
+    /**
+     * Record an undo snapshot of the editor state.
+     * Call this before programmatic edits that bypass native undo.
+     */
+    recordUndoSnapshot(force = false) {
+        if (this._historyApplying) return;
+        if (!this.editor) return;
+
+        const now = Date.now();
+        if (!force && (now - this._historyLastSnapshotAt) < this._historySnapshotMinIntervalMs) {
+            return;
+        }
+
+        const snap = this._captureEditorState();
+        const prev = this._undoStack.length ? this._undoStack[this._undoStack.length - 1] : null;
+        if (prev && prev.value === snap.value &&
+            prev.selectionStart === snap.selectionStart &&
+            prev.selectionEnd === snap.selectionEnd &&
+            prev.scrollTop === snap.scrollTop &&
+            prev.scrollLeft === snap.scrollLeft) {
+            return;
+        }
+
+        this._undoStack.push(snap);
+        if (this._undoStack.length > this._historyMaxDepth) {
+            this._undoStack.shift();
+        }
+        this._redoStack.length = 0;
+        this._historyLastSnapshotAt = now;
+    }
+
+    resetUndoHistory() {
+        this._undoStack.length = 0;
+        this._redoStack.length = 0;
+        this._historyLastSnapshotAt = 0;
+    }
+
+    undo() {
+        if (this._historyApplying) return;
+        if (!this._undoStack.length) return;
+        const current = this._captureEditorState();
+        const prev = this._undoStack.pop();
+        this._redoStack.push(current);
+        if (this._redoStack.length > this._historyMaxDepth) {
+            this._redoStack.shift();
+        }
+        this._applyEditorState(prev);
+    }
+
+    redo() {
+        if (this._historyApplying) return;
+        if (!this._redoStack.length) return;
+        const current = this._captureEditorState();
+        const next = this._redoStack.pop();
+        this._undoStack.push(current);
+        if (this._undoStack.length > this._historyMaxDepth) {
+            this._undoStack.shift();
+        }
+        this._applyEditorState(next);
     }
 
     _escapeRegex(str) {
@@ -1183,7 +1299,7 @@ class MarkdownEditor {
             } else {
                 markdownText = rawText;
             }
-
+            
             // Extract and cache mermaid code blocks BEFORE parsing
             this.extractMermaidBlocks(markdownText);
             
@@ -1214,14 +1330,14 @@ class MarkdownEditor {
             
             // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
             if (typeof hljs !== 'undefined' && typeof hljs.highlightElement === 'function') {
-                this.preview.querySelectorAll('pre code:not(.language-mermaid)').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
+            this.preview.querySelectorAll('pre code:not(.language-mermaid)').forEach((block) => {
+                hljs.highlightElement(block);
+            });
             }
             
             // Render math equations with KaTeX (non-fatal)
             try {
-                this.renderMath();
+            this.renderMath();
             } catch (e) {
                 console.warn('Math render failed (non-fatal):', e);
             }
@@ -1229,18 +1345,18 @@ class MarkdownEditor {
             // Process Mermaid diagrams with proper timing and retry logic (non-fatal)
             setTimeout(() => {
                 try {
-                    this.processMermaidDiagrams();
+                this.processMermaidDiagrams();
                 } catch (e) {
                     console.warn('Mermaid processing failed (non-fatal):', e);
                 }
                 // Retry if no blocks found initially (DOM timing issue)
                 setTimeout(() => {
                     try {
-                        const blocks = this.preview.querySelectorAll('pre code.language-mermaid');
-                        if (blocks.length > 0) {
-                            console.log('Retrying Mermaid processing for any missed blocks');
-                            this.processMermaidDiagrams();
-                        }
+                    const blocks = this.preview.querySelectorAll('pre code.language-mermaid');
+                    if (blocks.length > 0) {
+                        console.log('Retrying Mermaid processing for any missed blocks');
+                        this.processMermaidDiagrams();
+                    }
                     } catch (e) {
                         console.warn('Mermaid retry failed (non-fatal):', e);
                     }
@@ -2526,6 +2642,7 @@ class MarkdownEditor {
                     this.fileName.textContent = this.currentFileName;
                     this.lastSavedContent = savedFile.content || '';
                     this.setModified(false);
+                    this.resetUndoHistory();
                     
                     this.showNotification(`Restored: ${savedFile.name}`, 'info');
                     
@@ -2534,9 +2651,9 @@ class MarkdownEditor {
                     
                     // Reset scroll state AFTER content AND preview are loaded
                     // Use longer delay to ensure DOM is fully rendered
-                    setTimeout(() => {
+                        setTimeout(() => {
                         this.resetScrollState();
-                        this.editor.focus();
+                            this.editor.focus();
                     }, 200);
                     return;
                 }
@@ -2558,6 +2675,7 @@ class MarkdownEditor {
                 this.documentTitle.value = this.currentFileName;
                 this.fileName.textContent = this.currentFileName;
                 this.setModified(savedFile.isModified || false);
+                this.resetUndoHistory();
                 
                 this.showNotification(`Restored: ${savedFile.name}`, 'info');
                 
@@ -2565,9 +2683,9 @@ class MarkdownEditor {
                 this.updatePreview();
                 
                 // Reset scroll state AFTER content AND preview are loaded
-                setTimeout(() => {
+                    setTimeout(() => {
                     this.resetScrollState();
-                    this.editor.focus();
+                        this.editor.focus();
                 }, 200);
                 return;
             }
@@ -2623,6 +2741,7 @@ function hello() {
 **Your work is automatically saved to localStorage!**`;
 
         this.editor.value = welcomeContent;
+        this.resetUndoHistory();
         console.log('Loading welcome content for new user');
         
         // Force immediate preview update
@@ -3060,7 +3179,7 @@ function hello() {
         
         // Skip if in compact mode or content is too short
         if (this.isCompactMode || content.length < 10) return;
-
+        
         // If the document contains embedded images or placeholders, never prompt.
         // Those strings are common in normal docs and can contain escape-like sequences.
         if (content.includes('data:image/') || content.includes('(...IMG_') || content.includes('...IMG_')) {
@@ -3092,7 +3211,7 @@ function hello() {
         const startsWithMarkdown = /^(\s*#|\s*[-*+]\s+|\s*\d+\.\s+|\s*>)/.test(testContent);
         if (!startsWithMarkdown && !hasEscapedQuotes && !hasEscapedNewlines) return;
 
-        this.showUnescapeNotification();
+            this.showUnescapeNotification();
     }
 
     showUnescapeNotification() {
@@ -3194,6 +3313,8 @@ function hello() {
     }
 
     unescapePastedContent() {
+        // Make this action undoable even if native undo history was wiped.
+        this.recordUndoSnapshot(true);
         let content = this.editor.value;
         
         // Remove surrounding quotes if present
@@ -3226,6 +3347,38 @@ function hello() {
             console.error('Editor element not found!');
             return;
         }
+
+        // Record pre-edit snapshots for reliable undo/redo
+        // (typing, deleting, paste, etc. Programmatic edits must call recordUndoSnapshot()).
+        this.editor.addEventListener('beforeinput', (e) => {
+            try {
+                if (this._historyApplying) return;
+                const t = e && e.inputType ? String(e.inputType) : '';
+                if (t.startsWith('history')) return;
+                this.recordUndoSnapshot(false);
+            } catch (_) {
+                // ignore
+            }
+        });
+
+        // Intercept undo/redo shortcuts so they work even when native history was wiped.
+        this.editor.addEventListener('keydown', (e) => {
+            try {
+                if (!e) return;
+                if (!(e.ctrlKey || e.metaKey)) return;
+                if (e.altKey) return;
+                const key = (e.key || '').toLowerCase();
+                const isUndo = key === 'z' && !e.shiftKey;
+                const isRedo = key === 'y' || (key === 'z' && e.shiftKey);
+                if (!isUndo && !isRedo) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (isUndo) this.undo();
+                else this.redo();
+            } catch (_) {
+                // ignore
+            }
+        });
         
         this.editor.addEventListener('input', () => {
             // Track typing to suppress scroll sync during input

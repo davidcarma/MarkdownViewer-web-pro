@@ -186,6 +186,8 @@ class SimpleImageCollapseV2 {
         
         if (this.isCollapsed) {
             // Show raw data - expand all placeholders
+            // Preserve undo history for programmatic value rewrite.
+            this.editor.recordUndoSnapshot?.(true);
             const expandedContent = this.expandPlaceholders(currentContent);
             const expandedTextBeforeCursor = this.expandPlaceholders(textBeforeCursor);
             const newCursorPos = expandedTextBeforeCursor.length;
@@ -201,6 +203,8 @@ class SimpleImageCollapseV2 {
             }, 10);
         } else {
             // Collapse images
+            // Preserve undo history for programmatic value rewrite.
+            this.editor.recordUndoSnapshot?.(true);
             const collapsedContent = this.collapseImages(currentContent);
             const collapsedTextBeforeCursor = this.collapseImages(textBeforeCursor);
             const newCursorPos = collapsedTextBeforeCursor.length;
@@ -243,6 +247,8 @@ class SimpleImageCollapseV2 {
                 const prevPreviewLeft = previewEl ? previewEl.scrollLeft : 0;
                 
                 if (currentContent.includes('data:image/')) {
+                    // Preserve undo history for programmatic collapse rewrite.
+                    this.editor.recordUndoSnapshot?.(true);
                     const collapsedContent = this.collapseImages(currentContent);
                     
                     // Calculate new cursor position

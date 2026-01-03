@@ -324,6 +324,8 @@ class ImagePasteHandler {
         
         // Use requestAnimationFrame to ensure proper sequence
         requestAnimationFrame(() => {
+            // Preserve undo history for programmatic value rewrite.
+            this.editor.recordUndoSnapshot?.(true);
             editor.value = newValue;
             
             // Move cursor to end of inserted text
