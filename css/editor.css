@@ -26,13 +26,14 @@
 
 .preview-pane {
     flex: 1;
+    position: relative;
     transition: all 0.3s ease;
 }
 
 .pane-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.5rem;
     padding: 0.75rem 1rem;
     background-color: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
@@ -42,7 +43,7 @@
 
 .pane-title {
     color: var(--text-primary);
-    margin-right: 1.5rem;
+    margin-right: auto;
     flex-shrink: 0;
 }
 
@@ -564,10 +565,40 @@
     border-color: rgba(139, 92, 246, 0.5);
 }
 
+/* Preview pane minimap padding */
+.preview-pane.has-minimap .preview-content {
+    padding-right: calc(1rem + 84px);
+}
+
+/* ─── Minimap toggle button ──────────────────────────────────────── */
+
+.minimap-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin-left: 0.35rem;
+    border-radius: var(--border-radius-sm);
+    opacity: 0.5;
+    transition: opacity 0.15s, background-color 0.15s;
+    flex-shrink: 0;
+}
+.minimap-toggle:hover {
+    opacity: 0.85;
+}
+.minimap-toggle.active {
+    opacity: 1;
+    background-color: var(--accent-color-alpha, rgba(13, 110, 253, 0.12));
+}
+
 /* Hide minimap on narrow screens */
 @media (max-width: 768px) {
     .minimap { display: none; }
     .editor-pane.has-minimap #editor { padding-right: 1rem; }
+    .preview-pane.has-minimap .preview-content { padding-right: 1rem; }
+    .minimap-toggle { display: none; }
 }
 
 /* Loading state for image processing */

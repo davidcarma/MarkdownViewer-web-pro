@@ -2357,7 +2357,7 @@ class MarkdownEditor {
 <head>
     <meta charset="UTF-8">
     <title>${this.currentFileName}</title>
-    <link rel="stylesheet" href="katex.min.css">
+    <link rel="stylesheet" href="lib/katex.min.css">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
@@ -2558,7 +2558,7 @@ class MarkdownEditor {
 <head>
     <meta charset="UTF-8">
     <title>${pdfFileName}</title>
-    <link rel="stylesheet" href="katex.min.css">
+    <link rel="stylesheet" href="lib/katex.min.css">
     <style>
         @page {
             margin: 0.75in;

@@ -14,7 +14,7 @@ GitHub Pages hasn't rebuilt with the new KaTeX files yet, or there's a caching/b
 
 1. **Make a small commit to trigger rebuild:**
    ```bash
-   cd "/path/to/MarkdownViewer-web-pro"
+   cd /path/to/MarkdownViewer-web-pro
    git commit --allow-empty -m "Trigger GitHub Pages rebuild for KaTeX"
    git push origin main
    ```
@@ -60,7 +60,7 @@ GitHub Pages hasn't rebuilt with the new KaTeX files yet, or there's a caching/b
 Run these commands to double-check:
 
 ```bash
-cd "/path/to/MarkdownViewer-web-pro"
+cd /path/to/MarkdownViewer-web-pro
 
 # Check local vs remote
 git fetch origin
@@ -73,9 +73,9 @@ git diff origin/main --name-only
 
 ### Test 1: Direct File Access
 Try these URLs in your browser:
-- https://markdownpro.eyesondash.com/katex.min.js (should download)
-- https://markdownpro.eyesondash.com/katex.min.css (should download)
-- https://markdownpro.eyesondash.com/fonts/KaTeX_Main-Regular.woff2 (should download)
+- https://markdownpro.eyesondash.com/lib/katex.min.js (should download)
+- https://markdownpro.eyesondash.com/lib/katex.min.css (should download)
+- https://markdownpro.eyesondash.com/lib/fonts/KaTeX_Main-Regular.woff2 (should download)
 
 ### Test 2: In-App Test
 1. Visit: https://markdownpro.eyesondash.com/
@@ -122,7 +122,7 @@ Math should render beautifully!
 If nothing works, try re-adding the files:
 
 ```bash
-cd "/path/to/MarkdownViewer-web-pro"
+cd /path/to/MarkdownViewer-web-pro
 
 # Remove from git (but keep locally)
 git rm --cached katex.min.* katex-auto-render.min.js
