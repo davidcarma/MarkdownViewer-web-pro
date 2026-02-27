@@ -9,65 +9,77 @@ class DragDropHandler {
     
     setupDragAndDrop() {
         const editorPane = document.querySelector('.editor-pane');
-        
-        // Prevent default drag behaviors on the entire editor pane
+        const previewPane = document.querySelector('.preview-pane');
+
+        // Setup drag-drop for both panes using the shared logic
+        this.setupPaneDragDrop(editorPane);
+        this.setupPaneDragDrop(previewPane);
+    }
+
+    // Extracted reusable method for setting up drag-drop on any pane
+    setupPaneDragDrop(paneElement) {
+        // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            editorPane.addEventListener(eventName, (e) => {
+            paneElement.addEventListener(eventName, (e) => {
                 e.preventDefault();
                 e.stopPropagation();
             });
         });
-        
+
         // Add visual feedback for drag over
-        editorPane.addEventListener('dragenter', (e) => {
-            editorPane.classList.add('drag-over');
+        paneElement.addEventListener('dragenter', (e) => {
+            paneElement.classList.add('drag-over');
         });
-        
-        editorPane.addEventListener('dragleave', (e) => {
-            // Only remove drag-over if we're leaving the editor pane entirely
-            if (!editorPane.contains(e.relatedTarget)) {
-                editorPane.classList.remove('drag-over');
+
+        paneElement.addEventListener('dragleave', (e) => {
+            // Only remove drag-over if we're leaving the pane entirely
+            if (!paneElement.contains(e.relatedTarget)) {
+                paneElement.classList.remove('drag-over');
             }
         });
-        
-        editorPane.addEventListener('dragover', (e) => {
-            editorPane.classList.add('drag-over');
+
+        paneElement.addEventListener('dragover', (e) => {
+            paneElement.classList.add('drag-over');
         });
-        
+
         // Handle file drop
-        editorPane.addEventListener('drop', (e) => {
-            editorPane.classList.remove('drag-over');
-            
-            const files = Array.from(e.dataTransfer.files);
-            const supportedFiles = files.filter(file => 
-                file.type === 'text/markdown' || 
-                file.type === 'text/plain' || 
-                file.name.endsWith('.md') || 
-                file.name.endsWith('.txt') ||
-                file.name.endsWith('.markdown') ||
-                file.name.endsWith('.docx') ||
-                file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            );
-            
-            if (supportedFiles.length === 0) {
-                this.editor.showNotification('Please drop a markdown, text, or Word document file', 'error');
-                return;
-            }
-            
-            if (supportedFiles.length > 1) {
-                this.editor.showNotification('Please drop only one file at a time', 'error');
-                return;
-            }
-            
-            const file = supportedFiles[0];
-            
-            // Check if it's a Word document
-            if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                this.handleWordFileDrop(file);
-            } else {
-                this.handleFileDrop(file);
-            }
+        paneElement.addEventListener('drop', (e) => {
+            paneElement.classList.remove('drag-over');
+            this.processFileDrop(e);
         });
+    }
+
+    // Shared file processing logic
+    processFileDrop(e) {
+        const files = Array.from(e.dataTransfer.files);
+        const supportedFiles = files.filter(file =>
+            file.type === 'text/markdown' ||
+            file.type === 'text/plain' ||
+            file.name.endsWith('.md') ||
+            file.name.endsWith('.txt') ||
+            file.name.endsWith('.markdown') ||
+            file.name.endsWith('.docx') ||
+            file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+
+        if (supportedFiles.length === 0) {
+            this.editor.showNotification('Please drop a markdown, text, or Word document file', 'error');
+            return;
+        }
+
+        if (supportedFiles.length > 1) {
+            this.editor.showNotification('Please drop only one file at a time', 'error');
+            return;
+        }
+
+        const file = supportedFiles[0];
+
+        // Check if it's a Word document
+        if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            this.handleWordFileDrop(file);
+        } else {
+            this.handleFileDrop(file);
+        }
     }
     
     async handleFileDrop(file) {
