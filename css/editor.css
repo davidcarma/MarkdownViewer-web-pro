@@ -494,6 +494,82 @@
     font-weight: 300;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   MINIMAP — Sublime-style scroll overview on the editor's right edge
+   ═══════════════════════════════════════════════════════════════════ */
+
+.minimap {
+    position: absolute;
+    right: 0;
+    width: 80px;
+    overflow: hidden;
+    z-index: 5;
+    cursor: pointer;
+    border-left: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    opacity: 0.55;
+    transition: opacity 0.2s;
+}
+.minimap:hover,
+.minimap:active {
+    opacity: 1;
+}
+
+.minimap-canvas {
+    display: block;
+    pointer-events: none;
+    will-change: transform;
+}
+
+.minimap-slider {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: var(--accent-color-alpha, rgba(13, 110, 253, 0.18));
+    border: 1px solid var(--accent-color);
+    border-left: 2px solid var(--accent-color);
+    border-radius: 2px;
+    pointer-events: none;
+    transition: top 0.06s linear, height 0.06s linear;
+    min-height: 14px;
+}
+.minimap:hover .minimap-slider {
+    background: var(--accent-color-alpha, rgba(13, 110, 253, 0.28));
+}
+
+/* The pane already has position: relative — minimap uses absolute
+   positioning within it, sitting below the pane header via DOM order. */
+
+/* Give the textarea a right margin so text doesn't hide behind the minimap */
+.editor-pane.has-minimap #editor {
+    padding-right: calc(1rem + 84px);
+}
+.editor-pane.has-minimap .syntax-wrapper {
+    padding-right: 84px;
+}
+
+/* Dark theme */
+[data-theme="dark"] .minimap {
+    background: var(--bg-tertiary);
+    border-left-color: var(--border-color);
+}
+
+/* Gwyneth theme */
+[data-theme="gwyneth"] .minimap {
+    background: rgba(250, 245, 255, 0.5);
+    border-left-color: rgba(139, 92, 246, 0.2);
+}
+[data-theme="gwyneth"] .minimap-slider {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+/* Hide minimap on narrow screens */
+@media (max-width: 768px) {
+    .minimap { display: none; }
+    .editor-pane.has-minimap #editor { padding-right: 1rem; }
+}
+
 /* Loading state for image processing */
 .editor-pane.processing-image {
     position: relative;

@@ -816,6 +816,7 @@ class MarkdownEditor {
         this.updateCursorPosition();
         this.loadTheme();
         this.updateDocumentTitle();
+        this._restoreViewMode();
     }
     
     escapeHtml(text) {
@@ -1470,10 +1471,7 @@ class MarkdownEditor {
                     // Render the mermaid diagram
                     mermaid.render(id + '-svg', code).then(({ svg, bindFunctions }) => {
                         console.log(`Successfully rendered Mermaid diagram ${index + 1}`);
-                        mermaidDiv.innerHTML = svg;
-                        if (bindFunctions) {
-                            bindFunctions(mermaidDiv);
-                        }
+                        this._buildMermaidViewer(mermaidDiv, svg, bindFunctions);
                     }).catch(error => {
                         console.error('Mermaid rendering error:', error);
                         const errorMsg = this.escapeHtml(error.message || error.toString());
@@ -1502,6 +1500,255 @@ class MarkdownEditor {
         });
     }
     
+    /**
+     * Build an interactive viewer around a rendered Mermaid SVG:
+     * toolbar (zoom in/out/reset, copy image) + pan/zoom viewport.
+     */
+    _buildMermaidViewer(container, svgMarkup, bindFunctions) {
+        container.innerHTML = '';
+
+        // Toolbar
+        const toolbar = document.createElement('div');
+        toolbar.className = 'mermaid-toolbar';
+
+        const btnZoomIn  = this._toolbarBtn('Zoom in',  '+',  'mermaid-zoom-in');
+        const btnZoomOut = this._toolbarBtn('Zoom out', '\u2212', 'mermaid-zoom-out');
+        const btnReset   = this._toolbarBtn('Reset',    '\u21BA', 'mermaid-zoom-reset');
+        const btnCopy    = this._toolbarBtn('Copy image', '\uD83D\uDCCB', 'mermaid-copy-img');
+        const zoomLabel  = document.createElement('span');
+        zoomLabel.className = 'mermaid-zoom-label';
+        zoomLabel.textContent = '100%';
+
+        toolbar.append(btnZoomIn, btnZoomOut, btnReset, zoomLabel, btnCopy);
+        container.appendChild(toolbar);
+
+        // Viewport (clips overflow) → inner layer (transforms)
+        const viewport = document.createElement('div');
+        viewport.className = 'mermaid-viewport';
+        const inner = document.createElement('div');
+        inner.className = 'mermaid-inner';
+        inner.innerHTML = svgMarkup;
+        if (bindFunctions) bindFunctions(inner);
+        viewport.appendChild(inner);
+        container.appendChild(viewport);
+
+        // State
+        let scale = 1, panX = 0, panY = 0, dragging = false, lastX = 0, lastY = 0;
+        const MIN_SCALE = 0.25, MAX_SCALE = 5;
+
+        const applyTransform = () => {
+            inner.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+            zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+        };
+
+        // Zoom buttons
+        btnZoomIn.addEventListener('click',  () => { scale = Math.min(MAX_SCALE, scale * 1.25); applyTransform(); });
+        btnZoomOut.addEventListener('click', () => { scale = Math.max(MIN_SCALE, scale / 1.25); applyTransform(); });
+        btnReset.addEventListener('click',   () => { scale = 1; panX = 0; panY = 0; applyTransform(); });
+
+        // Mouse wheel zoom (centered on cursor)
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = viewport.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const prev = scale;
+            scale = e.deltaY < 0
+                ? Math.min(MAX_SCALE, scale * 1.1)
+                : Math.max(MIN_SCALE, scale / 1.1);
+            const ratio = scale / prev;
+            panX = mx - ratio * (mx - panX);
+            panY = my - ratio * (my - panY);
+            applyTransform();
+        }, { passive: false });
+
+        // Pan via mouse drag
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            dragging = true; lastX = e.clientX; lastY = e.clientY;
+            viewport.style.cursor = 'grabbing';
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            panX += e.clientX - lastX;
+            panY += e.clientY - lastY;
+            lastX = e.clientX; lastY = e.clientY;
+            applyTransform();
+        });
+        window.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            viewport.style.cursor = '';
+        });
+
+        // Touch pan (single finger) + pinch zoom (two fingers)
+        let lastTouches = null;
+        viewport.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                lastTouches = [{ x: e.touches[0].clientX, y: e.touches[0].clientY }];
+            } else if (e.touches.length === 2) {
+                lastTouches = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+            }
+        }, { passive: true });
+        viewport.addEventListener('touchmove', (e) => {
+            if (!lastTouches) return;
+            e.preventDefault();
+            if (e.touches.length === 1 && lastTouches.length === 1) {
+                panX += e.touches[0].clientX - lastTouches[0].x;
+                panY += e.touches[0].clientY - lastTouches[0].y;
+                lastTouches = [{ x: e.touches[0].clientX, y: e.touches[0].clientY }];
+            } else if (e.touches.length === 2 && lastTouches.length === 2) {
+                const cur = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+                const prevDist = Math.hypot(lastTouches[1].x - lastTouches[0].x, lastTouches[1].y - lastTouches[0].y);
+                const curDist  = Math.hypot(cur[1].x - cur[0].x, cur[1].y - cur[0].y);
+                const prev = scale;
+                scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * (curDist / prevDist)));
+                const rect = viewport.getBoundingClientRect();
+                const mx = (cur[0].x + cur[1].x) / 2 - rect.left;
+                const my = (cur[0].y + cur[1].y) / 2 - rect.top;
+                const ratio = scale / prev;
+                panX = mx - ratio * (mx - panX);
+                panY = my - ratio * (my - panY);
+                lastTouches = cur;
+            }
+            applyTransform();
+        }, { passive: false });
+        viewport.addEventListener('touchend', () => { lastTouches = null; }, { passive: true });
+
+        // Copy image at 2x resolution — pass the container so we can read its background
+        btnCopy.addEventListener('click', () => this._copyMermaidAsImage(inner, btnCopy, container));
+    }
+
+    _toolbarBtn(title, text, className) {
+        const btn = document.createElement('button');
+        btn.className = `mermaid-toolbar-btn ${className}`;
+        btn.title = title;
+        btn.textContent = text;
+        return btn;
+    }
+
+    async _copyMermaidAsImage(innerEl, btn, container) {
+        const svgEl = innerEl.querySelector('svg');
+        if (!svgEl) return;
+
+        const originalText = btn.textContent;
+        btn.textContent = '\u23F3';
+        btn.disabled = true;
+
+        const finish = (icon) => {
+            btn.textContent = icon;
+            setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1800);
+        };
+
+        try {
+            // Read the actual background color from the diagram container
+            const bgColor = window.getComputedStyle(container).backgroundColor || '#ffffff';
+            const pngBlob = await this._svgToBlob(svgEl, bgColor);
+
+            if (navigator.clipboard && typeof ClipboardItem !== 'undefined' &&
+                window.location.protocol !== 'file:') {
+                try {
+                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+                    finish('\u2705');
+                    return;
+                } catch (_) { /* fall through to download */ }
+            }
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(pngBlob);
+            a.download = 'mermaid-diagram.png';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(a.href);
+            finish('\u2B07\uFE0F');
+
+        } catch (err) {
+            console.error('Copy image failed:', err);
+            finish('\u274C');
+        }
+    }
+
+    /**
+     * Render an SVG element to a PNG blob at 2x resolution.
+     *
+     * Strategy: build a fully self-contained SVG by cloning the element,
+     * inlining every computed style on every node (including foreignObject
+     * HTML content), then draw it via data-URL → Image → Canvas.
+     * This is heavier than a shallow clone but guarantees pixel-perfect output.
+     */
+    async _svgToBlob(svgEl, bgColor) {
+        const DPR = 2;
+        const clone = svgEl.cloneNode(true);
+
+        // --- dimensions ---
+        const vb = clone.getAttribute('viewBox');
+        let w, h;
+        if (vb) {
+            const parts = vb.split(/[\s,]+/).map(Number);
+            w = parts[2]; h = parts[3];
+        } else {
+            w = parseFloat(clone.getAttribute('width'))  || svgEl.clientWidth  || 800;
+            h = parseFloat(clone.getAttribute('height')) || svgEl.clientHeight || 600;
+        }
+        clone.setAttribute('width',  String(w));
+        clone.setAttribute('height', String(h));
+        clone.setAttribute('xmlns',  'http://www.w3.org/2000/svg');
+        clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+        clone.setAttribute('xmlns:xhtml', 'http://www.w3.org/1999/xhtml');
+
+        // --- background matches the actual container (dark/light/gwyneth) ---
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bg.setAttribute('width', '100%');
+        bg.setAttribute('height', '100%');
+        bg.setAttribute('fill', bgColor || '#ffffff');
+        clone.insertBefore(bg, clone.firstChild);
+
+        // --- inline every computed style so the SVG is self-contained ---
+        this._deepInlineStyles(svgEl, clone);
+
+        // --- serialize → data URL → Image → Canvas ---
+        const xml = new XMLSerializer().serializeToString(clone);
+        const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(w * DPR);
+        canvas.height = Math.round(h * DPR);
+        const ctx = canvas.getContext('2d');
+        ctx.scale(DPR, DPR);
+
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = dataUrl;
+        });
+        ctx.drawImage(img, 0, 0, w, h);
+
+        return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    }
+
+    /**
+     * Walk two matching DOM trees (live + clone) and copy the full
+     * computed cssText from each live element onto the clone.
+     * Handles both SVG elements and HTML elements inside foreignObject.
+     */
+    _deepInlineStyles(live, clone) {
+        try {
+            const cs = window.getComputedStyle(live);
+            // cssText gives us every resolved property in one shot
+            clone.style.cssText = cs.cssText;
+        } catch (_) {
+            // getComputedStyle can fail on non-element nodes — skip
+        }
+
+        const liveChildren  = live.children;
+        const cloneChildren = clone.children;
+        for (let i = 0; i < liveChildren.length && i < cloneChildren.length; i++) {
+            this._deepInlineStyles(liveChildren[i], cloneChildren[i]);
+        }
+    }
+
     updateStats() {
         const text = this.editor.value;
         const lines = text.split('\n').length;
@@ -1632,6 +1879,39 @@ class MarkdownEditor {
         themeBtn.innerHTML = icon;
     }
     
+    /**
+     * Resolve the desired view mode from (1) URL ?view= param, (2) localStorage.
+     * Valid values: "split", "preview", "edit".
+     */
+    _getViewMode() {
+        const params = new URLSearchParams(window.location.search);
+        const fromUrl = (params.get('view') || '').toLowerCase();
+        if (['split', 'preview', 'edit'].includes(fromUrl)) return fromUrl;
+        const stored = localStorage.getItem('markdown-editor-view-mode');
+        if (['split', 'preview', 'edit'].includes(stored)) return stored;
+        return 'split';
+    }
+
+    _saveViewMode(mode) {
+        localStorage.setItem('markdown-editor-view-mode', mode);
+        // Keep the URL param in sync so copy-pasting the address preserves the view
+        const url = new URL(window.location);
+        if (mode === 'split') {
+            url.searchParams.delete('view');
+        } else {
+            url.searchParams.set('view', mode);
+        }
+        window.history.replaceState(null, '', url);
+    }
+
+    _restoreViewMode() {
+        const mode = this._getViewMode();
+        if (mode === 'preview' || mode === 'edit') {
+            this.enterFullscreenMode(mode);
+        }
+        // "split" is the default layout — nothing to do
+    }
+
     togglePreview() {
         const app = document.querySelector('.app');
         
@@ -1645,7 +1925,7 @@ class MarkdownEditor {
         }
     }
     
-    enterFullscreenMode() {
+    enterFullscreenMode(initialMode) {
         const app = document.querySelector('.app');
         const toolbar = document.querySelector('.toolbar');
         const statusBar = document.querySelector('.status-bar');
@@ -1666,9 +1946,9 @@ class MarkdownEditor {
         // Create and add mode toggle button
         this.createModeToggleButton();
         
-        // Start in preview mode
-        this.currentFullscreenMode = 'preview';
-        this.switchFullscreenMode('preview');
+        const mode = initialMode || 'preview';
+        this.currentFullscreenMode = mode;
+        this.switchFullscreenMode(mode);
     }
     
     exitFullscreenMode() {
@@ -1708,6 +1988,7 @@ class MarkdownEditor {
         
         // Reset current mode
         this.currentFullscreenMode = null;
+        this._saveViewMode('split');
     }
     
     createModeToggleButton() {
@@ -1762,6 +2043,7 @@ class MarkdownEditor {
         const previewBtn = document.getElementById('previewModeBtn');
         
         this.currentFullscreenMode = mode;
+        this._saveViewMode(mode);
         
         if (mode === 'edit') {
             // Show only editor
@@ -1931,30 +2213,108 @@ class MarkdownEditor {
     }
     
     sanitizeMermaidCode(code) {
-        // Minimal sanitizer - only fix what we KNOW needs fixing
-        // Let Mermaid's own parser handle everything else
-        
-        // 1. Security: Remove dangerous HTML/scripts
+        // Security: Remove dangerous HTML/scripts
         code = code.replace(/<script[\s\S]*?<\/script>/gi, '');
         code = code.replace(/<style[\s\S]*?<\/style>/gi, '');
         
-        // 2. Compatibility: Mermaid requires <br> not <br/>
+        // Compatibility: Mermaid requires <br> not <br/>
         code = code.replace(/<br\s*\/>/gi, '<br>');
         
-        // 3. Fix unescaped double braces in node labels (common AI hallucination)
-        // Looks for [Text {{val}}] and converts to ["Text {{val}}"] to prevent parsing as shape
-        // Only applies if the content doesn't already contain quotes to avoid breaking complex strings
-        code = code.replace(/\[([^"\]]*?\{\{.*?\}\}[^"\]]*?)\]/g, '["$1"]');
-        
-        // 4. Fix unescaped parentheses in node labels
-        // Looks for [Text (val)] and converts to ["Text (val)"]
-        code = code.replace(/\[([^"\]]*?\(.*?\)[^"\]]*?)\]/g, '["$1"]');
-        
-        // 5. Normalize whitespace
+        // Normalize whitespace
         code = code.replace(/\r\n/g, '\n');
         code = code.trim();
         
+        // Detect diagram type from first meaningful line to apply targeted fixes
+        const firstLine = code.split('\n').find(l => l.trim().length > 0) || '';
+        const isStateDiagram = /^\s*stateDiagram/i.test(firstLine);
+        const isFlowchart = /^\s*(graph|flowchart)\s/i.test(firstLine);
+
+        // Process line-by-line for label quoting (stateDiagram + flowchart)
+        if (isStateDiagram || isFlowchart) {
+            code = code.split('\n').map(line => {
+                if (isStateDiagram) {
+                    return this._sanitizeStateDiagramLine(line);
+                }
+                if (isFlowchart) {
+                    return this._sanitizeFlowchartLine(line);
+                }
+                return line;
+            }).join('\n');
+        }
+
         return code;
+    }
+
+    /**
+     * stateDiagram-v2 transition labels are the #1 source of parse errors.
+     * Pattern: `StateA --> StateB : label text`
+     * Even quoted labels break if they contain /, :, —, etc.
+     * Always sanitize the label content regardless of quoting.
+     */
+    _sanitizeStateDiagramLine(line) {
+        const m = line.match(/^(\s*\S+\s+-->\s+\S+\s*:\s*)(.+)$/);
+        if (!m) return line;
+
+        const prefix = m[1];
+        let label = m[2];
+
+        label = this._makeMermaidSafeLabel(label);
+        return `${prefix}${label}`;
+    }
+
+    /**
+     * Flowchart edge labels come in two forms:
+     *   A -->|label| B          (pipe-delimited)
+     *   A -- "label text" --> B  (quoted between dashes)
+     * Pipe-delimited labels with special chars also choke the parser.
+     */
+    _sanitizeFlowchartLine(line) {
+        // Fix unescaped double braces in node labels: [Text {{val}}] → ["Text {{val}}"]
+        line = line.replace(/\[([^"\]]*?\{\{.*?\}\}[^"\]]*?)\]/g, '["$1"]');
+        // Fix unescaped parentheses in node labels: [Text (val)] → ["Text (val)"]
+        line = line.replace(/\[([^"\]]*?\(.*?\)[^"\]]*?)\]/g, '["$1"]');
+
+        // Sanitize pipe-delimited edge labels: -->|label| or -.->|label|
+        line = line.replace(/(--+>|-.->|==+>)\|([^|]+)\|/g, (_, arrow, label) => {
+            const safe = this._stripMermaidUnsafe(label);
+            return `${arrow}|${safe}|`;
+        });
+
+        return line;
+    }
+
+    /**
+     * Wrap a label in double quotes after neutralizing characters that break
+     * Mermaid even inside quotes.
+     */
+    _makeMermaidSafeLabel(raw) {
+        let s = raw.trim();
+        // Strip surrounding quotes if present (we'll re-add them)
+        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+            s = s.slice(1, -1);
+        }
+        s = this._stripMermaidUnsafe(s);
+        return `"${s}"`;
+    }
+
+    /**
+     * Remove or replace characters known to cause Mermaid parse failures.
+     * Keeps the label human-readable while avoiding the parser landmines.
+     */
+    _stripMermaidUnsafe(s) {
+        return s
+            .replace(/"/g, "'")            // double quotes → single
+            .replace(/\u2014/g, '-')        // em-dash → hyphen
+            .replace(/\u2013/g, '-')        // en-dash → hyphen
+            .replace(/\u2018|\u2019/g, "'") // curly single quotes
+            .replace(/\u201C|\u201D/g, "'") // curly double quotes → single
+            .replace(/[{}[\]|#<>\\]/g, '')  // structural chars + square brackets
+            .replace(/;/g, ',')             // semicolons are statement separators
+            .replace(/:/g, ' -')            // colons break stateDiagram label parser
+            .replace(/\//g, ' ')            // slashes confuse the tokenizer
+            .replace(/\n/g, ' ')            // newlines
+            .replace(/\s{2,}/g, ' ')        // collapse runs of whitespace from replacements
+            .trim();
     }
     
     isValidMermaidCode(code) {

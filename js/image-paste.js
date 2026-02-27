@@ -148,7 +148,10 @@ class ImagePasteHandler {
                     const compressionEnabled = this.editor.storageManager.getSetting('imageCompression', true);
                     
                     // Check if image is large and should be compressed
-                    if (fileSizeKB > 200 && compressionEnabled) {
+                    // Skip compression for PNG to preserve transparency and quality
+                    // (e.g. diagrams copied from the Mermaid viewer)
+                    const isPng = file.type === 'image/png';
+                    if (fileSizeKB > 200 && compressionEnabled && !isPng) {
                         // Compress the image
                         const compressedDataUrl = await this.compressImage(dataUrl, file.type);
                         const compressedSizeKB = Math.round(compressedDataUrl.length * 0.75 / 1024); // Rough estimate

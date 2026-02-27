@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup drag and drop
     window.markdownEditor.setupDragAndDrop();
     
+    // Setup minimap
+    window.markdownEditor.setupMinimap();
+    
     // Expose migration helper to console
     window.migrateToIndexedDB = async (clearLocalStorage = true) => {
         return await window.markdownEditor.migrateAndCleanup(clearLocalStorage);
