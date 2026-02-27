@@ -507,13 +507,15 @@
     z-index: 5;
     cursor: pointer;
     border-left: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    opacity: 0.55;
-    transition: opacity 0.2s;
+    /* Dimmed by default so it's clearly secondary to main content */
+    opacity: 0.5;
+    filter: brightness(0.85) saturate(0.9);
+    transition: opacity 0.2s, filter 0.2s;
 }
 .minimap:hover,
 .minimap:active {
-    opacity: 1;
+    opacity: 0.95;
+    filter: brightness(1) saturate(1);
 }
 
 .minimap-canvas {
@@ -549,15 +551,18 @@
     padding-right: 84px;
 }
 
-/* Dark theme */
+/* Dark theme — slightly lighter filter to stand out from dark bg */
 [data-theme="dark"] .minimap {
-    background: var(--bg-tertiary);
     border-left-color: var(--border-color);
+    filter: brightness(0.75) saturate(0.85);
+}
+[data-theme="dark"] .minimap:hover,
+[data-theme="dark"] .minimap:active {
+    filter: brightness(1) saturate(1);
 }
 
 /* Gwyneth theme */
 [data-theme="gwyneth"] .minimap {
-    background: rgba(250, 245, 255, 0.5);
     border-left-color: rgba(139, 92, 246, 0.2);
 }
 [data-theme="gwyneth"] .minimap-slider {

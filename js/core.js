@@ -451,35 +451,54 @@ class MarkdownEditor {
      * Interpolate: given a preview scrollTop, find the editor line number
      */
     _previewTopToLine(scrollTop) {
-        const map = this._scrollMap;
-        if (!map || map.length < 2) return null;
+        if (!this.preview) return null;
 
-        // Clamp to bounds
-        if (scrollTop <= map[0].top) return map[0].line;
-        if (scrollTop >= map[map.length - 1].top) return map[map.length - 1].line;
+        // Build reverse-map points from real rendered blocks (same source as forward sync)
+        const lineElements = this.preview.querySelectorAll('[data-line][data-line-end]');
+        if (!lineElements || lineElements.length === 0) return null;
 
-        // Binary search for bracketing entries
-        let lo = 0, hi = map.length - 1;
-        while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if (map[mid].top < scrollTop) lo = mid + 1;
-            else hi = mid;
+        const previewRect = this.preview.getBoundingClientRect();
+        const points = [];
+        for (const el of lineElements) {
+            const tag = el.tagName ? el.tagName.toLowerCase() : '';
+            if (tag === 'ul' || tag === 'ol' || tag === 'li' || tag === 'blockquote') continue;
+
+            const line = parseInt(el.getAttribute('data-line'), 10);
+            const lineEnd = parseInt(el.getAttribute('data-line-end'), 10) || line;
+            if (!Number.isFinite(line)) continue;
+
+            const rect = el.getBoundingClientRect();
+            const top = rect.top - previewRect.top + this.preview.scrollTop;
+            const height = Math.max(1, rect.height);
+
+            // Add start and end anchors so interpolation stays smooth inside tall blocks.
+            points.push({ top, line });
+            points.push({ top: top + height, line: lineEnd + 1 });
         }
 
-        const upper = map[lo];
-        const lower = map[Math.max(0, lo - 1)];
-        
-        // Linear interpolation between the two markers
+        if (points.length < 2) return null;
+        points.sort((a, b) => a.top - b.top);
+
+        if (scrollTop <= points[0].top) return points[0].line;
+        if (scrollTop >= points[points.length - 1].top) return points[points.length - 1].line;
+
+        let lo = 0, hi = points.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (points[mid].top < scrollTop) lo = mid + 1;
+            else hi = mid;
+        }
+        const upper = points[lo];
+        const lower = points[Math.max(0, lo - 1)];
         const ratio = (scrollTop - lower.top) / Math.max(1, upper.top - lower.top);
         return lower.line + ratio * (upper.line - lower.line);
     }
 
     /**
      * Called when user scrolls the editor. Syncs preview to match.
-     * ONE-WAY SYNC: Editor drives preview. Preview scrolling is independent.
+     * One-way sync: editor/raw drives preview.
      */
     _onScroll(source) {
-        // Only sync when editor scrolls - preview scrolling is independent
         if (source !== 'editor') return;
         
         const now = Date.now();
@@ -490,7 +509,13 @@ class MarkdownEditor {
         // If user is actively typing, don't sync
         if (now - this._lastInputAt < 200) return;
 
-        // Schedule sync on next frame (if not already scheduled)
+        // Track current user-driven scroll owner
+        this._scrollOwner = 'editor';
+        if (this._scrollOwnerTimeout) clearTimeout(this._scrollOwnerTimeout);
+        this._scrollOwnerTimeout = setTimeout(() => {
+            if (this._scrollOwner === 'editor') this._scrollOwner = null;
+        }, 250);
+
         if (this._scrollRAF) return;
         
         this._scrollRAF = requestAnimationFrame(() => {
@@ -500,7 +525,7 @@ class MarkdownEditor {
     }
 
     /**
-     * Execute scroll synchronization: Editor → Preview (one-way)
+     * Execute scroll synchronization.
      * 
      * ADAPTIVE SYNC with acceleration/deceleration:
      * - For TEXT: Lock sync so top-of-editor text = top-of-preview text
@@ -1326,7 +1351,14 @@ class MarkdownEditor {
                     '</div>';
                 return; // Contain failure: keep the rest of the app alive
             }
+            // Capture scroll before replacing DOM so we can restore exactly.
+            const _savedScrollTop = this.preview.scrollTop;
+
             this.preview.innerHTML = html;
+
+            // Restore scroll immediately so content doesn't jump.
+            this.preview.scrollTop = _savedScrollTop;
+
             this._rebuildScrollMap();
             
             // Re-apply syntax highlighting to new code blocks (but skip mermaid blocks)
@@ -1350,6 +1382,8 @@ class MarkdownEditor {
                 } catch (e) {
                     console.warn('Mermaid processing failed (non-fatal):', e);
                 }
+                // Restore scroll again after mermaid block replacement shifts layout.
+                requestAnimationFrame(() => { this.preview.scrollTop = _savedScrollTop; });
                 // Retry if no blocks found initially (DOM timing issue)
                 setTimeout(() => {
                     try {
@@ -1466,12 +1500,19 @@ class MarkdownEditor {
                         mermaidDiv.setAttribute('data-line-end', dataLineEnd);
                     }
                     
+                    const _scrollBefore = this.preview.scrollTop;
                     preElement.parentNode.replaceChild(mermaidDiv, preElement);
+                    // Replacing the pre with the mermaid div can shift layout —
+                    // snap scroll back before the browser paints.
+                    this.preview.scrollTop = _scrollBefore;
                     
                     // Render the mermaid diagram
                     mermaid.render(id + '-svg', code).then(({ svg, bindFunctions }) => {
                         console.log(`Successfully rendered Mermaid diagram ${index + 1}`);
+                        const _scrollBeforeRender = this.preview.scrollTop;
                         this._buildMermaidViewer(mermaidDiv, svg, bindFunctions);
+                        // SVG injection can shift layout again — restore once more.
+                        requestAnimationFrame(() => { this.preview.scrollTop = _scrollBeforeRender; });
                     }).catch(error => {
                         console.error('Mermaid rendering error:', error);
                         const errorMsg = this.escapeHtml(error.message || error.toString());
@@ -1819,6 +1860,10 @@ class MarkdownEditor {
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('markdown-editor-theme', newTheme);
         this.updateThemeIcon();
+
+        // Invalidate minimap color caches so both repaint with new theme colors.
+        if (this.minimap)        { this.minimap._cachedTheme = null;        this.minimap._scheduleRender(50); }
+        if (this.previewMinimap) { this.previewMinimap._cachedTheme = null; this.previewMinimap._svgCache = new WeakMap(); this.previewMinimap._scheduleRender(150); }
         
         // Update Mermaid theme and force complete re-render of diagrams
         this.updateMermaidTheme();
@@ -3821,8 +3866,6 @@ function hello() {
         this.editor.addEventListener('scroll', () => {
             this.syncScroll('editor');
         });
-
-        // Note: Preview scroll is independent (one-way sync: editor → preview only)
 
         // Layout changes (resize / pane divider / fullscreen transitions) can change wrapping.
         window.addEventListener('resize', () => {

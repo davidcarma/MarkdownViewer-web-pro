@@ -205,6 +205,20 @@
     overflow: hidden;
 }
 
+/* With minimap enabled, keep wide table content from bleeding under the overlay.
+   Users can still scroll horizontally in the preview container when needed. */
+.preview-pane.has-minimap .preview-content {
+    overflow-x: auto;
+}
+.preview-pane.has-minimap .preview-content table {
+    max-width: 100%;
+    table-layout: fixed;
+}
+.preview-pane.has-minimap .preview-content th,
+.preview-pane.has-minimap .preview-content td {
+    overflow-wrap: anywhere;
+}
+
 .preview-content th,
 .preview-content td {
     padding: 0.75rem;
