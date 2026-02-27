@@ -1,0 +1,6 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Private patterns file (contains project-specific names/emails to scan for)
+.privacy-patterns
