@@ -2031,6 +2031,10 @@ class MarkdownEditor {
         editorPane.style.flex = '1';
         previewPane.style.flex = '1';
         
+        // Show both minimaps in split view
+        if (this.minimap) this.minimap.show();
+        if (this.previewMinimap) this.previewMinimap.show();
+        
         // Reset current mode
         this.currentFullscreenMode = null;
         this._saveViewMode('split');
@@ -2096,6 +2100,10 @@ class MarkdownEditor {
             previewPane.style.display = 'none';
             editorPane.style.flex = '1 1 100%';
             
+            // Show editor minimap, hide preview minimap
+            if (this.minimap) this.minimap.show();
+            if (this.previewMinimap) this.previewMinimap.hide();
+            
             // Update button states
             editBtn.classList.add('active');
             previewBtn.classList.remove('active');
@@ -2107,6 +2115,10 @@ class MarkdownEditor {
             editorPane.style.display = 'none';
             previewPane.style.display = 'flex';
             previewPane.style.flex = '1 1 100%';
+            
+            // Show preview minimap, hide editor minimap
+            if (this.minimap) this.minimap.hide();
+            if (this.previewMinimap) this.previewMinimap.show();
             
             // Update button states
             previewBtn.classList.add('active');

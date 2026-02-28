@@ -183,6 +183,7 @@ class Minimap {
 
     show() { this._visible = true; this.container.style.display = ''; this.render(); }
     hide() { this._visible = false; this.container.style.display = 'none'; }
+    refresh() { if (this._visible) this._scheduleRender(0); }
 }
 
 // ─── Editor minimap (text-based) ────────────────────────────────────────────
@@ -209,13 +210,22 @@ class EditorMinimap extends Minimap {
         const virtualH = containerH;
         this._setupCanvas(virtualH);
         const ctx = this.ctx;
+
+        // Same approach as preview: use scrollHeight ratio so all content maps
+        // proportionally into the minimap viewport.
+        const scrollH = this.scrollEl.scrollHeight;
         const usableH = virtualH - this.PADDING_TOP - this.PADDING_BOTTOM;
-        const rowStep = Math.max(0.4, usableH / Math.max(1, totalLines));
-        const rowHeight = Math.max(1, Math.min(2, rowStep * 0.65));
+        const ratio = usableH / Math.max(1, scrollH);
+
+        // Derive line height from actual editor metrics.
+        const realLineH = scrollH / Math.max(1, totalLines);
+        const rowStep = realLineH * ratio;
+        const rowHeight = Math.max(1, Math.min(3, rowStep * 0.75));
 
         for (let i = 0; i < totalLines; i++) {
             const line = lines[i];
             const y = this.PADDING_TOP + i * rowStep;
+            if (y > virtualH) break; // safety: don't draw beyond canvas
             if (!line.trim()) continue;
 
             let color = colors.normal;
@@ -396,8 +406,8 @@ class PreviewMinimap extends Minimap {
             const relTop = rect.top - previewRect.top + el.scrollTop;
             const top = this.PADDING_TOP + relTop * ratio;
 
-            // Get text content (first ~200 chars to avoid huge strings)
-            const text = (block.textContent || '').slice(0, 200).replace(/\s+/g, ' ').trim();
+            // Get first line of text only, truncate at minimap width (no wrapping)
+            const text = (block.textContent || '').split('\n')[0].slice(0, 150).replace(/\s+/g, ' ').trim();
             if (!text) continue;
 
             // Color by element type
@@ -415,14 +425,10 @@ class PreviewMinimap extends Minimap {
                 ctx.font = `${fontSize}px sans-serif`;
             }
 
-            // Draw text, wrapping roughly to fit
-            const lineH = fontSize * 1.3;
-            const maxCharsPerLine = Math.floor(innerW / (fontSize * 0.5));
-            let y = top + fontSize;
-            for (let i = 0; i < text.length && y < virtualH; i += maxCharsPerLine) {
-                const line = text.slice(i, i + maxCharsPerLine);
-                ctx.fillText(line, pad, y, innerW);
-                y += lineH;
+            // Draw single line, truncated to fit width
+            const y = top + fontSize;
+            if (y < virtualH) {
+                ctx.fillText(text, pad, y, innerW); // maxWidth param truncates
             }
         }
 

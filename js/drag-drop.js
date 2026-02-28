@@ -118,6 +118,9 @@ class DragDropHandler {
 
             this.editor.editor.focus();
             
+            // Refresh editor minimap (doesn't auto-update on programmatic value change)
+            if (this.editor.minimap) this.editor.minimap.refresh();
+            
             this.editor.showNotification(`Loaded "${file.name}" successfully`, 'success');
             
             // Reset scroll state AFTER everything is loaded and rendered
@@ -215,6 +218,9 @@ class DragDropHandler {
             this.editor.replaceLocalStorageFile();
             
             this.editor.editor.focus();
+            
+            // Refresh editor minimap (doesn't auto-update on programmatic value change)
+            if (this.editor.minimap) this.editor.minimap.refresh();
             
             // Show success notification with any warnings
             const warnings = result.messages.filter(msg => msg.type === 'warning');

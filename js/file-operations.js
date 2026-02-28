@@ -69,6 +69,9 @@ class FileOperations {
         this.editor.updatePreview();
         this.editor.updateStats();
         
+        // Refresh editor minimap
+        if (this.editor.minimap) this.editor.minimap.refresh();
+        
         // Replace localStorage buffer with new empty file
         this.editor.replaceLocalStorageFile();
         
@@ -225,6 +228,9 @@ class FileOperations {
                 this.editor.imageCollapse.initialize();
             }
             
+            // Refresh editor minimap
+            if (this.editor.minimap) this.editor.minimap.refresh();
+            
             // Replace localStorage buffer with loaded file
             this.editor.replaceLocalStorageFile();
             
@@ -307,6 +313,9 @@ class FileOperations {
             if (this.editor.imageCollapse && this.editor.imageCollapse.initialize) {
                 this.editor.imageCollapse.initialize();
             }
+            
+            // Refresh editor minimap
+            if (this.editor.minimap) this.editor.minimap.refresh();
 
             // Replace localStorage buffer with converted file
             this.editor.replaceLocalStorageFile();
