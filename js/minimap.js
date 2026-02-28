@@ -59,19 +59,26 @@ class Minimap {
             this._scheduleRender();
         }).observe(this.scrollEl);
 
-        this.container.addEventListener('mousedown', (e) => this._onPointerDown(e));
-        window.addEventListener('mousemove', (e) => { if (this._dragging) this._scrollToPointer(e); });
-        window.addEventListener('mouseup', () => { this._dragging = false; });
-
-        this.container.addEventListener('touchstart', (e) => {
-            this._onPointerDown(e.touches[0]);
-        }, { passive: false });
-        window.addEventListener('touchmove', (e) => {
-            if (!this._dragging) return;
+        // Bound handlers so we can add/remove them
+        this._onMouseMove = (e) => {
+            e.preventDefault();
+            this._scrollToPointer(e);
+        };
+        this._onMouseUp = () => this._onPointerUp();
+        this._onTouchMove = (e) => {
             e.preventDefault();
             this._scrollToPointer(e.touches[0]);
+        };
+        this._onTouchEnd = () => this._onPointerUp();
+
+        this.container.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this._onPointerDown(e);
+        });
+        this.container.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this._onPointerDown(e.touches[0]);
         }, { passive: false });
-        window.addEventListener('touchend', () => { this._dragging = false; }, { passive: true });
     }
 
     _scheduleRender(delay = 0) {
@@ -163,8 +170,33 @@ class Minimap {
     }
 
     _onPointerDown(e) {
+        if (this._dragging) return;
         this._dragging = true;
+        // Clear any existing selection and disable new selections while dragging.
+        window.getSelection()?.removeAllRanges();
+        document.body.style.userSelect = 'none';
+        document.body.style.webkitUserSelect = 'none';
+        document.body.style.cursor = 'grabbing';
+        // Add move/up listeners only while dragging
+        window.addEventListener('mousemove', this._onMouseMove);
+        window.addEventListener('mouseup', this._onMouseUp);
+        window.addEventListener('touchmove', this._onTouchMove, { passive: false });
+        window.addEventListener('touchend', this._onTouchEnd);
         this._scrollToPointer(e);
+    }
+
+    _onPointerUp() {
+        if (!this._dragging) return;
+        this._dragging = false;
+        // Remove move/up listeners
+        window.removeEventListener('mousemove', this._onMouseMove);
+        window.removeEventListener('mouseup', this._onMouseUp);
+        window.removeEventListener('touchmove', this._onTouchMove);
+        window.removeEventListener('touchend', this._onTouchEnd);
+        // Re-enable text selection and reset cursor
+        document.body.style.userSelect = '';
+        document.body.style.webkitUserSelect = '';
+        document.body.style.cursor = '';
     }
 
     _scrollToPointer(e) {
