@@ -826,6 +826,7 @@ class MarkdownEditor {
     
     async init() {
         this.setupMarked();
+        this._setupAnchorLinkHandler();
         this.bindEvents();
         
         // Initialize IndexedDB
@@ -971,19 +972,140 @@ class MarkdownEditor {
         // markdown-it tokens have a 'map' property: [startLine, endLine]
         this._addSourceLinePlugin();
         
-        // Make links open in new tab
+        // Make links open in new tab (but NOT internal anchor links)
         const defaultLinkRender = this.md.renderer.rules.link_open || 
             function(tokens, idx, options, env, self) {
                 return self.renderToken(tokens, idx, options);
             };
         
         this.md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
-            tokens[idx].attrSet('target', '_blank');
-            tokens[idx].attrSet('rel', 'noopener noreferrer');
+            const hrefIdx = tokens[idx].attrIndex('href');
+            const href = hrefIdx >= 0 ? tokens[idx].attrs[hrefIdx][1] : '';
+            // Only add target="_blank" for external links, not internal anchors
+            if (!href.startsWith('#')) {
+                tokens[idx].attrSet('target', '_blank');
+                tokens[idx].attrSet('rel', 'noopener noreferrer');
+            }
             return defaultLinkRender(tokens, idx, options, env, self);
         };
         
+        // Add IDs to headings for anchor links
+        this._addHeadingIds();
+        
         this.setupMermaid();
+    }
+    
+    /**
+     * Slugify a heading text for use as an ID.
+     * Converts to lowercase, replaces spaces with hyphens, removes special chars.
+     */
+    _slugify(text) {
+        return text
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')  // Remove special characters
+            .replace(/\s+/g, '-')       // Replace spaces with hyphens
+            .replace(/-+/g, '-')        // Collapse multiple hyphens
+            .replace(/^-|-$/g, '');     // Trim leading/trailing hyphens
+    }
+    
+    /**
+     * Add IDs to headings for internal anchor navigation.
+     */
+    _addHeadingIds() {
+        const md = this.md;
+        const defaultHeadingRender = md.renderer.rules.heading_open || 
+            function(tokens, idx, options, env, self) {
+                return self.renderToken(tokens, idx, options);
+            };
+        
+        md.renderer.rules.heading_open = (tokens, idx, options, env, self) => {
+            const token = tokens[idx];
+            // Get the heading text from the inline token that follows
+            const inlineToken = tokens[idx + 1];
+            if (inlineToken && inlineToken.type === 'inline' && inlineToken.content) {
+                const id = this._slugify(inlineToken.content);
+                if (id) {
+                    token.attrSet('id', id);
+                }
+            }
+            return defaultHeadingRender(tokens, idx, options, env, self);
+        };
+    }
+    
+    /**
+     * Set up click handler for internal anchor links in preview.
+     */
+    _setupAnchorLinkHandler() {
+        if (!this.preview) return;
+        
+        this.preview.addEventListener('click', (e) => {
+            const link = e.target.closest('a[href^="#"]');
+            if (!link) return;
+            
+            e.preventDefault();
+            const targetId = link.getAttribute('href').slice(1); // Remove the #
+            if (!targetId) return;
+            
+            // Try to find the element by exact ID first
+            let target = this.preview.querySelector(`#${CSS.escape(targetId)}`);
+            
+            // If not found, try a fuzzy match (slugified version might differ)
+            if (!target) {
+                const slugified = this._slugify(targetId);
+                target = this.preview.querySelector(`#${CSS.escape(slugified)}`);
+            }
+            
+            // If still not found, search all headings for a text match
+            if (!target) {
+                const headings = this.preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                const searchTerms = targetId.toLowerCase().replace(/-/g, ' ').split(' ').filter(Boolean);
+                
+                for (const h of headings) {
+                    const headingText = h.textContent.toLowerCase();
+                    const headingSlug = this._slugify(headingText);
+                    
+                    // Exact slug match
+                    if (headingSlug === targetId) {
+                        target = h;
+                        break;
+                    }
+                    
+                    // Check if heading contains all search terms
+                    if (searchTerms.length > 0 && searchTerms.every(term => headingText.includes(term))) {
+                        target = h;
+                        break;
+                    }
+                    
+                    // Check if heading starts with a number pattern like "1.1" matching "sec-1-1"
+                    const secMatch = targetId.match(/^sec-(\d+(?:-\d+)*)$/i);
+                    if (secMatch) {
+                        const sectionNum = secMatch[1].replace(/-/g, '.');
+                        if (headingText.startsWith(sectionNum + ' ') || headingText.startsWith(sectionNum + '.')) {
+                            target = h;
+                            break;
+                        }
+                    }
+                    
+                    // Check chapter pattern like "chapter-1" matching "Chapter 1:"
+                    const chapterMatch = targetId.match(/^chapter-(\d+)(?:-|$)/i);
+                    if (chapterMatch) {
+                        const chapterNum = chapterMatch[1];
+                        if (headingText.includes(`chapter ${chapterNum}`) || 
+                            headingText.match(new RegExp(`^${chapterNum}\\.?\\s`))) {
+                            target = h;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                console.warn(`Anchor target not found: #${targetId}`);
+            }
+        });
     }
     
     /**

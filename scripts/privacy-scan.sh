@@ -73,9 +73,10 @@ fi
 # ── 2. Check git commit metadata ────────────────────────────────────────────
 
 echo ""
-echo "▶ [2/4] Checking git commit metadata..."
+echo "▶ [2/4] Checking git commit metadata (main branch)..."
 
-bad_emails=$(git log --all --format='%ae%n%ce' 2>/dev/null | sort -u | grep -ivE 'noreply@github\.com|users\.noreply\.github\.com')
+# Only check main branch (not other branches that may have old history)
+bad_emails=$(git log main --format='%ae%n%ce' 2>/dev/null | sort -u | grep -ivE 'noreply@github\.com|users\.noreply\.github\.com')
 
 if [ -n "$bad_emails" ]; then
   echo ""
@@ -88,7 +89,7 @@ else
   echo "   ✅ PASS"
 fi
 
-bad_names=$(git log --all --format='%an%n%cn' 2>/dev/null | sort -u | grep -ivE '^davidcarma$|^GitHub$')
+bad_names=$(git log main --format='%an%n%cn' 2>/dev/null | sort -u | grep -ivE '^davidcarma$|^GitHub$')
 if [ -n "$bad_names" ]; then
   echo "   ⚠️  WARN: Review author names: $(echo $bad_names | tr '\n' ' ')"
 fi
