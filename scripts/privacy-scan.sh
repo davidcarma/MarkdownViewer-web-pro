@@ -4,31 +4,31 @@
 # Run before every commit/push to ensure no personal information leaks.
 # Exit code 0 = clean, 1 = violations found.
 
-echo "==================================="
-echo "Privacy Scan (Public Repo)"
-echo "==================================="
+echo ""
+echo "╔═══════════════════════════════════════╗"
+echo "║       PRIVACY SCAN (Public Repo)      ║"
+echo "╚═══════════════════════════════════════╝"
 echo ""
 
 violations=0
 
-# ── 1. Scan all tracked files for personal identifiers ──────────────────────
+# ── 1. Scan tracked files for personal identifiers ──────────────────────────
 
-echo "🔍 Scanning tracked files for private info..."
+echo "▶ [1/4] Scanning tracked files..."
 
-# Generic patterns that catch private info without containing any.
-# Add project-specific patterns to .privacy-patterns (one regex per line, gitignored).
+# Generic patterns (no personal info in the script itself)
 PATTERNS=(
-  '/Users/[a-zA-Z]'           # macOS home directory paths
-  '/home/[a-zA-Z]'            # Linux home directory paths
-  'C:\\Users\\'               # Windows home directory paths
-  '@gmail\.com'               # Personal email
-  '@yahoo\.com'               # Personal email
-  '@hotmail\.com'             # Personal email
-  '@outlook\.com'             # Personal email
-  '@icloud\.com'              # Personal email
+  '/Users/[a-zA-Z]'           # macOS home paths
+  '/home/[a-zA-Z]'            # Linux home paths
+  'C:\\Users\\'               # Windows home paths
+  '@gmail\.com'
+  '@yahoo\.com'
+  '@hotmail\.com'
+  '@outlook\.com'
+  '@icloud\.com'
 )
 
-# Load extra patterns from local file (gitignored — never committed)
+# Load extra patterns from .privacy-patterns (gitignored)
 if [ -f .privacy-patterns ]; then
   while IFS= read -r line; do
     [[ -z "$line" || "$line" == \#* ]] && continue
@@ -36,104 +36,116 @@ if [ -f .privacy-patterns ]; then
   done < .privacy-patterns
 fi
 
-# Build a single combined regex
+# Build combined regex
 combined=""
 for p in "${PATTERNS[@]}"; do
-  if [ -z "$combined" ]; then
-    combined="$p"
-  else
-    combined="$combined|$p"
-  fi
+  combined="${combined:+$combined|}$p"
 done
 
-# Search tracked files only (skip .git, binary files, this script itself)
-hits=$(git ls-files -z | xargs -0 grep -rInE "$combined" \
-  --include='*.js' --include='*.html' --include='*.css' \
-  --include='*.md' --include='*.sh' --include='*.json' \
-  --include='*.txt' --include='*.pl' --include='*.yml' --include='*.yaml' \
-  2>/dev/null | grep -v 'privacy-scan.sh' | grep -v 'SKILL.md')
+# Exclude files that legitimately mention patterns
+EXCLUDE_FILES="privacy-scan.sh|SKILL.md|\.privacy-patterns"
 
-if [ -n "$hits" ]; then
-  echo "  ❌ Private info found in file content:"
-  echo "$hits" | while IFS= read -r line; do echo "     $line"; done
+# Search and collect unique files with hits
+file_hits=$(git ls-files -- '*.js' '*.html' '*.css' '*.md' '*.sh' '*.json' '*.txt' '*.pl' '*.yml' '*.yaml' 2>/dev/null \
+  | xargs grep -lE "$combined" 2>/dev/null \
+  | grep -vE "$EXCLUDE_FILES")
+
+if [ -n "$file_hits" ]; then
+  count=$(echo "$file_hits" | wc -l | tr -d ' ')
+  echo ""
+  echo "   ❌ FAIL: Private info found in $count file(s):"
+  echo ""
+  echo "$file_hits" | while IFS= read -r f; do
+    echo "      📄 $f"
+    # Show first 3 matching lines with line numbers (truncated)
+    grep -nE "$combined" "$f" 2>/dev/null | head -3 | while IFS= read -r match; do
+      linenum=$(echo "$match" | cut -d: -f1)
+      content=$(echo "$match" | cut -d: -f2- | cut -c1-60)
+      echo "         Line $linenum: ${content}..."
+    done
+  done
+  echo ""
   violations=1
 else
-  echo "  ✅ No private info in tracked file content"
+  echo "   ✅ PASS"
 fi
 
-# ── 2. Check git author/committer metadata ──────────────────────────────────
+# ── 2. Check git commit metadata ────────────────────────────────────────────
 
 echo ""
-echo "🔍 Checking git commit metadata..."
+echo "▶ [2/4] Checking git commit metadata..."
 
-bad_emails=$(git log --all --format='%ae%n%ce' | sort -u | grep -ivE 'noreply@github\.com|users\.noreply\.github\.com')
+bad_emails=$(git log --all --format='%ae%n%ce' 2>/dev/null | sort -u | grep -ivE 'noreply@github\.com|users\.noreply\.github\.com')
 
 if [ -n "$bad_emails" ]; then
-  echo "  ❌ Non-noreply emails found in commit history:"
-  echo "$bad_emails" | while IFS= read -r e; do echo "     $e"; done
   echo ""
-  echo "     Fix: use git-filter-repo with a mailmap to rewrite history."
+  echo "   ❌ FAIL: Non-noreply emails in commit history:"
+  echo "$bad_emails" | while IFS= read -r e; do echo "      • $e"; done
+  echo ""
+  echo "      Fix: git filter-repo --mailmap <mailmap-file>"
   violations=1
 else
-  echo "  ✅ All commit emails use GitHub noreply addresses"
+  echo "   ✅ PASS"
 fi
 
-bad_names=$(git log --all --format='%an%n%cn' | sort -u | grep -ivE '^davidcarma$|^GitHub$')
-
+bad_names=$(git log --all --format='%an%n%cn' 2>/dev/null | sort -u | grep -ivE '^davidcarma$|^GitHub$')
 if [ -n "$bad_names" ]; then
-  echo "  ⚠️  Non-standard author names in commits: $bad_names"
-  echo "     (Check these are acceptable for a public repo)"
-else
-  echo "  ✅ All commit author names look clean"
+  echo "   ⚠️  WARN: Review author names: $(echo $bad_names | tr '\n' ' ')"
 fi
 
-# ── 3. Check staged changes (if any) ────────────────────────────────────────
+# ── 3. Check staged changes ─────────────────────────────────────────────────
 
 echo ""
-echo "🔍 Checking staged changes..."
+echo "▶ [3/4] Checking staged changes..."
 
 staged=$(git diff --cached --name-only 2>/dev/null)
 if [ -n "$staged" ]; then
-  staged_hits=$(git diff --cached | grep -InE "$combined" | grep '^+' | grep -v 'privacy-scan.sh' | grep -v 'SKILL.md')
+  staged_hits=$(git diff --cached 2>/dev/null | grep -E "^\+" | grep -vE "^\+\+\+" | grep -E "$combined" | grep -vE "$EXCLUDE_FILES" | head -10)
   if [ -n "$staged_hits" ]; then
-    echo "  ❌ Private info in staged diff:"
-    echo "$staged_hits" | while IFS= read -r line; do echo "     $line"; done
+    echo ""
+    echo "   ❌ FAIL: Private info in staged diff:"
+    echo "$staged_hits" | while IFS= read -r line; do
+      echo "      ${line:0:70}..."
+    done
     violations=1
   else
-    echo "  ✅ Staged changes are clean"
+    echo "   ✅ PASS"
   fi
 else
-  echo "  ✅ No staged changes to scan"
+  echo "   ✅ PASS (no staged changes)"
 fi
 
-# ── 4. Check for secrets / keys ─────────────────────────────────────────────
+# ── 4. Check for secrets/keys ───────────────────────────────────────────────
 
 echo ""
-echo "🔍 Checking for potential secrets..."
+echo "▶ [4/4] Checking for secrets..."
 
-secret_patterns='(api[_-]?key|secret[_-]?key|password|token|private[_-]?key|AWS_|GITHUB_TOKEN)[[:space:]]*[=:]'
+secret_patterns='(api[_-]?key|secret[_-]?key|password|private[_-]?key|AWS_SECRET|GITHUB_TOKEN)[[:space:]]*[=:]'
 
-secret_hits=$(git ls-files -z | xargs -0 grep -rInE "$secret_patterns" \
-  --include='*.js' --include='*.html' --include='*.json' --include='*.sh' \
-  --include='*.env' --include='*.yml' --include='*.yaml' \
-  2>/dev/null | grep -v 'privacy-scan.sh' | grep -v 'SKILL.md' | grep -v 'node_modules')
+secret_files=$(git ls-files -- '*.js' '*.html' '*.json' '*.sh' '*.env' '*.yml' '*.yaml' 2>/dev/null \
+  | xargs grep -lE "$secret_patterns" 2>/dev/null \
+  | grep -vE "$EXCLUDE_FILES" | head -10)
 
-if [ -n "$secret_hits" ]; then
-  echo "  ⚠️  Potential secrets found (review manually):"
-  echo "$secret_hits" | while IFS= read -r line; do echo "     $line"; done
+if [ -n "$secret_files" ]; then
+  echo ""
+  echo "   ⚠️  WARN: Potential secrets (review manually):"
+  echo "$secret_files" | while IFS= read -r f; do
+    echo "      📄 $f"
+  done
 else
-  echo "  ✅ No obvious secrets detected"
+  echo "   ✅ PASS"
 fi
 
-# ── Summary ──────────────────────────────────────────────────────────────────
+# ── Summary ─────────────────────────────────────────────────────────────────
 
 echo ""
-echo "==================================="
+echo "═══════════════════════════════════════"
 if [ $violations -eq 0 ]; then
-  echo "✅ Privacy scan PASSED — safe to push to public repo"
+  echo "✅ PRIVACY SCAN PASSED — safe to push"
 else
-  echo "❌ Privacy scan FAILED — fix issues above before pushing"
+  echo "❌ PRIVACY SCAN FAILED — fix issues above"
 fi
-echo "==================================="
+echo "═══════════════════════════════════════"
+echo ""
 
 exit $violations
