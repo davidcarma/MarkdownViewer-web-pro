@@ -17,6 +17,7 @@
     const DRIVE_CLIENT_ID = '1024951916599-b6ku30grv851i9hcssn4ml9u1dqq84de.apps.googleusercontent.com';
     const STORAGE_KEY_LAST_EMAIL = 'markdownpro-drive-last-email';
     const STORAGE_KEY_LAST_AT = 'markdownpro-drive-last-at';
+    const STORAGE_KEY_RECONNECT = 'markdownpro-drive-reconnect';
 
     class DriveAuth {
         constructor() {
@@ -40,11 +41,23 @@
                 if (email) {
                     localStorage.setItem(STORAGE_KEY_LAST_EMAIL, email);
                     localStorage.setItem(STORAGE_KEY_LAST_AT, new Date().toISOString());
-                } else {
-                    localStorage.removeItem(STORAGE_KEY_LAST_EMAIL);
-                    localStorage.removeItem(STORAGE_KEY_LAST_AT);
                 }
             } catch (_) {}
+        }
+
+        _setReconnectPreference(enabled) {
+            try {
+                if (enabled) localStorage.setItem(STORAGE_KEY_RECONNECT, '1');
+                else localStorage.removeItem(STORAGE_KEY_RECONNECT);
+            } catch (_) {}
+        }
+
+        shouldAttemptReconnect() {
+            try {
+                return localStorage.getItem(STORAGE_KEY_RECONNECT) === '1';
+            } catch (_) {
+                return false;
+            }
         }
 
         getLastConnectedEmail() {
@@ -81,7 +94,8 @@
             this.tokenClient = null;
             this._connecting = false;
             this._lastError = null;
-            // Keep persisted last email so we can show "Reconnect as x@..."; clear only if you want full sign-out UX later.
+            // An explicit disconnect is the user's opt-out from silent reconnect.
+            this._setReconnectPreference(false);
         }
 
         getLastError() {
@@ -148,6 +162,7 @@
                                 // Do not call Drive "about" here. The drive.file scope is enough
                                 // for file operations, but it can still 403 on metadata endpoints
                                 // like /about, which creates noisy console errors after a valid login.
+                                this._setReconnectPreference(true);
                                 this._persistIdentity(this.userEmail);
                                 settle(true);
                             } else {

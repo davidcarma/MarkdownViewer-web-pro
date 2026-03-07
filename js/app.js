@@ -15,10 +15,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof DriveAuth === 'undefined') return;
         const driveAuth = new DriveAuth();
         if (!driveAuth.isAvailable()) return;
-        try {
-            const last = localStorage.getItem('markdownpro_drive_last_email');
-            if (last && !driveAuth.getUserEmail()) driveAuth._lastConnectedEmail = last;
-        } catch (_) {}
         const driveStorage = new DriveStorage(driveAuth);
         const driveBrowser = new DriveBrowser(window.markdownEditor, driveAuth, driveStorage);
         window.markdownEditor.driveAuth = driveAuth;
@@ -47,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
             updateDriveButton();
             // Try to restore Drive silently on load if the browser still has a Google session.
-            if (driveAuth.getLastConnectedEmail?.()) {
+            if (driveAuth.shouldAttemptReconnect?.()) {
                 driveAuth.silentConnect().then((result) => {
                     updateDriveButton();
                     if (result && result.ok) {
