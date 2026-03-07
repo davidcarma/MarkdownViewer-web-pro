@@ -61,6 +61,9 @@ for file in \
     "js/events.js" \
     "js/file-browser.js" \
     "js/file-operations.js" \
+    "js/drive-auth.js" \
+    "js/drive-storage.js" \
+    "js/drive-browser.js" \
     "js/image-paste.js" \
     "js/indexeddb-manager.js" \
     "js/minimap.js" \
@@ -80,10 +83,17 @@ done
 echo ""
 echo "🔒 Checking for external runtime dependencies (scripts/styles from http(s)://)..."
 
+# Whitelist: Google Identity Services (Drive integration; app degrades if unavailable)
+GIS_WHITELIST="accounts.google.com/gsi/client"
 if grep -RInE "<script[^>]+src=[\"']https?://|<link[^>]+href=[\"']https?://" index.html >/dev/null 2>&1; then
-    echo "  ❌ External script/style asset found in index.html (NO CDNs allowed)"
-    grep -nE "<script[^>]+src=[\"']https?://|<link[^>]+href=[\"']https?://" index.html | head -n 20
-    error=1
+    BAD_LINES=$(grep -nE "<script[^>]+src=[\"']https?://|<link[^>]+href=[\"']https?://" index.html | grep -v "$GIS_WHITELIST" || true)
+    if [ -n "$BAD_LINES" ]; then
+        echo "  ❌ External script/style asset found in index.html (only $GIS_WHITELIST is allowed)"
+        echo "$BAD_LINES" | head -n 20
+        error=1
+    else
+        echo "  ✅ Only whitelisted external script (Google GIS) in index.html"
+    fi
 else
     echo "  ✅ No external script/style assets in index.html"
 fi

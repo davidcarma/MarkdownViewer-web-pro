@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Markdown Pro</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #0f172a;
+            --panel: #111827;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #60a5fa;
+            --border: rgba(255,255,255,0.12);
+        }
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f8fafc;
+                --panel: #ffffff;
+                --text: #0f172a;
+                --muted: #475569;
+                --accent: #2563eb;
+                --border: rgba(15,23,42,0.12);
+            }
+        }
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            line-height: 1.7;
+            background: var(--bg);
+            color: var(--text);
+        }
+        main {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1.25rem 4rem;
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+        h1, h2 { line-height: 1.2; }
+        .muted { color: var(--muted); }
+        a { color: var(--accent); }
+        code {
+            background: rgba(127,127,127,0.15);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+        }
+        ul { padding-left: 1.25rem; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Privacy Policy</h1>
+        <p class="muted">Last updated: March 7, 2026</p>
+
+        <section class="card">
+            <h2>Overview</h2>
+            <p>Markdown Pro is a browser-based markdown editor. The application is designed to work locally in the browser and does not require a backend server to store user documents.</p>
+            <p>This Privacy Policy explains what information may be processed when you use Markdown Pro and how that information is handled.</p>
+        </section>
+
+        <section class="card">
+            <h2>Information processed locally in your browser</h2>
+            <p>Markdown Pro may store content and settings in your browser to provide the editing experience. This can include:</p>
+            <ul>
+                <li>markdown document content</li>
+                <li>document names and file metadata</li>
+                <li>editor preferences and local settings</li>
+                <li>local backup or cache information</li>
+            </ul>
+            <p>This information is typically stored using browser storage technologies such as IndexedDB and localStorage on your own device.</p>
+        </section>
+
+        <section class="card">
+            <h2>Google Drive integration</h2>
+            <p>Google Drive integration is optional. If you choose to connect Google Drive, Markdown Pro uses Google OAuth and the Google Drive API to let you open and save files in your own Google Drive account.</p>
+            <ul>
+                <li>The requested Drive scope is <code>https://www.googleapis.com/auth/drive.file</code>.</li>
+                <li>Google account authentication happens through Google's own consent and sign-in flow.</li>
+                <li>Access tokens are intended for browser-side use and are not sent to a Markdown Pro application server because the app is designed to operate without one.</li>
+                <li>Drive files are accessed only when you intentionally use Drive features.</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>No routine server-side document storage</h2>
+            <p>Markdown Pro is intended to run as a static web application. User documents are not routinely uploaded to or stored on a Markdown Pro application backend during normal use.</p>
+            <p>If you use Google Drive, your files are stored in your Google Drive account according to Google's services and policies.</p>
+        </section>
+
+        <section class="card">
+            <h2>Third-party services</h2>
+            <p>When you use Google Drive integration, Google services are involved in authentication and file access. Your use of those services is also subject to Google's policies and terms.</p>
+        </section>
+
+        <section class="card">
+            <h2>Your choices</h2>
+            <ul>
+                <li>You can use Markdown Pro without connecting Google Drive.</li>
+                <li>You can clear local browser storage using your browser controls.</li>
+                <li>You can revoke Google Drive access from your Google Account permissions settings.</li>
+                <li>You can stop using the app at any time.</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>Contact</h2>
+            <p>For privacy-related questions, contact: <a href="mailto:ds@sudoall.com">ds@sudoall.com</a></p>
+            <p>Site: <a href="https://markdownpro.eyesondash.com/">https://markdownpro.eyesondash.com/</a></p>
+        </section>
+
+        <section class="card">
+            <p><a href="./about.html">About Markdown Pro</a></p>
+            <p><a href="./terms.html">Terms of Service</a></p>
+            <p><a href="./index.html">Open the app</a></p>
+        </section>
+    </main>
+</body>
+</html>

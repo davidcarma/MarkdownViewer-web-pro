@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Markdown Pro</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #0f172a;
+            --panel: #111827;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #60a5fa;
+            --border: rgba(255,255,255,0.12);
+        }
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f8fafc;
+                --panel: #ffffff;
+                --text: #0f172a;
+                --muted: #475569;
+                --accent: #2563eb;
+                --border: rgba(15,23,42,0.12);
+            }
+        }
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            background: var(--bg);
+            color: var(--text);
+        }
+        main {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 2rem 1.25rem 4rem;
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+        h1, h2 { line-height: 1.2; }
+        h1 { margin-bottom: 0.25rem; }
+        p, li { color: var(--text); }
+        .muted { color: var(--muted); }
+        a { color: var(--accent); }
+        code {
+            background: rgba(127,127,127,0.15);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+        }
+        ul { padding-left: 1.25rem; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>About Markdown Pro</h1>
+        <p class="muted">Public application information for Google Auth and end users.</p>
+
+        <section class="card">
+            <h2>What Markdown Pro is</h2>
+            <p>Markdown Pro is a browser-based markdown editor for writing, previewing, exporting, and managing markdown documents locally in the browser.</p>
+            <p>The application supports optional Google Drive integration so users can open and save markdown files inside a <code>Markdown-pro</code> folder in their own Google Drive account.</p>
+        </section>
+
+        <section class="card">
+            <h2>How the app works</h2>
+            <ul>
+                <li>The core editor runs directly in the browser.</li>
+                <li>Local files and metadata are stored in browser storage such as IndexedDB and localStorage.</li>
+                <li>Google Drive access is optional and only used when the user chooses to connect their own Google account.</li>
+                <li>There is no application backend used to store user documents or Google Drive tokens.</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>Google Drive access</h2>
+            <p>If a user connects Google Drive, the app requests the Google Drive scope <code>https://www.googleapis.com/auth/drive.file</code>. This scope is intended to limit access to files the app creates or files the user explicitly works with through the app.</p>
+            <p>Users can disconnect access at any time and can revoke access from their Google Account permissions settings.</p>
+        </section>
+
+        <section class="card">
+            <h2>Operator and contact</h2>
+            <p>Service name: <strong>Markdown Pro</strong></p>
+            <p>Contact email: <a href="mailto:ds@sudoall.com">ds@sudoall.com</a></p>
+            <p>Site: <a href="https://markdownpro.eyesondash.com/">https://markdownpro.eyesondash.com/</a></p>
+        </section>
+
+        <section class="card">
+            <h2>Related pages</h2>
+            <p><a href="./privacy.html">Privacy Policy</a></p>
+            <p><a href="./terms.html">Terms of Service</a></p>
+            <p><a href="./index.html">Open the app</a></p>
+        </section>
+    </main>
+</body>
+</html>

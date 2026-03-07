@@ -30,7 +30,7 @@ class EditorEvents {
         onClick('newFile', () => this.editor.newFile());
         onClick('openFile', () => this.editor.openFile());
         onClick('openWordFile', () => this.editor.openWordFile());
-        onClick('saveFile', () => this.editor.saveFile());
+        onClick('saveFile', () => this.editor.saveFileWithDialog());
         onClick('exportToPdf', () => this.editor.exportToPdf());
         onClick('printFile', () => this.editor.printFile());
         onClick('toggleCompact', () => this.editor.toggleCompactMode());
@@ -153,7 +153,7 @@ class EditorEvents {
                         break;
                     case 's':
                         e.preventDefault();
-                        this.editor.saveFile();
+                        this.editor.smartSave();
                         break;
                     case 'e':
                         e.preventDefault();

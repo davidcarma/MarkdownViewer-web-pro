@@ -52,9 +52,9 @@ class FileBrowser {
     /**
      * Show file browser modal
      */
-    async showFileBrowser() {
+    // Open the file browser; pass 'drive' to open straight to the Drive tab
+    async showFileBrowser(initialTab = 'local') {
         try {
-            // Check if we have unsaved changes
             const hasUnsavedChanges =
                 !!this.editor.isModified &&
                 typeof this.editor.lastSavedContent === 'string' &&
@@ -63,72 +63,180 @@ class FileBrowser {
 
             if (hasUnsavedChanges) {
                 const action = await this.showUnsavedChangesDialog();
-                if (action === 'cancel') {
-                    return;
-                } else if (action === 'save') {
+                if (action === 'cancel') return;
+                if (action === 'save') {
                     const ok = await this.saveCurrentFile();
-                    // If save fails, do not proceed; keep the app interactive.
                     if (!ok) return;
                 }
             }
-            
+
             if (!this.editor.indexedDBManager || !this.editor.indexedDBManager.isSupported) {
                 throw new Error('IndexedDB is not available in this context');
             }
             const files = await this.editor.indexedDBManager.getAllFiles();
-        
-        // Create modal
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-dialog file-browser-modal" style="max-width: 700px; max-height: 80vh;">
-                <div class="modal-header">
-                    <h3>📁 File Browser</h3>
-                    <button class="btn-close-modal" aria-label="Close">&times;</button>
-                </div>
-                <div class="modal-body file-browser-body">
-                    <div class="file-browser-toolbar">
-                        <input type="text" id="fileSearch" class="file-search-input" placeholder="Search files..." autocomplete="off">
-                        <div class="file-browser-actions">
-                            <button class="btn btn-sm btn-primary" id="newFileFromBrowser">+ New File</button>
+
+            // Reset Drive navigation state each time the browser opens
+            if (this.editor.driveBrowser) {
+                this.editor.driveBrowser.reset();
+            }
+
+            const driveAvailable = !!(this.editor.driveAuth);
+            const showDrive = driveAvailable && initialTab === 'drive';
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-dialog file-browser-modal" style="max-width: 700px; max-height: 82vh;">
+                    <div class="modal-header">
+                        <h3>Files</h3>
+                        <button class="btn-close-modal" aria-label="Close">&times;</button>
+                    </div>
+                    ${driveAvailable ? `
+                    <div class="fb-source-tabs">
+                        <button class="fb-source-tab${!showDrive ? ' active' : ''}" data-tab="local">💻 This Device</button>
+                        <button class="fb-source-tab${showDrive ? ' active' : ''}" data-tab="drive">☁️ Google Drive</button>
+                    </div>` : ''}
+                    <div class="fb-tab-pane fb-tab-local"${showDrive ? ' style="display:none"' : ''}>
+                        <div class="modal-body file-browser-body">
+                            <div class="file-browser-toolbar">
+                                <input type="text" id="fileSearch" class="file-search-input" placeholder="Search files..." autocomplete="off">
+                                <div class="file-browser-actions">
+                                    <button class="btn btn-sm btn-primary" id="newFileFromBrowser">+ New File</button>
+                                </div>
+                            </div>
+                            <div class="file-list-container">
+                                <div id="fileList" class="file-list">${this.renderFileList(files)}</div>
+                                ${files.length === 0 ? '<div class="empty-state">No files saved yet. Create a new file to get started!</div>' : ''}
+                            </div>
                         </div>
                     </div>
-                    <div class="file-list-container">
-                        <div id="fileList" class="file-list">
-                            ${this.renderFileList(files)}
+                    ${driveAvailable ? `
+                    <div class="fb-tab-pane fb-tab-drive"${!showDrive ? ' style="display:none"' : ''}>
+                        <div id="driveTabContent" class="drive-tab-content">
+                            <div class="drive-status-panel"><span class="drive-status-loading">Loading...</span></div>
                         </div>
-                        ${files.length === 0 ? '<div class="empty-state">No files saved yet. Create a new file to get started!</div>' : ''}
+                    </div>` : ''}
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" id="cancelFileBrowser">Cancel</button>
+                        <button class="btn btn-primary" id="openFromDisk"${showDrive ? ' style="display:none"' : ''}>Open from Disk</button>
                     </div>
                 </div>
-                <div class="modal-actions">
-                    <button class="btn btn-secondary" id="cancelFileBrowser">Cancel</button>
-                    <button class="btn btn-primary" id="openFromDisk">Open from Disk</button>
-                </div>
-            </div>
-        `;
-        
+            `;
+
             document.body.appendChild(modal);
             this.currentModal = modal;
-        
-            // Add styles if not already added
             this.addStyles();
-            
-            // Setup event listeners
             this.setupFileBrowserEvents(modal, files);
-            
-            // Focus search input
-            const searchInput = modal.querySelector('#fileSearch');
-            if (searchInput) {
-                searchInput.focus();
+
+            if (driveAvailable) {
+                modal.querySelectorAll('.fb-source-tab').forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        const tabName = tab.getAttribute('data-tab');
+                        modal.querySelectorAll('.fb-source-tab').forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        const localPane = modal.querySelector('.fb-tab-local');
+                        const drivePane = modal.querySelector('.fb-tab-drive');
+                        const openFromDiskBtn = modal.querySelector('#openFromDisk');
+                        if (localPane) localPane.style.display = tabName === 'local' ? '' : 'none';
+                        if (drivePane) drivePane.style.display = tabName === 'drive' ? '' : 'none';
+                        if (openFromDiskBtn) openFromDiskBtn.style.display = tabName === 'local' ? '' : 'none';
+                        if (tabName === 'drive') {
+                            const driveTabContent = modal.querySelector('#driveTabContent');
+                            if (driveTabContent) this._renderDrivePane(driveTabContent, modal);
+                        }
+                    });
+                });
+
+                if (showDrive) {
+                    const driveTabContent = modal.querySelector('#driveTabContent');
+                    if (driveTabContent) this._renderDrivePane(driveTabContent, modal);
+                }
+            }
+
+            if (!showDrive) {
+                modal.querySelector('#fileSearch')?.focus();
             }
         } catch (e) {
             console.error('Failed to open file browser:', e);
             this.editor?.showNotification?.('Failed to open file browser (see console)', 'error');
-            // Ensure no half-rendered modal blocks the UI
             if (this.currentModal && document.body.contains(this.currentModal)) {
                 document.body.removeChild(this.currentModal);
             }
             this.currentModal = null;
+        }
+    }
+
+    // Convenience: open file browser with Drive tab active
+    showFileBrowserOnDriveTab() {
+        return this.showFileBrowser('drive');
+    }
+
+    // Render the Drive tab pane based on current auth state
+    async _renderDrivePane(container, modal) {
+        const driveAuth = this.editor.driveAuth;
+
+        if (!driveAuth || !driveAuth.isAvailable()) {
+            container.innerHTML = `
+                <div class="drive-status-panel">
+                    <div class="drive-status-icon">☁️</div>
+                    <h4>Google Drive not available</h4>
+                    <p>The Google sign-in library did not load. Check your internet connection and reload the page.</p>
+                </div>`;
+            return;
+        }
+
+        if (!driveAuth.isConnected()) {
+            const lastEmail = driveAuth.getLastConnectedEmail?.() || '';
+            container.innerHTML = `
+                <div class="drive-status-panel">
+                    <div class="drive-status-icon">☁️</div>
+                    <h4>Google Drive</h4>
+                    <p>Google Drive is not connected. Use the toolbar Drive button to connect, then return here to open and save <code>.md</code> files in your <strong>Markdown-pro</strong> folder.</p>
+                    ${lastEmail ? '<p class="drive-status-last">Last connected: <strong>' + this.escapeHtml(lastEmail) + '</strong></p>' : ''}
+                </div>`;
+            return;
+        }
+
+        this._renderDriveConnected(container, modal);
+    }
+
+    // Render the connected Drive file list into the container
+    async _renderDriveConnected(container, modal) {
+        const driveAuth = this.editor.driveAuth;
+        const driveBrowser = this.editor.driveBrowser;
+        const driveStorage = this.editor.driveStorage;
+        const email = driveAuth.getUserEmail?.() || '';
+
+        container.innerHTML = `
+            <div class="drive-connected-header">
+                <span class="drive-connected-email">&#9989; ${this.escapeHtml(email || 'Google Drive connected')}</span>
+            </div>
+            <div id="driveFilesArea" class="drive-files-area"></div>`;
+
+        const filesArea = container.querySelector('#driveFilesArea');
+        if (!driveBrowser || !driveStorage) {
+            filesArea.innerHTML = '<div class="drive-status-panel"><p>Drive not initialised.</p></div>';
+            return;
+        }
+
+        filesArea.innerHTML = '<div class="drive-status-panel"><span class="drive-status-loading">Loading Markdown-pro folder...</span></div>';
+        try {
+            const rootId = await driveStorage.ensureRootFolder();
+            driveBrowser.breadcrumb = [{ id: rootId, name: 'Markdown-pro' }];
+            driveBrowser.currentFolderId = rootId;
+            await driveBrowser.refreshList();
+            driveBrowser.renderInto(filesArea, () => this.closeFileBrowser(modal));
+            driveBrowser.addStyles();
+        } catch (err) {
+            filesArea.innerHTML = `
+                <div class="drive-status-panel">
+                    <div class="drive-status-icon">&#9888;</div>
+                    <p>Could not load Drive: ${this.escapeHtml(err.message || 'error')}</p>
+                    <button class="btn btn-primary" id="driveRetryLoad">Retry</button>
+                </div>`;
+            filesArea.querySelector('#driveRetryLoad')?.addEventListener('click', () => {
+                this._renderDriveConnected(container, modal);
+            });
         }
     }
     
@@ -303,6 +411,7 @@ class FileBrowser {
         
         this.editor.editor.value = file.content || '';
         this.editor.currentFileName = file.name || 'Untitled.md';
+        this.editor.currentDriveFileId = file.driveFileId || null;
         this.editor.setDocumentTitle(this.editor.currentFileName);
         this.editor.lastSavedContent = file.content || '';
         this.editor.setModified(false);
@@ -354,6 +463,7 @@ class FileBrowser {
                     this.editor.editor.value = '';
                     this.editor.lastSavedContent = '';
                     this.editor.setDocumentTitle('Untitled.md');
+                    this.editor.currentDriveFileId = null;
                     this.editor.setModified(false);
                     this.editor.updatePreview();
                     this.editor.updateStats();
@@ -420,6 +530,9 @@ class FileBrowser {
             wordCount: this.countWords(content),
             lineCount: this.countLines(content)
         };
+        if (this.editor.currentDriveFileId) {
+            fileData.driveFileId = this.editor.currentDriveFileId;
+        }
         
         try {
             await this.editor.indexedDBManager.saveFile(fileData);
@@ -650,6 +763,87 @@ class FileBrowser {
                 text-align: center;
                 color: var(--text-secondary);
             }
+
+            /* Source tabs (This Device / Google Drive) */
+            .fb-source-tabs {
+                display: flex;
+                border-bottom: 2px solid var(--border-color);
+                padding: 0 1rem;
+                gap: 0;
+                flex-shrink: 0;
+            }
+            .fb-source-tab {
+                background: none;
+                border: none;
+                border-bottom: 2px solid transparent;
+                margin-bottom: -2px;
+                padding: 0.55rem 1.1rem;
+                cursor: pointer;
+                font-size: 0.9rem;
+                color: var(--text-secondary);
+                font-weight: 500;
+                transition: color 0.15s, border-color 0.15s;
+            }
+            .fb-source-tab:hover { color: var(--text-primary); }
+            .fb-source-tab.active {
+                color: var(--accent-color);
+                border-bottom-color: var(--accent-color);
+            }
+
+            /* Tab pane container */
+            .fb-tab-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+
+            /* Drive tab content - mirrors .file-browser-body sizing */
+            .drive-tab-content {
+                display: flex;
+                flex-direction: column;
+                max-height: 60vh;
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            /* Slim header when connected (email + disconnect button) */
+            .drive-connected-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0.35rem 1rem;
+                border-bottom: 1px solid var(--border-color);
+                flex-shrink: 0;
+                font-size: 0.82rem;
+                background: var(--bg-secondary);
+            }
+            .drive-connected-email { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+            /* The scrollable area that renderInto() populates */
+            .drive-files-area {
+                flex: 1;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            /* Status panel (not connected / error / loading states) */
+            .drive-status-panel {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 0.65rem;
+                padding: 2.5rem 2rem;
+                text-align: center;
+                flex: 1;
+            }
+            .drive-status-panel h4 { margin: 0; font-size: 1rem; color: var(--text-primary); }
+            .drive-status-panel p  { margin: 0; font-size: 0.88rem; color: var(--text-secondary); max-width: 360px; line-height: 1.5; }
+            .drive-status-panel code { background: var(--bg-tertiary); padding: 0.1rem 0.3rem; border-radius: 3px; }
+            .drive-status-icon { font-size: 2rem; line-height: 1; }
+            .drive-status-loading { color: var(--text-secondary); font-size: 0.9rem; }
+            .drive-status-last { font-size: 0.82rem; color: var(--text-secondary); margin: 0; }
+
+            @keyframes fb-spin { to { transform: rotate(360deg); } }
+            .drive-spin { display: inline-block; animation: fb-spin 1s linear infinite; }
         `;
         document.head.appendChild(style);
     }

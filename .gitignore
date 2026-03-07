@@ -4,3 +4,10 @@ Thumbs.db
 
 # Private patterns file (contains project-specific names/emails to scan for)
 .privacy-patterns
+
+# Node / Playwright
+node_modules/
+test-results/
+playwright-report/
+playwright/.cache/
+blob-report/

@@ -10,6 +10,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize file browser
     window.markdownEditor.fileBrowser = new FileBrowser(window.markdownEditor);
     
+    // Initialize Google Drive (optional; button hidden if GIS unavailable)
+    window.addEventListener('load', () => {
+        if (typeof DriveAuth === 'undefined') return;
+        const driveAuth = new DriveAuth();
+        if (!driveAuth.isAvailable()) return;
+        try {
+            const last = localStorage.getItem('markdownpro_drive_last_email');
+            if (last && !driveAuth.getUserEmail()) driveAuth._lastConnectedEmail = last;
+        } catch (_) {}
+        const driveStorage = new DriveStorage(driveAuth);
+        const driveBrowser = new DriveBrowser(window.markdownEditor, driveAuth, driveStorage);
+        window.markdownEditor.driveAuth = driveAuth;
+        window.markdownEditor.driveStorage = driveStorage;
+        window.markdownEditor.driveBrowser = driveBrowser;
+
+        const btn = document.getElementById('driveConnect');
+        if (btn) {
+            btn.style.display = '';
+            const updateDriveButton = () => {
+                btn.classList.remove('btn-drive-disconnected', 'btn-drive-connected', 'btn-drive-connecting');
+                btn.disabled = false;
+                if (driveAuth.isConnecting()) {
+                    btn.classList.add('btn-drive-connecting');
+                    btn.disabled = true;
+                    btn.title = 'Connecting to Google Drive...';
+                } else if (driveAuth.isConnected()) {
+                    btn.classList.add('btn-drive-connected');
+                    const email = driveAuth.getUserEmail();
+                    btn.title = email ? 'Disconnect Google Drive (' + email + ')' : 'Disconnect Google Drive';
+                } else {
+                    btn.classList.add('btn-drive-disconnected');
+                    const last = driveAuth.getLastConnectedEmail?.() || '';
+                    btn.title = last ? 'Connect Google Drive (last: ' + last + ')' : 'Connect Google Drive';
+                }
+            };
+            updateDriveButton();
+            // Try to restore Drive silently on load if the browser still has a Google session.
+            if (driveAuth.getLastConnectedEmail?.()) {
+                driveAuth.silentConnect().then((result) => {
+                    updateDriveButton();
+                    if (result && result.ok) {
+                        window.markdownEditor.showNotification?.('Google Drive reconnected', 'success');
+                    }
+                }).catch(() => {
+                    updateDriveButton();
+                });
+            }
+            // Toolbar button is a pure connect / disconnect toggle.
+            btn.addEventListener('click', async () => {
+                if (driveAuth.isConnected()) {
+                    driveAuth.disconnect();
+                    updateDriveButton();
+                    window.markdownEditor.showNotification?.('Google Drive disconnected', 'info');
+                    return;
+                }
+
+                // Do not await a silent attempt here. The real Google auth request
+                // needs to stay directly inside the original user click gesture.
+                updateDriveButton();
+                const result = await driveAuth.connect();
+                updateDriveButton();
+                if (result && result.ok) {
+                    window.markdownEditor.showNotification?.('Connected to Google Drive', 'success');
+                } else {
+                    const err = driveAuth.getLastError?.() || 'Sign-in did not complete.';
+                    window.markdownEditor.showNotification?.(
+                        'Could not connect to Google Drive. ' + err,
+                        'info',
+                        { dismissible: true }
+                    );
+                }
+            });
+        }
+    });
+    
     // Initialize additional components
     new EditorEvents(window.markdownEditor);
     new PaneResizer();

@@ -16,6 +16,7 @@ class MarkdownEditor {
         this.documentTitle = document.getElementById('documentTitle');
         
         this.currentFileName = 'Untitled.md';
+        this.currentDriveFileId = null;
         this.isModified = false;
         this.lastSavedContent = '';
         
@@ -3177,6 +3178,7 @@ class MarkdownEditor {
                     
                     this.editor.value = savedFile.content || '';
                     this.currentFileName = savedFile.name || 'Untitled.md';
+                    this.currentDriveFileId = savedFile.driveFileId || null;
                     this.documentTitle.value = this.currentFileName;
                     this.fileName.textContent = this.currentFileName;
                     this.lastSavedContent = savedFile.content || '';
@@ -3211,6 +3213,7 @@ class MarkdownEditor {
                 
                 this.editor.value = savedFile.content || '';
                 this.currentFileName = savedFile.name || 'Untitled.md';
+                this.currentDriveFileId = savedFile.driveFileId || null;
                 this.documentTitle.value = this.currentFileName;
                 this.fileName.textContent = this.currentFileName;
                 this.setModified(savedFile.isModified || false);

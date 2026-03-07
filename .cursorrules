@@ -4,6 +4,10 @@
 - **Vendored libraries only**: any third-party runtime library must be committed into this repo and referenced via relative paths.
 - **Offline-first**: app should run locally with **zero network access** (no background fetches to external APIs for app functionality).
 
+## Permitted external scripts (Google auth infrastructure)
+
+- **https://accounts.google.com/gsi/client** - Google Identity Services OAuth library. Used for optional Drive integration. Loaded async/defer; app degrades gracefully if unavailable (Drive button hidden).
+
 
 
 

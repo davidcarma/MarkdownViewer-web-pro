@@ -83,6 +83,48 @@
     margin: 0 0.5rem;
 }
 
+/* Google Drive button (optional; shown only when GIS available) */
+
+/* Drive logo path colours - real Google Drive palette */
+.drive-icon-green  { fill: #0da462; }
+.drive-icon-blue   { fill: #4285f4; }
+.drive-icon-yellow { fill: #ffba00; }
+.drive-icon-red    { fill: #ea4335; }
+
+/* Disconnected - desaturate the logo to orange-tinted grey, add orange ring */
+.btn-drive.btn-drive-disconnected svg { filter: saturate(0) brightness(0.85) sepia(0.4) hue-rotate(5deg); }
+.btn-drive.btn-drive-disconnected {
+    outline: 2px solid #f59e0b;
+    outline-offset: 1px;
+    border-radius: 6px;
+}
+.btn-drive.btn-drive-disconnected:hover {
+    background-color: rgba(245,158,11,0.12);
+    outline-color: #d97706;
+}
+
+/* Connected - full colour logo + green ring */
+.btn-drive.btn-drive-connected svg { filter: none; }
+.btn-drive.btn-drive-connected {
+    outline: 2px solid #16a34a;
+    outline-offset: 1px;
+    border-radius: 6px;
+}
+.btn-drive.btn-drive-connected:hover {
+    background-color: rgba(22,163,74,0.12);
+    outline-color: #15803d;
+}
+
+/* Connecting - full colour logo, pulse */
+.btn-drive.btn-drive-connecting svg { filter: none; }
+.btn-drive.btn-drive-connecting {
+    animation: drive-connecting-pulse 1s ease-in-out infinite;
+}
+@keyframes drive-connecting-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.45; }
+}
+
 /* Format toolbar */
 .format-toolbar {
     display: flex;
@@ -118,6 +160,34 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+}
+
+.status-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.status-separator {
+    color: var(--text-secondary);
+}
+
+.legal-links {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.legal-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+
+.legal-links a:hover {
+    color: var(--text-primary);
+    text-decoration: underline;
 }
 
 .file-status {

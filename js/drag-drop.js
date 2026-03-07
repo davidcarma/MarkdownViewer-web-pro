@@ -91,7 +91,7 @@ class DragDropHandler {
                 return;
             } else if (action === 'save') {
                 // Save current file first
-                this.editor.saveFile();
+                this.editor.smartSave();
             }
             // If action is 'replace', we continue without saving
         }
@@ -173,7 +173,7 @@ class DragDropHandler {
                 return;
             } else if (action === 'save') {
                 // Save current file first
-                this.editor.saveFile();
+                this.editor.smartSave();
             }
             // If action is 'replace', we continue without saving
         }

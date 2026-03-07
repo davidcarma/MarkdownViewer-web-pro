@@ -1,0 +1,15 @@
+{
+  "name": "markdownviewer-web-pro",
+  "private": true,
+  "description": "Markdown Pro - static GitHub Pages editor",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "serve": "serve . -l 3000"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "serve": "^14.2.0"
+  }
+}
