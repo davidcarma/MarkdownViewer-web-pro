@@ -7,9 +7,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Create the main editor instance
     window.markdownEditor = new MarkdownEditor();
     
-    // Initialize file browser
+    // Initialize file browser (used by finder for saveCurrentFile, generateFileId, etc.)
     window.markdownEditor.fileBrowser = new FileBrowser(window.markdownEditor);
-    
+    if (typeof FinderView !== 'undefined') {
+        window.markdownEditor.finderView = new FinderView(window.markdownEditor);
+    }
+
     // Initialize Google Drive (optional; button hidden if GIS unavailable)
     window.addEventListener('load', () => {
         if (typeof DriveAuth === 'undefined') return;

@@ -30,14 +30,18 @@
             };
         }
 
-        _fetch(url, options = {}) {
+        async _fetch(url, options = {}) {
             const headers = this._headers();
             if (!headers) return Promise.reject(new Error('Not connected to Drive'));
             const merged = {
                 ...options,
                 headers: { ...headers, ...(options.headers || {}) }
             };
-            return fetch(url, merged);
+            const res = await fetch(url, merged);
+            if (res.status === 401 && this.driveAuth) {
+                this.driveAuth.invalidateSession();
+            }
+            return res;
         }
 
         _getStoredRootFolderId() {

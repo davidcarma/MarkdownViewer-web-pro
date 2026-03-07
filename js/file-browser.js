@@ -408,7 +408,8 @@ class FileBrowser {
      */
     async openFile(file) {
         if (!file) return;
-        
+        if (this.editor.setActiveDocumentId) this.editor.setActiveDocumentId(file.id);
+
         this.editor.editor.value = file.content || '';
         this.editor.currentFileName = file.name || 'Untitled.md';
         this.editor.currentDriveFileId = file.driveFileId || null;
@@ -536,6 +537,7 @@ class FileBrowser {
         
         try {
             await this.editor.indexedDBManager.saveFile(fileData);
+            if (this.editor.setActiveDocumentId) this.editor.setActiveDocumentId(fileId);
             this.editor.lastSavedContent = content;
             this.editor.setModified(false);
             // Flash LED indicator instead of notification

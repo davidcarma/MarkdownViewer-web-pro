@@ -1,11 +1,13 @@
 /**
  * Google Drive authentication via Google Identity Services (GIS).
- * Token kept in memory only. Graceful degradation if window.google is unavailable.
+ * Access token is persisted in localStorage (with expiry) so the connection
+ * survives page refresh until the token expires. Disconnect or token expiry
+ * clears the stored token. Graceful degradation if window.google is unavailable.
  *
- * The host "signs" the app: whoever hosts the site creates an OAuth 2.0 client in
- * Google Cloud Console and adds their site URL to Authorized JavaScript origins.
- * That tells Google this origin is allowed to use the client. End users only see
- * Google's "Allow this app?" consent; they never touch the Console.
+ * Security: Only the OAuth access token and expiry are stored; no refresh token.
+ * The host "signs" the app: whoever hosts the site creates an OAuth 2.0 client
+ * in Google Cloud Console and adds their site URL to Authorized JavaScript origins.
+ * End users only see Google's "Allow this app?" consent.
  *
  * Local testing: add your origin (e.g. http://localhost:3000) to the same OAuth
  * client. Do not use file://; run a local server (e.g. npm run serve) instead.
@@ -132,8 +134,13 @@
             this._connecting = false;
             this._lastError = null;
             this._clearPersistedSession();
-            // An explicit disconnect is the user's opt-out from silent reconnect.
             this._setReconnectPreference(false);
+        }
+
+        /** Call when the token is rejected (e.g. 401). Clears in-memory and stored token so reconnect is required. */
+        invalidateSession() {
+            this.token = null;
+            this._clearPersistedSession();
         }
 
         getLastError() {

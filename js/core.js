@@ -3039,7 +3039,23 @@ class MarkdownEditor {
             );
         }
     }
-    
+
+    // Session: persist which document to restore on next load (IndexedDB file id)
+    setActiveDocumentId(fileId) {
+        try {
+            if (fileId) localStorage.setItem('markdownpro-active-doc-id', fileId);
+            else localStorage.removeItem('markdownpro-active-doc-id');
+        } catch (_) {}
+    }
+
+    getActiveDocumentId() {
+        try {
+            return localStorage.getItem('markdownpro-active-doc-id') || null;
+        } catch (_) {
+            return null;
+        }
+    }
+
     async migrateLocalStorageToIndexedDB(clearLocalStorage = false) {
         // Check if migration has already been done (unless forced)
         const migrationFlag = localStorage.getItem('markdown-editor-migrated-to-indexeddb');
@@ -3166,16 +3182,23 @@ class MarkdownEditor {
             try {
                 const files = await this.indexedDBManager.getAllFiles();
                 if (files.length > 0) {
-                    // Load the most recently modified file
-                    const sortedFiles = [...files].sort((a, b) => {
-                        const dateA = new Date(a.modified || a.created || 0);
-                        const dateB = new Date(b.modified || b.created || 0);
-                        return dateB - dateA;
-                    });
-                    
-                    const savedFile = sortedFiles[0];
+                    const activeId = this.getActiveDocumentId?.();
+                    let savedFile = null;
+                    if (activeId) {
+                        savedFile = files.find((f) => f.id === activeId) || null;
+                    }
+                    if (!savedFile) {
+                        // Fall back to most recently modified
+                        const sortedFiles = [...files].sort((a, b) => {
+                            const dateA = new Date(a.modified || a.created || 0);
+                            const dateB = new Date(b.modified || b.created || 0);
+                            return dateB - dateA;
+                        });
+                        savedFile = sortedFiles[0];
+                    }
                     console.log('✅ Found saved file in IndexedDB:', savedFile.name);
-                    
+                    this.setActiveDocumentId(savedFile.id);
+
                     this.editor.value = savedFile.content || '';
                     this.currentFileName = savedFile.name || 'Untitled.md';
                     this.currentDriveFileId = savedFile.driveFileId || null;

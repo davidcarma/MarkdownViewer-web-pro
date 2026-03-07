@@ -7,7 +7,11 @@ class FileOperations {
     }
     
     async newFile() {
-        // Always show dialog to ask what to do with current document
+        if (this.editor.finderView) {
+            this.editor.finderView.show({ mode: 'new' });
+            return;
+        }
+        // Fallback: show dialog to ask what to do with current document
         const action = await this.showClearDocumentDialog();
         
         if (action === 'cancel') {
@@ -181,12 +185,27 @@ class FileOperations {
         });
     }
     
-    openFile() {
+    async openFile() {
+        if (this.editor.finderView) {
+            const hasUnsaved = !!this.editor.isModified &&
+                typeof this.editor.lastSavedContent === 'string' &&
+                this.editor.editor &&
+                this.editor.editor.value !== this.editor.lastSavedContent;
+            if (hasUnsaved) {
+                const action = await this.editor.fileBrowser.showUnsavedChangesDialog();
+                if (action === 'cancel') return;
+                if (action === 'save') {
+                    const ok = await this.editor.fileBrowser.saveCurrentFile();
+                    if (!ok) return;
+                }
+            }
+            this.editor.finderView.show({ mode: 'open', initialSource: this.editor.driveAuth?.isConnected() ? 'drive' : 'browser' });
+            return;
+        }
         const canUseBrowserFiles =
             !!this.editor.fileBrowser &&
             !!this.editor.indexedDBManager &&
             !!this.editor.indexedDBManager.isSupported;
-
         if (canUseBrowserFiles) {
             const initialTab = this.editor.driveAuth?.isConnected() ? 'drive' : 'local';
             this.editor.fileBrowser.showFileBrowser(initialTab).catch((e) => {
@@ -195,7 +214,6 @@ class FileOperations {
             });
             return;
         }
-
         if (this.editor.fileInput) {
             this.editor.fileInput.click();
         } else {
@@ -637,13 +655,22 @@ class FileOperations {
     }
 
     saveFileWithDialog() {
+        if (this.editor.finderView) {
+            const hasDriveId = !!this.editor.currentDriveFileId;
+            if (hasDriveId) {
+                this.smartSave().then(() => {
+                    this.editor.finderView.show({ mode: 'save', initialSource: this.editor.driveAuth?.isConnected() ? 'drive' : 'browser' });
+                });
+            } else {
+                this.editor.finderView.show({ mode: 'save', initialSource: this.editor.driveAuth?.isConnected() ? 'drive' : 'browser' });
+            }
+            return;
+        }
         const hasDriveId = !!this.editor.currentDriveFileId;
-
         if (!hasDriveId) {
             this._showFirstSaveDialog();
             return;
         }
-
         this.smartSave().then(() => {
             const driveConnected = !!(this.editor.driveAuth && this.editor.driveAuth.isConnected());
             this._showSavedDialog(driveConnected ? 'drive' : 'browser');

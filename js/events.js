@@ -171,10 +171,6 @@ class EditorEvents {
                         e.preventDefault();
                         this.applyFormat('italic');
                         break;
-                    case 'l':
-                        e.preventDefault();
-                        this.editor.saveToLocalStorage();
-                        break;
                     case 'u':
                         e.preventDefault();
                         this.editor.unescapePastedContent();
