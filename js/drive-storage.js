@@ -74,6 +74,17 @@
                 this._setStoredRootFolderId(null);
             }
 
+            // Reuse an accessible Markdown-pro folder if one already exists.
+            // With drive.file we cannot enumerate My Drive root reliably, but we can
+            // search among files/folders this app can already access. This helps us
+            // recover older Markdown-pro roots instead of creating a fresh empty one.
+            const existingFolderId = await this._findExistingRootFolder();
+            if (existingFolderId) {
+                this._rootFolderId = existingFolderId;
+                this._setStoredRootFolderId(existingFolderId);
+                return this._rootFolderId;
+            }
+
             const createRes = await this._fetch(DRIVE_API + '/files', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -91,6 +102,41 @@
             this._rootFolderId = createData.id;
             this._setStoredRootFolderId(this._rootFolderId);
             return this._rootFolderId;
+        }
+
+        async _findExistingRootFolder() {
+            const q = [
+                "name = '" + ROOT_FOLDER_NAME.replace(/'/g, "\\'") + "'",
+                "mimeType = '" + MIME_FOLDER + "'",
+                'trashed = false'
+            ].join(' and ');
+            const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,modifiedTime,createdTime)&orderBy=modifiedTime desc&spaces=drive';
+            const res = await this._fetch(url);
+            if (!res.ok) return null;
+
+            const data = await res.json();
+            const candidates = data.files || [];
+            if (candidates.length === 0) return null;
+
+            // Prefer a candidate that already has visible children, which is more likely
+            // to be the user's existing Markdown-pro root rather than a newly created empty one.
+            for (const candidate of candidates) {
+                const childCount = await this._countChildren(candidate.id);
+                if (childCount > 0) {
+                    return candidate.id;
+                }
+            }
+
+            return candidates[0].id;
+        }
+
+        async _countChildren(folderId) {
+            const q = "'" + folderId.replace(/'/g, "\\'") + "' in parents and trashed = false";
+            const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id)&pageSize=1&spaces=drive';
+            const res = await this._fetch(url);
+            if (!res.ok) return 0;
+            const data = await res.json();
+            return (data.files || []).length;
         }
 
         async _validateFolderId(folderId) {
