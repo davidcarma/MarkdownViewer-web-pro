@@ -199,6 +199,7 @@
         async saveCurrentToDriveFolder(folderId) {
             const content = this.getEditorContent();
             const name = /\.md$/i.test(this.editor.currentFileName || '') ? this.editor.currentFileName : (this.editor.currentFileName || 'Untitled') + '.md';
+            const slug = (this.editor.currentFileName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled-md';
             const rootId = await this.editor.driveStorage.ensureRootFolder();
             const effectiveId = folderId === 'root' ? rootId : folderId;
             const existing = await this.editor.driveStorage.listFiles(effectiveId).then((items) => items.find((f) => !f.isFolder && f.name === name));
@@ -209,7 +210,6 @@
                 const created = await this.editor.driveStorage.createFile(effectiveId, name, content);
                 this.editor.currentDriveFileId = created.id;
             }
-            const slug = (this.editor.currentFileName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled-md';
             if (this.editor.indexedDBManager) {
                 await this.editor.indexedDBManager.saveFile({
                     id: slug, name: this.editor.currentFileName || name, content,
@@ -223,7 +223,6 @@
             }
             this.editor.lastSavedContent = content;
             this.editor.setModified(false);
-            const slug = (this.editor.currentFileName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled-md';
             if (this.editor.setActiveDocumentId) this.editor.setActiveDocumentId(slug);
         }
 
