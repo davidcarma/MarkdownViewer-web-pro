@@ -18,6 +18,9 @@
     const STORAGE_KEY_LAST_EMAIL = 'markdownpro-drive-last-email';
     const STORAGE_KEY_LAST_AT = 'markdownpro-drive-last-at';
     const STORAGE_KEY_RECONNECT = 'markdownpro-drive-reconnect';
+    const STORAGE_KEY_ACCESS_TOKEN = 'markdownpro-drive-access-token';
+    const STORAGE_KEY_TOKEN_EXPIRES_AT = 'markdownpro-drive-token-expires-at';
+    const TOKEN_EXPIRY_SKEW_MS = 60000;
 
     class DriveAuth {
         constructor() {
@@ -27,6 +30,7 @@
             this._connecting = false;
             this._lastError = null;
             this._loadPersistedIdentity();
+            this._loadPersistedSession();
         }
 
         _loadPersistedIdentity() {
@@ -42,6 +46,39 @@
                     localStorage.setItem(STORAGE_KEY_LAST_EMAIL, email);
                     localStorage.setItem(STORAGE_KEY_LAST_AT, new Date().toISOString());
                 }
+            } catch (_) {}
+        }
+
+        _loadPersistedSession() {
+            try {
+                const token = localStorage.getItem(STORAGE_KEY_ACCESS_TOKEN);
+                const expiresAtRaw = localStorage.getItem(STORAGE_KEY_TOKEN_EXPIRES_AT);
+                const expiresAt = expiresAtRaw ? parseInt(expiresAtRaw, 10) : 0;
+                if (token && expiresAt && Date.now() < expiresAt) {
+                    this.token = token;
+                    return;
+                }
+            } catch (_) {}
+            this._clearPersistedSession();
+        }
+
+        _persistSession(accessToken, expiresInSeconds) {
+            try {
+                if (!accessToken) {
+                    this._clearPersistedSession();
+                    return;
+                }
+                const ttlSeconds = Math.max(parseInt(expiresInSeconds, 10) || 3600, 120);
+                const expiresAt = Date.now() + (ttlSeconds * 1000) - TOKEN_EXPIRY_SKEW_MS;
+                localStorage.setItem(STORAGE_KEY_ACCESS_TOKEN, accessToken);
+                localStorage.setItem(STORAGE_KEY_TOKEN_EXPIRES_AT, String(expiresAt));
+            } catch (_) {}
+        }
+
+        _clearPersistedSession() {
+            try {
+                localStorage.removeItem(STORAGE_KEY_ACCESS_TOKEN);
+                localStorage.removeItem(STORAGE_KEY_TOKEN_EXPIRES_AT);
             } catch (_) {}
         }
 
@@ -94,6 +131,7 @@
             this.tokenClient = null;
             this._connecting = false;
             this._lastError = null;
+            this._clearPersistedSession();
             // An explicit disconnect is the user's opt-out from silent reconnect.
             this._setReconnectPreference(false);
         }
@@ -159,6 +197,7 @@
                             if (response && response.access_token) {
                                 this._lastError = null;
                                 this.token = response.access_token;
+                                this._persistSession(response.access_token, response.expires_in);
                                 // Do not call Drive "about" here. The drive.file scope is enough
                                 // for file operations, but it can still 403 on metadata endpoints
                                 // like /about, which creates noisy console errors after a valid login.
