@@ -145,15 +145,11 @@
                             if (response && response.access_token) {
                                 this._lastError = null;
                                 this.token = response.access_token;
-                                this._fetchUserEmail()
-                                    .then(() => {
-                                        this._persistIdentity(this.userEmail);
-                                        settle(true);
-                                    })
-                                    .catch(() => {
-                                        this._persistIdentity(this.userEmail);
-                                        settle(true);
-                                    });
+                                // Do not call Drive "about" here. The drive.file scope is enough
+                                // for file operations, but it can still 403 on metadata endpoints
+                                // like /about, which creates noisy console errors after a valid login.
+                                this._persistIdentity(this.userEmail);
+                                settle(true);
                             } else {
                                 const responseDetail = response
                                     ? (response.error_description || response.error || JSON.stringify(response))
@@ -177,20 +173,6 @@
                     settle(false);
                 }
             });
-        }
-
-        _fetchUserEmail() {
-            if (!this.token) return Promise.resolve();
-            return fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
-                headers: { Authorization: 'Bearer ' + this.token }
-            })
-                .then((res) => res.ok ? res.json() : null)
-                .then((data) => {
-                    if (data && data.user && data.user.emailAddress) {
-                        this.userEmail = data.user.emailAddress;
-                    }
-                })
-                .catch(() => {});
         }
 
         ensureToken(callback) {

@@ -79,8 +79,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: ROOT_FOLDER_NAME,
-                    mimeType: MIME_FOLDER,
-                    parents: ['root']
+                    mimeType: MIME_FOLDER
                 })
             });
             if (!createRes.ok) {
