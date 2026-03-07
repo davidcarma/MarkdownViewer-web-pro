@@ -19,10 +19,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const driveAuth = new DriveAuth();
         if (!driveAuth.isAvailable()) return;
         const driveStorage = new DriveStorage(driveAuth);
-        const driveBrowser = new DriveBrowser(window.markdownEditor, driveAuth, driveStorage);
         window.markdownEditor.driveAuth = driveAuth;
         window.markdownEditor.driveStorage = driveStorage;
-        window.markdownEditor.driveBrowser = driveBrowser;
 
         const btn = document.getElementById('driveConnect');
         if (btn) {
