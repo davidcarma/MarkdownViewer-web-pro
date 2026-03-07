@@ -387,9 +387,9 @@ class FileOperations {
     _getContent() {
         let content = this.editor.editor.value;
         try {
-            if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
-                content = this.editor.imageCollapse.getPreviewContent();
-            }
+        if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
+            content = this.editor.imageCollapse.getPreviewContent();
+        }
         } catch (e) {
             console.warn('getPreviewContent failed; using raw editor content', e);
             content = this.editor.editor.value;
@@ -430,6 +430,7 @@ class FileOperations {
                 this.editor.setModified(false);
                 this.editor.autoSave?.();
                 this.editor.showNotification?.('Saved to Google Drive', 'success');
+                return true;
             } catch (err) {
                 console.warn('Drive save failed, saving locally', err);
                 const ok = await this._saveLocalCache();
@@ -438,9 +439,10 @@ class FileOperations {
                     this.editor.setModified(false);
                     this.editor.autoSave?.();
                     this.editor.showNotification?.('Saved locally; Drive sync failed', 'info');
+                    return true;
                 }
+                return false;
             }
-            return;
         }
 
         if (hasDriveId && !driveConnected) {
@@ -454,8 +456,9 @@ class FileOperations {
                     'info',
                     { dismissible: true }
                 );
+                return true;
             }
-            return;
+            return false;
         }
 
         const ok = await this._saveLocalCache();
@@ -464,7 +467,9 @@ class FileOperations {
             this.editor.setModified(false);
             this.editor.autoSave?.();
             this.editor.showNotification?.('Saved', 'success');
+            return true;
         }
+        return false;
     }
 
     saveFileWithDialog() {

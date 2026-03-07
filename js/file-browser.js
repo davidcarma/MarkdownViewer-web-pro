@@ -6,14 +6,14 @@ class FileBrowser {
     constructor(editor) {
         this.editor = editor;
     }
-
+    
     generateFileId(fileName) {
         return fileName
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '') || 'untitled-md';
     }
-
+    
     countWords(text) {
         return text.trim() ? text.trim().split(/\s+/).length : 0;
     }
@@ -33,7 +33,7 @@ class FileBrowser {
             this.editor.showNotification('Preview expansion failed - saving raw content', 'info');
             content = this.editor.editor.value;
         }
-
+        
         const fileId = this.generateFileId(this.editor.currentFileName);
         const now = new Date().toISOString();
         const fileData = {
@@ -52,7 +52,7 @@ class FileBrowser {
         if (this.editor.currentDriveFileId) {
             fileData.driveFileId = this.editor.currentDriveFileId;
         }
-
+        
         try {
             await this.editor.indexedDBManager.saveFile(fileData);
             if (this.editor.setActiveDocumentId) this.editor.setActiveDocumentId(fileId);
@@ -68,7 +68,7 @@ class FileBrowser {
             return false;
         }
     }
-
+    
     showUnsavedChangesDialog() {
         return new Promise((resolve) => {
             const modal = document.createElement('div');
@@ -89,21 +89,21 @@ class FileBrowser {
                     </div>
                 </div>
             `;
-
+            
             modal.addEventListener('click', (e) => {
                 if (e.target.classList.contains('modal-overlay')) {
                     document.body.removeChild(modal);
                     resolve('cancel');
                     return;
                 }
-
+                
                 const action = e.target.closest?.('[data-action]')?.getAttribute('data-action');
                 if (action) {
                     document.body.removeChild(modal);
                     resolve(action);
                 }
             });
-
+            
             document.body.appendChild(modal);
         });
     }

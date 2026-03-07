@@ -16,6 +16,13 @@
         return div.innerHTML;
     }
 
+    function truncateMiddle(text, startChars = 24, endChars = 10) {
+        if (!text) return '';
+        const value = String(text);
+        if (value.length <= startChars + endChars + 3) return value;
+        return value.slice(0, startChars) + '...' + value.slice(-endChars);
+    }
+
     function formatDate(dateString) {
         if (!dateString) return '';
         const date = new Date(dateString);
@@ -254,6 +261,16 @@
                 this.editor.editor.value !== this.editor.lastSavedContent);
         }
 
+        hasDocumentToClear() {
+            const content = this.editor.editor?.value || '';
+            const hasContent = content.trim().length > 0;
+            const currentName = (this.editor.currentFileName || '').trim();
+            const hasNamedDocument = !!currentName && currentName !== 'Untitled.md';
+            const hasDriveLink = !!this.editor.currentDriveFileId;
+            const hasActiveDocument = !!this.editor.getActiveDocumentId?.();
+            return hasContent || hasNamedDocument || hasDriveLink || hasActiveDocument;
+        }
+
         triggerDownload() {
             const content = this.getEditorContent();
             const blob = new Blob([content], { type: 'text/markdown' });
@@ -294,8 +311,12 @@
                 this.currentSource = sources[0]?.id || SOURCE_BROWSER;
             }
 
-            if (this.mode === 'new' && this.controller.hasUnsavedChanges()) {
-                this._showWithNewPrompt();
+            if (this.mode === 'new') {
+                if (this.controller.hasDocumentToClear()) {
+                    this._showWithNewPrompt();
+                } else {
+                    this._doNewFile();
+                }
                 return;
             }
 
@@ -314,11 +335,10 @@
 
             const promptHtml = showNewPrompt
                 ? `<div class="finder-prompt">
-                    <p>Save current document before creating a new file?</p>
+                    <p>Clear the current document?</p>
                     <div class="finder-prompt-actions">
-                        <button type="button" class="btn btn-primary btn-sm" data-prompt-action="save-browser">Save to Browser</button>
-                        <button type="button" class="btn btn-secondary btn-sm" data-prompt-action="download">Download</button>
-                        <button type="button" class="btn btn-danger btn-sm" data-prompt-action="discard">Discard</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-prompt-action="save-new">Save and Clear</button>
+                        <button type="button" class="btn btn-danger btn-sm" data-prompt-action="discard">Clear without Saving</button>
                         <button type="button" class="btn btn-secondary btn-sm" data-prompt-action="cancel">Cancel</button>
                     </div>
                   </div>`
@@ -327,25 +347,48 @@
             const sourceRailHtml = sources.map((s) => {
                 const active = s.id === this.currentSource ? ' active' : '';
                 const icon = s.id === SOURCE_DRIVE ? 'drive' : s.id === SOURCE_RECENT ? 'recent' : 'device';
-                return `<button type="button" class="finder-source-item${active}" data-source="${escapeHtml(s.id)}">
+                return `<button type="button" class="finder-source-item finder-source-item-${escapeHtml(icon)}${active}" data-source="${escapeHtml(s.id)}">
                     <span class="finder-source-icon">${icon === 'drive' ? '&#128190;' : icon === 'recent' ? '&#128336;' : '&#128187;'}</span>
-                    <span>${escapeHtml(s.label)}</span>
+                    <span class="finder-source-copy">
+                        <span class="finder-source-name">${escapeHtml(s.label)}</span>
+                        <span class="finder-source-note">${icon === 'drive' ? 'Cloud sync' : icon === 'recent' ? 'Quick access' : 'Local drafts'}</span>
+                    </span>
                 </button>`;
             }).join('');
 
-            const title = this.mode === 'open' ? 'Open' : this.mode === 'save' ? 'Save' : 'Files';
+            const title = this.mode === 'open' ? 'Open Files' : this.mode === 'save' ? 'Save Files' : 'Files';
+            const subtitle = this.mode === 'save'
+                ? 'Choose a destination and save the current document'
+                : this.mode === 'new'
+                    ? 'Start clean without losing your current work'
+                    : 'Browse local and Google Drive markdown files';
+            const connectionLabel = this.editor.driveAuth?.isConnected()
+                ? 'Drive connected'
+                : 'Browser only';
             this.modal = document.createElement('div');
             this.modal.className = 'finder-overlay';
             this.modal.innerHTML = `
                 <div class="finder-window">
                     <div class="finder-header">
-                        <h2 class="finder-title">${escapeHtml(title)}</h2>
+                        <div class="finder-header-copy">
+                            <h2 class="finder-title">${escapeHtml(title)}</h2>
+                            <div class="finder-subtitle">${escapeHtml(subtitle)}</div>
+                        </div>
+                        <div class="finder-header-meta">
+                            <span class="finder-connection-pill${this.editor.driveAuth?.isConnected() ? ' is-connected' : ''}">${escapeHtml(connectionLabel)}</span>
+                        </div>
                         <button type="button" class="finder-close" aria-label="Close">&times;</button>
                     </div>
                     ${promptHtml}
                     <div class="finder-body">
-                        <nav class="finder-source-rail">${sourceRailHtml}</nav>
-                        <div class="finder-tree-pane" id="finderTree"></div>
+                        <nav class="finder-source-rail">
+                            <div class="finder-pane-label">Locations</div>
+                            ${sourceRailHtml}
+                        </nav>
+                        <div class="finder-tree-pane">
+                            <div class="finder-pane-label">Folders</div>
+                            <div id="finderTree"></div>
+                        </div>
                         <div class="finder-main">
                             <div class="finder-command-bar">
                                 <button type="button" class="btn btn-sm btn-primary" id="finderNewFile">New File</button>
@@ -404,23 +447,18 @@
             });
 
             if (showNewPrompt) {
-                this.modal.querySelector('[data-prompt-action="save-browser"]').addEventListener('click', async () => {
-                    const ok = await this.controller.saveCurrentToBrowser();
+                this.modal.querySelector('[data-prompt-action="save-new"]').addEventListener('click', async () => {
+                    const ok = await this.editor.smartSave?.();
                     if (ok) {
                         this._doNewFile();
                     }
-                });
-                this.modal.querySelector('[data-prompt-action="download"]').addEventListener('click', () => {
-                    this.controller.triggerDownload();
-                    this._doNewFile();
                 });
                 this.modal.querySelector('[data-prompt-action="discard"]').addEventListener('click', () => this._doNewFile());
                 this.modal.querySelector('[data-prompt-action="cancel"]').addEventListener('click', () => this.close());
             }
 
             this.modal.querySelector('#finderNewFile').addEventListener('click', () => {
-                this.close();
-                this.editor.newFile?.();
+                this.show({ mode: 'new', initialSource: this.currentSource });
             });
 
             const newFolderBtn = this.modal.querySelector('#finderNewFolder');
@@ -535,27 +573,59 @@
                 listEl.innerHTML = '<div class="finder-empty"><p>No files here.</p><p>Use New File or Import from Disk.</p></div>';
                 return;
             }
-            listEl.innerHTML = files.map((f) => {
+            const headerHtml = `<div class="finder-list-header">
+                <div>Name</div>
+                <div>Preview</div>
+                <div>Modified</div>
+                <div>Source</div>
+            </div>`;
+            const rowsHtml = files.map((f) => {
                 const meta = f.source === SOURCE_DRIVE
                     ? formatDate(f.modified)
                     : formatDate(f.modified) + ' · ' + formatSize(f.size);
-                const selected = this.selectedFile && this.selectedFile.id === f.id && this.selectedFile.source === f.source ? ' selected' : '';
                 const isFolder = !!f.isFolder;
                 const actionHtml = isFolder
                     ? ''
                     : `<div class="finder-file-actions">
-                        <button type="button" class="btn-icon-small" data-action="open" title="Open">Open</button>
-                        <button type="button" class="btn-icon-small btn-danger" data-action="delete" title="Delete">Delete</button>
+                        <button type="button" class="finder-file-delete" data-action="delete" title="Delete file" aria-label="Delete file">
+                            &times;
+                        </button>
                     </div>`;
-                return `<button type="button" class="finder-file-row${selected}" data-file-id="${escapeHtml(f.id)}" data-file-name="${escapeHtml(f.name || '')}" data-source="${escapeHtml(f.source || '')}" data-is-drive="${f.isDrive ? '1' : '0'}" data-is-folder="${isFolder ? '1' : '0'}">
-                    <span class="finder-file-icon">${isFolder ? '&#128193;' : '&#128196;'}</span>
-                    <div class="finder-file-info">
-                        <div class="finder-file-name">${escapeHtml(f.name || 'Untitled.md')}</div>
-                        <div class="finder-file-meta">${escapeHtml(meta)}</div>
+                const rowClass = isFolder ? ' is-folder' : ' is-file';
+                const iconBadgeClass = isFolder ? ' is-folder' : (f.source === SOURCE_DRIVE ? ' is-drive' : ' is-browser');
+                const metaPrefix = isFolder ? 'Folder' : (f.source === SOURCE_DRIVE ? 'Google Drive' : 'Browser');
+                const preview = isFolder
+                    ? 'Open this folder to view its contents'
+                    : f.source === SOURCE_DRIVE
+                        ? 'Markdown file stored in Google Drive'
+                        : ((f.content || '').replace(/\s+/g, ' ').trim().slice(0, 72) || 'Markdown document');
+                const displayName = truncateMiddle(f.name || 'Untitled.md', 24, 10);
+                const sourceChipClass = isFolder
+                    ? ' is-folder'
+                    : (f.source === SOURCE_DRIVE ? ' is-drive' : ' is-browser');
+                const directionHtml = isFolder
+                    ? '<div class="finder-file-direction" aria-hidden="true">&#8250;</div>'
+                    : '';
+                return `<div class="finder-file-row${rowClass}" role="button" tabindex="0" data-file-id="${escapeHtml(f.id)}" data-file-name="${escapeHtml(f.name || '')}" data-source="${escapeHtml(f.source || '')}" data-is-drive="${f.isDrive ? '1' : '0'}" data-is-folder="${isFolder ? '1' : '0'}">
+                    <div class="finder-file-col finder-file-col-name">
+                        <span class="finder-file-icon-badge${iconBadgeClass}">
+                            <span class="finder-file-icon">${isFolder ? '&#128193;' : '&#128196;'}</span>
+                        </span>
+                        <div class="finder-file-info">
+                            <div class="finder-file-name" title="${escapeHtml(f.name || 'Untitled.md')}">${escapeHtml(displayName)}</div>
+                            <div class="finder-file-meta">${escapeHtml(isFolder ? 'Directory' : (f.wordCount ? f.wordCount + ' words' : metaPrefix))}</div>
+                        </div>
                     </div>
-                    ${actionHtml}
-                </button>`;
+                    <div class="finder-file-col finder-file-col-preview">${escapeHtml(preview)}</div>
+                    <div class="finder-file-col finder-file-col-modified">${escapeHtml(meta)}</div>
+                    <div class="finder-file-col finder-file-col-source">
+                        <span class="finder-file-source-chip${sourceChipClass}">${escapeHtml(metaPrefix)}</span>
+                        ${directionHtml}
+                        ${actionHtml}
+                    </div>
+                </div>`;
             }).join('');
+            listEl.innerHTML = headerHtml + rowsHtml;
 
             listEl.querySelectorAll('.finder-file-row').forEach((row) => {
                 const isFolder = row.getAttribute('data-is-folder') === '1';
@@ -569,30 +639,27 @@
                         this._refreshStatus();
                         return;
                     }
-                    this.selectedFile = {
-                        id: row.getAttribute('data-file-id'),
-                        name: row.getAttribute('data-file-name'),
-                        source: row.getAttribute('data-source'),
-                        isDrive: row.getAttribute('data-is-drive') === '1'
-                    };
-                    this._refreshFileList();
+                    this._openRow(row);
                 });
-                const openBtn = row.querySelector('[data-action="open"]');
-                if (openBtn) {
-                    openBtn.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        await this._openRow(row);
-                    });
-                }
+                row.addEventListener('keydown', async (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    if (isFolder) {
+                        this.currentFolderId = row.getAttribute('data-file-id');
+                        this.driveBreadcrumb.push({ id: this.currentFolderId, name: row.getAttribute('data-file-name') || '' });
+                        this._refreshTree();
+                        this._refreshFileList();
+                        this._refreshStatus();
+                        return;
+                    }
+                    await this._openRow(row);
+                });
                 const deleteBtn = row.querySelector('[data-action="delete"]');
                 if (deleteBtn) {
                     deleteBtn.addEventListener('click', async (e) => {
                         e.stopPropagation();
                         await this._deleteRow(row);
                     });
-                }
-                if (!isFolder) {
-                    row.addEventListener('dblclick', async () => this._openRow(row));
                 }
             });
         }
@@ -678,11 +745,13 @@
         }
 
         _doNewFile() {
-            const promptEl = this.modal.querySelector('.finder-prompt');
+            const promptEl = this.modal ? this.modal.querySelector('.finder-prompt') : null;
             if (promptEl) promptEl.remove();
             this.editor.editor.value = '';
             this.editor.setDocumentTitle('Untitled.md');
             this.editor.currentDriveFileId = null;
+            this.editor.lastSavedContent = '';
+            this.editor.setActiveDocumentId?.(null);
             this.editor.setModified(false);
             this.editor.updatePreview?.();
             this.editor.updateStats?.();

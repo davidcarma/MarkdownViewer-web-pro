@@ -18,6 +18,7 @@ Enforcement:
 - **`js/app.js`** constructs `window.markdownEditor = new MarkdownEditor()` and wires modules:
   - `FileBrowser`, `EditorEvents`, `PaneResizer`
   - image paste, image collapse, syntax overlay, drag/drop
+  - `EditorMinimap`, `PreviewMinimap` (both panes get a Sublime-style canvas minimap)
 
 ## Rendering pipeline (editor → preview)
 
@@ -33,7 +34,19 @@ After markdown is rendered to HTML, `js/core.js` applies:
 - **Syntax highlighting** via `highlight.js` (best effort). Note: highlight may log security warnings for unescaped HTML inside code blocks; this is informational.
 - **Mermaid**: code fences tagged `mermaid` are replaced by rendered diagrams.
   - **Invariant**: when mermaid replaces DOM nodes, the diagram container **must preserve** `data-line` / `data-line-end` copied from the original block, otherwise scroll sync drifts.
-- **KaTeX**: math rendering via `katex-auto-render` (if configured/used).
+  - A click handler is attached to each diagram container to open the diagram viewer (zoom/pan/copy SVG).
+- **KaTeX**: math rendering via `katex-auto-render`. Inline math delimited by `$...$`, block math by `$$...$$`.
+
+## Minimap
+
+`js/minimap.js` provides two classes:
+
+- **`EditorMinimap`**: renders a scaled-down canvas representation of the textarea content (text characters, approximate line colours).
+- **`PreviewMinimap`**: scans the rendered preview DOM and draws proportional block representations for headings, paragraphs, code fences, images, tables, and Mermaid diagrams.
+
+Both share a viewport slider that can be clicked or dragged to navigate. Colors are sampled from CSS variables to match the active theme.
+
+**Invariant**: minimap renders must not trigger editor re-renders or affect the scroll sync state.
 
 ## Scroll synchronization (current design)
 

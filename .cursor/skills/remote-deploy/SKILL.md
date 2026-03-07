@@ -33,13 +33,20 @@ bash check-deployment.sh
 
 All items must show green.
 
-### 3. Update build info
+### 3. Ensure git hooks are installed
 
 ```bash
-bash build.sh
+bash scripts/install-git-hooks.sh
 ```
 
-Regenerates `build-info.js` with current git hash and timestamp.
+Installs the local `pre-push` hook from `githooks/pre-push`.
+
+The hook automatically:
+- captures the feature/deploy commit hash you actually want to verify
+- regenerates `build-info.js` for that hash
+- creates a second commit: `Build: update deployed hash <first-commit-hash>`
+
+This keeps the UI showing the first pushed commit, not the follow-up stamp commit.
 
 ### 4. Commit and push
 
@@ -48,6 +55,11 @@ git add -A
 git commit -m "Deploy: <brief summary of changes>"
 git push origin main
 ```
+
+Important:
+- Do **not** run `bash build.sh` manually right before push unless you explicitly want an extra manual build-info commit.
+- The working tree should be clean before `git push`, otherwise the `pre-push` hook will stop the push to avoid mixing unrelated files into the auto-generated stamp commit.
+- Expect `git push` to create one extra local commit automatically when `build-info.js` needs updating.
 
 GitHub Pages auto-deploys from `main` branch root.
 
@@ -75,7 +87,7 @@ Open **https://markdownpro.eyesondash.com** and hard-refresh (`Cmd+Shift+R`).
 | Root | `/` (project root) |
 | Domain | `markdownpro.eyesondash.com` (CNAME file) |
 | SSL | Enforced by GitHub Pages |
-| Build | Static — `build.sh` generates version stamp only |
+| Build | Static — `pre-push` hook stamps `build-info.js` using `build.sh` |
 
 ## Rollback
 
@@ -90,6 +102,7 @@ git push origin main
 | Symptom | Fix |
 |---------|-----|
 | Site not updating | Wait 3 min, hard-refresh. Check Actions tab for build status. |
+| Build hash looks stale | Confirm `scripts/install-git-hooks.sh` was run and that the `pre-push` hook created the extra `Build: update deployed hash ...` commit. |
 | 404 on files | `git ls-files <path>` to verify tracked. Check case sensitivity. |
 | Custom domain gone | Ensure `CNAME` contains `markdownpro.eyesondash.com` and is committed. |
 | Mixed content | No `http://` refs allowed — all assets are vendored locally. |

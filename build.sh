@@ -1,22 +1,27 @@
 #!/bin/bash
 
 # Build script for Markdown Pro
-# Generates build-info.js with current git commit hash
+# Generates build-info.js for a target git commit hash.
+# Usage:
+#   bash build.sh
+#   bash build.sh <commit-ish>
 
 echo "🔨 Building Markdown Pro..."
 
+TARGET_COMMIT="${1:-HEAD}"
+
 # Get git commit hash (short version)
-GIT_HASH=$(git rev-parse --short HEAD)
-GIT_HASH_FULL=$(git rev-parse HEAD)
+GIT_HASH=$(git rev-parse --short "$TARGET_COMMIT")
+GIT_HASH_FULL=$(git rev-parse "$TARGET_COMMIT")
 BUILD_DATE=$(date +"%Y-%m-%d %H:%M:%S")
 
 echo "📦 Build: $GIT_HASH"
 echo "📅 Date: $BUILD_DATE"
 
-# Generate build-info.js with current commit hash
+# Generate build-info.js with target commit hash
 cat > build-info.js << EOF
 // Auto-generated build information
-// This file is updated automatically on each commit
+// This file is updated automatically on deploy push
 window.BUILD_INFO = {
     hash: '$GIT_HASH',
     hashFull: '$GIT_HASH_FULL',
