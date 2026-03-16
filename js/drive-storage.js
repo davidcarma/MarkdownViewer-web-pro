@@ -11,11 +11,15 @@
     const MIME_FOLDER = 'application/vnd.google-apps.folder';
     const MIME_MARKDOWN = 'text/markdown';
     const STORAGE_KEY_ROOT_FOLDER_ID = 'markdownpro_drive_root_folder_id';
+    const STORAGE_KEY_ROOT_FOLDER_LOCK = 'markdownpro_drive_root_folder_lock';
+    const ROOT_FOLDER_LOCK_TTL_MS = 15000;
+    const ROOT_FOLDER_LOCK_WAIT_MS = 20000;
 
     class DriveStorage {
         constructor(driveAuth) {
             this.driveAuth = driveAuth;
             this._rootFolderId = null;
+            this._rootFolderPromise = null;
         }
 
         getToken() {
@@ -59,12 +63,76 @@
             } catch (_) {}
         }
 
+        _getRootFolderLock() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_ROOT_FOLDER_LOCK);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                return parsed && parsed.owner && parsed.expiresAt ? parsed : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        _setRootFolderLock(lock) {
+            try {
+                if (lock) localStorage.setItem(STORAGE_KEY_ROOT_FOLDER_LOCK, JSON.stringify(lock));
+                else localStorage.removeItem(STORAGE_KEY_ROOT_FOLDER_LOCK);
+            } catch (_) {}
+        }
+
+        _isRootFolderLockActive(lock) {
+            return !!(lock && lock.expiresAt && lock.expiresAt > Date.now());
+        }
+
+        _sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        async _withRootFolderLock(task) {
+            const owner = 'mdpro-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+            const deadline = Date.now() + ROOT_FOLDER_LOCK_WAIT_MS;
+
+            while (Date.now() < deadline) {
+                const current = this._getRootFolderLock();
+                if (!this._isRootFolderLockActive(current)) {
+                    const lock = { owner, expiresAt: Date.now() + ROOT_FOLDER_LOCK_TTL_MS };
+                    this._setRootFolderLock(lock);
+                    const confirmed = this._getRootFolderLock();
+                    if (confirmed && confirmed.owner === owner) {
+                        try {
+                            return await task();
+                        } finally {
+                            const latest = this._getRootFolderLock();
+                            if (latest && latest.owner === owner) {
+                                this._setRootFolderLock(null);
+                            }
+                        }
+                    }
+                }
+                await this._sleep(250);
+            }
+
+            return task();
+        }
+
         /**
          * With drive.file scope we cannot list the user's root folder (403).
          * We create the Markdown-pro folder once and persist its ID so we never need to list root.
          */
         async ensureRootFolder() {
             if (this._rootFolderId) return this._rootFolderId;
+            if (this._rootFolderPromise) return this._rootFolderPromise;
+
+            this._rootFolderPromise = this._ensureRootFolderImpl();
+            try {
+                return await this._rootFolderPromise;
+            } finally {
+                this._rootFolderPromise = null;
+            }
+        }
+
+        async _ensureRootFolderImpl() {
             const token = this.getToken();
             if (!token) throw new Error('Not connected to Drive');
 
@@ -78,37 +146,61 @@
                 this._setStoredRootFolderId(null);
             }
 
-            // Reuse an accessible Markdown-pro folder if one already exists.
-            // With drive.file we cannot enumerate My Drive root reliably, but we can
-            // search among files/folders this app can already access. This helps us
-            // recover older Markdown-pro roots instead of creating a fresh empty one.
-            const existingFolderId = await this._findExistingRootFolder();
-            if (existingFolderId) {
-                this._rootFolderId = existingFolderId;
-                this._setStoredRootFolderId(existingFolderId);
-                return this._rootFolderId;
-            }
+            return this._withRootFolderLock(async () => {
+                const lockedStoredId = this._getStoredRootFolderId();
+                if (lockedStoredId) {
+                    const ok = await this._validateFolderId(lockedStoredId);
+                    if (ok) {
+                        this._rootFolderId = lockedStoredId;
+                        return this._rootFolderId;
+                    }
+                    this._setStoredRootFolderId(null);
+                }
 
-            const createRes = await this._fetch(DRIVE_API + '/files', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: ROOT_FOLDER_NAME,
-                    mimeType: MIME_FOLDER
-                })
+                // Reuse an accessible Markdown-pro folder if one already exists.
+                // With drive.file we cannot enumerate My Drive root reliably, but we can
+                // search among files/folders this app can already access. This helps us
+                // recover older Markdown-pro roots instead of creating a fresh empty one.
+                const rootResolution = await this._resolveRootFolderCandidates();
+                if (rootResolution) {
+                    this._rootFolderId = rootResolution.id;
+                    this._setStoredRootFolderId(rootResolution.id);
+                    return this._rootFolderId;
+                }
+
+                const createRes = await this._fetch(DRIVE_API + '/files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: ROOT_FOLDER_NAME,
+                        mimeType: MIME_FOLDER
+                    })
+                });
+                if (!createRes.ok) {
+                    const err = new Error('Drive create folder failed: ' + createRes.status);
+                    err.status = createRes.status;
+                    throw err;
+                }
+                const createData = await createRes.json();
+                this._rootFolderId = createData.id;
+                this._setStoredRootFolderId(this._rootFolderId);
+                return this._rootFolderId;
             });
-            if (!createRes.ok) {
-                const err = new Error('Drive create folder failed: ' + createRes.status);
-                err.status = createRes.status;
-                throw err;
-            }
-            const createData = await createRes.json();
-            this._rootFolderId = createData.id;
-            this._setStoredRootFolderId(this._rootFolderId);
-            return this._rootFolderId;
         }
 
-        async _findExistingRootFolder() {
+        async _resolveRootFolderCandidates() {
+            const candidates = await this._getRootFolderCandidates();
+            if (candidates.length === 0) return null;
+
+            const canonical = this._selectCanonicalRootFolder(candidates);
+            const duplicates = candidates.filter((candidate) => candidate.id !== canonical.id);
+            if (duplicates.length > 0) {
+                await this._mergeDuplicateRootFolders(canonical, duplicates);
+            }
+            return canonical;
+        }
+
+        async _getRootFolderCandidates() {
             const q = [
                 "name = '" + ROOT_FOLDER_NAME.replace(/'/g, "\\'") + "'",
                 "mimeType = '" + MIME_FOLDER + "'",
@@ -116,22 +208,88 @@
             ].join(' and ');
             const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,modifiedTime,createdTime)&orderBy=modifiedTime desc&spaces=drive';
             const res = await this._fetch(url);
-            if (!res.ok) return null;
+            if (!res.ok) return [];
 
             const data = await res.json();
             const candidates = data.files || [];
-            if (candidates.length === 0) return null;
+            if (candidates.length === 0) return [];
 
+            const withChildren = [];
+            for (const candidate of candidates) {
+                withChildren.push({
+                    ...candidate,
+                    childCount: await this._countChildren(candidate.id)
+                });
+            }
+            return withChildren;
+        }
+
+        _selectCanonicalRootFolder(candidates) {
             // Prefer a candidate that already has visible children, which is more likely
             // to be the user's existing Markdown-pro root rather than a newly created empty one.
             for (const candidate of candidates) {
-                const childCount = await this._countChildren(candidate.id);
-                if (childCount > 0) {
-                    return candidate.id;
+                if (candidate.childCount > 0) {
+                    return candidate;
                 }
             }
 
-            return candidates[0].id;
+            return candidates[0];
+        }
+
+        async _mergeDuplicateRootFolders(canonical, duplicates) {
+            let duplicateIndex = 2;
+            for (const duplicate of duplicates) {
+                const duplicateChildren = await this.listFiles(duplicate.id, false);
+                if (duplicateChildren.length === 0) {
+                    await this.deleteFile(duplicate.id);
+                    duplicateIndex += 1;
+                    continue;
+                }
+
+                const existingNames = await this.listFiles(canonical.id, false).then((items) => items.map((item) => item.name));
+                const mergeFolderName = this._getUniqueChildName(existingNames, ROOT_FOLDER_NAME + ' ' + duplicateIndex);
+                const mergeFolder = await this.createFolder(canonical.id, mergeFolderName);
+
+                for (const child of duplicateChildren) {
+                    await this._moveItemToFolder(child.id, mergeFolder.id);
+                }
+
+                await this.deleteFile(duplicate.id);
+                duplicateIndex += 1;
+            }
+        }
+
+        _getUniqueChildName(existingNames, preferredName) {
+            const taken = new Set((existingNames || []).map((name) => String(name || '')));
+            if (!taken.has(preferredName)) return preferredName;
+            let index = 2;
+            while (taken.has(preferredName + ' (' + index + ')')) {
+                index += 1;
+            }
+            return preferredName + ' (' + index + ')';
+        }
+
+        async _moveItemToFolder(itemId, newParentId) {
+            const metaRes = await this._fetch(DRIVE_API + '/files/' + encodeURIComponent(itemId) + '?fields=id,parents');
+            if (!metaRes.ok) {
+                const err = new Error('Drive get parents failed: ' + metaRes.status);
+                err.status = metaRes.status;
+                throw err;
+            }
+            const meta = await metaRes.json();
+            const parentIds = (meta.parents || []).filter(Boolean);
+            const removeParents = parentIds.join(',');
+            const query = '?addParents=' + encodeURIComponent(newParentId) + (removeParents ? '&removeParents=' + encodeURIComponent(removeParents) : '');
+            const moveRes = await this._fetch(DRIVE_API + '/files/' + encodeURIComponent(itemId) + query, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            if (!moveRes.ok) {
+                const err = new Error('Drive move failed: ' + moveRes.status);
+                err.status = moveRes.status;
+                throw err;
+            }
         }
 
         async _countChildren(folderId) {

@@ -250,6 +250,47 @@
             }
         }
 
+        async moveBrowserFileToDrive(file, folderId) {
+            if (!file || !this.editor.driveStorage) {
+                throw new Error('Google Drive is not available');
+            }
+            const currentActiveId = this.editor.getActiveDocumentId?.();
+            const currentGeneratedId = this.editor.fileBrowser?.generateFileId(this.editor.currentFileName || '');
+            const isActiveFile = file.id === currentActiveId || (!!currentGeneratedId && file.id === currentGeneratedId);
+            const name = isActiveFile && (this.editor.currentFileName || '').trim()
+                ? this.editor.currentFileName
+                : (file.name || 'Untitled.md');
+            const content = isActiveFile
+                ? this.getEditorContent()
+                : (file.content || '');
+            const targetFolderId = folderId || await this.editor.driveStorage.ensureRootFolder();
+            const existing = await this.editor.driveStorage.listFiles(targetFolderId).then((items) => items.find((f) => !f.isFolder && f.name === name));
+
+            let driveFileId = null;
+            if (existing) {
+                await this.editor.driveStorage.updateFile(existing.id, content);
+                driveFileId = existing.id;
+            } else {
+                const created = await this.editor.driveStorage.createFile(targetFolderId, name, content);
+                driveFileId = created.id;
+            }
+
+            if (this.editor.indexedDBManager) {
+                await this.editor.indexedDBManager.deleteFile(file.id);
+            }
+
+            if (isActiveFile) {
+                this.editor.currentDriveFileId = driveFileId;
+                this.editor.currentFileName = name;
+                this.editor.setDocumentTitle?.(name);
+                this.editor.lastSavedContent = content;
+                this.editor.setModified?.(false);
+                this.editor.setActiveDocumentId?.(null);
+            }
+
+            return { id: driveFileId, name: name };
+        }
+
         async deleteDriveFile(fileId) {
             await this.editor.driveStorage.deleteFile(fileId);
         }
@@ -298,6 +339,14 @@
             this.selectedFile = null;
             this.driveBreadcrumb = [];
             this._escapeHandler = null;
+        }
+
+        _closeFileMenus(exceptMenu) {
+            if (!this.modal) return;
+            this.modal.querySelectorAll('.finder-file-menu.is-open').forEach((menu) => {
+                if (exceptMenu && menu === exceptMenu) return;
+                menu.classList.remove('is-open');
+            });
         }
 
         show(options = {}) {
@@ -417,6 +466,8 @@
 
             this.modal.querySelector('.finder-close').addEventListener('click', () => this.close());
             this.modal.addEventListener('click', (e) => {
+                const fileMenu = e.target.closest ? e.target.closest('.finder-file-menu') : null;
+                if (!fileMenu) this._closeFileMenus();
                 if (e.target === this.modal) this.close();
             });
             this._escapeHandler = (e) => {
@@ -584,9 +635,22 @@
                     ? formatDate(f.modified)
                     : formatDate(f.modified) + ' · ' + formatSize(f.size);
                 const isFolder = !!f.isFolder;
+                const canMoveToDrive = !isFolder &&
+                    f.source !== SOURCE_DRIVE &&
+                    !!(this.editor.driveAuth?.isConnected() && this.editor.driveStorage);
                 const actionHtml = isFolder
                     ? ''
                     : `<div class="finder-file-actions">
+                        ${canMoveToDrive ? `<div class="finder-file-menu">
+                            <button type="button" class="finder-file-move" data-action="move-menu" title="Move options" aria-label="Move options">
+                                &#8599;
+                            </button>
+                            <div class="finder-file-popup-menu">
+                                <button type="button" class="finder-file-popup-item" data-action="move-to-drive" title="Move file to Google Drive root">
+                                    Move to Google Drive
+                                </button>
+                            </div>
+                        </div>` : ''}
                         <button type="button" class="finder-file-delete" data-action="delete" title="Delete file" aria-label="Delete file">
                             &times;
                         </button>
@@ -661,6 +725,23 @@
                         await this._deleteRow(row);
                     });
                 }
+                const moveMenuBtn = row.querySelector('[data-action="move-menu"]');
+                if (moveMenuBtn) {
+                    moveMenuBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const menu = moveMenuBtn.closest('.finder-file-menu');
+                        const willOpen = !menu.classList.contains('is-open');
+                        this._closeFileMenus(menu);
+                        menu.classList.toggle('is-open', willOpen);
+                    });
+                }
+                const moveToDriveBtn = row.querySelector('[data-action="move-to-drive"]');
+                if (moveToDriveBtn) {
+                    moveToDriveBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        await this._moveRowToDrive(row);
+                    });
+                }
             });
         }
 
@@ -695,6 +776,22 @@
             this._refreshFileList();
             this._refreshStatus();
             this.editor.showNotification?.('Deleted', 'success');
+        }
+
+        async _moveRowToDrive(row) {
+            const id = row.getAttribute('data-file-id');
+            const files = await this.controller.getFileList(this.currentSource, this.currentFolderId);
+            const file = files.find((item) => item.id === id);
+            if (!file) return;
+            try {
+                this._closeFileMenus();
+                const moved = await this.controller.moveBrowserFileToDrive(file);
+                this._refreshFileList();
+                this._refreshStatus();
+                this.editor.showNotification?.('Moved to Google Drive: ' + moved.name, 'success');
+            } catch (err) {
+                this.editor.showNotification?.('Could not move to Google Drive: ' + (err && err.message ? err.message : 'error'), 'error');
+            }
         }
 
         async _onSaveHere() {

@@ -16,7 +16,7 @@
     'use strict';
 
     const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-    const DRIVE_CLIENT_ID = '1024951916599-b6ku30grv851i9hcssn4ml9u1dqq84de.apps.googleusercontent.com';
+    const DRIVE_CLIENT_ID = '1024951916599-iindkjk3tnmdffir4qm9ahe1hnfrlmi4.apps.googleusercontent.com';
     const STORAGE_KEY_LAST_EMAIL = 'markdownpro-drive-last-email';
     const STORAGE_KEY_LAST_AT = 'markdownpro-drive-last-at';
     const STORAGE_KEY_RECONNECT = 'markdownpro-drive-reconnect';
