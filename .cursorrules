@@ -15,12 +15,13 @@ Optional cloud integrations (Google Drive, GitHub, etc.) may make external API c
 
 ### Production analytics exception
 
-Google Analytics may load automatically on the production site **only** if all of the following are true:
+Google Analytics may be used on the production site **only** if all of the following are true:
 
 1. **Production-only** - analytics must not load on localhost, file URLs, or non-production preview hosts.
-2. **No feature dependency** - the editor and file system must continue working fully without analytics.
-3. **Async only** - analytics scripts must load asynchronously and must not block page render.
-4. **Privacy disclosure** - the site's privacy page must disclose analytics usage and the provider.
+2. **Explicit consent first** - analytics must stay off until the user explicitly accepts analytics tracking.
+3. **No feature dependency** - the editor and file system must continue working fully without analytics.
+4. **Async only** - analytics scripts must load asynchronously and must not block page render.
+5. **Privacy disclosure** - the site's privacy page must disclose analytics usage, consent behavior, and the provider.
 
 ### Currently permitted external endpoints
 

@@ -190,6 +190,64 @@
     text-decoration: underline;
 }
 
+.legal-link-button {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: pointer;
+}
+
+.legal-link-button:hover {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+.analytics-consent-banner {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 2000;
+    width: min(420px, calc(100vw - 2rem));
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--bg-secondary);
+    box-shadow: var(--shadow-lg);
+}
+
+.analytics-consent-banner[hidden] {
+    display: none;
+}
+
+.analytics-consent-title {
+    margin: 0 0 0.35rem;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.analytics-consent-copy {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.analytics-consent-copy a {
+    color: var(--accent-color);
+}
+
+.analytics-consent-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.9rem;
+}
+
 .file-status {
     color: var(--warning-color);
     font-weight: bold;
