@@ -1,0 +1,46 @@
+---
+description: Privacy and secrets scan - run before every commit/push to this PUBLIC repo
+alwaysApply: true
+---
+
+# Privacy & Secrets Policy (Public Repo)
+
+This repo is public (`github.com/davidcarma/MarkdownViewer-web-pro`). Any personal info or secret committed is permanently visible.
+
+## Before Every Commit or Push
+
+Run the mandatory scan:
+
+```bash
+bash scripts/privacy-scan.sh
+```
+
+**If it exits non-zero, stop. Fix every violation before committing.**
+
+## What the Scan Checks
+
+1. **Tracked files** - personal paths, emails, custom identifiers from `.privacy-patterns`
+2. **Git commit metadata** - author/committer email must be `*noreply@github.com`
+3. **Staged diff** - newly added lines that match private patterns
+4. **Secrets** - `api_key`, `secret_key`, `password`, `private_key`, `AWS_SECRET`, `GITHUB_TOKEN` assignments
+
+## Patterns That Must Never Appear in Tracked Files
+
+- `/Users/<name>/` or `/home/<name>/` or `C:\Users\` (local filesystem paths)
+- Personal email addresses (`@gmail.com`, `@icloud.com`, etc.)
+- Project-specific names/emails defined in `.privacy-patterns` (gitignored - kept locally only)
+- API keys, tokens, passwords, or any secret values
+
+## Fixing Violations
+
+- **File content**: remove the sensitive line and amend or add a new commit
+- **Commit metadata (wrong email)**: use `git-filter-repo --mailmap <mailmap-file>` then force-push
+- **Secrets accidentally committed**: rotate the secret immediately, then scrub history
+
+## .privacy-patterns (gitignored)
+
+Add project-specific regex patterns (one per line) to `.privacy-patterns` at the repo root. This file is gitignored and never committed - it only runs locally during the scan.
+
+## Deployment
+
+The remote-deploy skill (`scripts/privacy-scan.sh`) runs this scan as step 1. Never skip it.

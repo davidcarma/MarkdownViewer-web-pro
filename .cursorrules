@@ -2,11 +2,25 @@
 
 - **No external runtime dependencies**: do not load JS/CSS/fonts from CDNs (no `http(s)://` in `<script src>`, `<link href>`, or CSS `@import`).
 - **Vendored libraries only**: any third-party runtime library must be committed into this repo and referenced via relative paths.
-- **Offline-first**: app should run locally with **zero network access** (no background fetches to external APIs for app functionality).
+- **Offline-first**: core editor must run locally with **zero network access**. No background fetches for app functionality.
 
-## Permitted external scripts (Google auth infrastructure)
+## Cloud integrations (permitted external calls)
 
-- **https://accounts.google.com/gsi/client** - Google Identity Services OAuth library. Used for optional Drive integration. Loaded async/defer; app degrades gracefully if unavailable (Drive button hidden).
+Optional cloud integrations (Google Drive, GitHub, etc.) may make external API calls **provided**:
+
+1. **Serverless only** - all API calls happen directly from the browser. No backend server, proxy, or cloud function required.
+2. **Graceful degradation** - the app works fully offline; integration UI is hidden or disabled when unavailable.
+3. **User-initiated** - network calls only happen after an explicit user action (sign in, open, save). No silent background fetches.
+4. **Auth libraries loaded async/defer** - external auth scripts (e.g., Google GIS) must not block page load.
+
+### Currently permitted external endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `https://accounts.google.com/gsi/client` | Google Identity Services OAuth (Drive integration) |
+| `https://github.com/login/device/code` | GitHub device-flow auth |
+| `https://github.com/login/oauth/access_token` | GitHub device-flow token exchange |
+| `https://api.github.com/*` | GitHub REST API (repos, gists, contents) |
 
 
 

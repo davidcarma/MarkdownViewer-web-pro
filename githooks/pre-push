@@ -1,0 +1,37 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+BUILD_PREFIX="Build: update deployed hash"
+HEAD_SUBJECT="$(git log -1 --format=%s)"
+
+# Avoid infinite stamp commits on push retries.
+if [[ "$HEAD_SUBJECT" == "$BUILD_PREFIX"* ]]; then
+    echo "pre-push: HEAD is already a build stamp commit, skipping auto-stamp."
+    exit 0
+fi
+
+# We only auto-create the stamp commit when the tree is otherwise clean.
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "pre-push: working tree is not clean."
+    echo "pre-push: commit or stash your other changes before pushing so the build stamp commit stays isolated."
+    exit 1
+fi
+
+TARGET_FULL="$(git rev-parse HEAD)"
+TARGET_SHORT="$(git rev-parse --short HEAD)"
+
+echo "pre-push: stamping deployed commit $TARGET_SHORT"
+bash "$ROOT_DIR/build.sh" "$TARGET_FULL"
+
+if git diff --quiet -- build-info.js; then
+    echo "pre-push: build-info.js already matches $TARGET_SHORT"
+    exit 0
+fi
+
+git add build-info.js
+git commit -m "$BUILD_PREFIX $TARGET_SHORT"
+
+echo "pre-push: added build stamp commit for deployed hash $TARGET_SHORT"

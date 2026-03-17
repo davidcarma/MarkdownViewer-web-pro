@@ -1,0 +1,21 @@
+---
+description: Prefer clean rebuilds over fallback-heavy replacements
+alwaysApply: true
+---
+
+# Clean Rebuilds
+
+When replacing or redesigning an existing subsystem, remove the superseded code instead of keeping the old path around "just in case".
+
+- Do not keep legacy fallbacks unless the user explicitly asks for backward compatibility.
+- Do not leave dead UI paths, unused helpers, duplicate controllers, or obsolete event wiring after a rebuild.
+- If a new implementation replaces an old one, update all callers to the new path and delete the old path in the same task when safe.
+- Prefer a temporary stub only when needed to avoid breaking unrelated code during an in-progress refactor. Remove it before finishing.
+- Before ending the task, search for lingering references to the replaced code and clean them up.
+
+Examples:
+
+```text
+Bad: add NewFileSystem(), but keep OldFileBrowser.showModal(), old save dialogs, and old script includes.
+Good: switch all callers to NewFileSystem(), remove old browser/dialog code, and delete obsolete files/includes.
+```

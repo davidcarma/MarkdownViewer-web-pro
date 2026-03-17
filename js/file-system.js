@@ -461,7 +461,16 @@
                     this._refreshTree();
                     this._refreshFileList();
                     this._refreshStatus();
-                }).catch(() => {});
+                }).catch((err) => {
+                    this.currentSource = SOURCE_BROWSER;
+                    this._refreshSources(sources);
+                    this._refreshTree();
+                    this._refreshFileList();
+                    this.editor.showNotification?.(
+                        'Could not load Google Drive. ' + (err && err.message ? err.message : 'Please reconnect.'),
+                        'error'
+                    );
+                });
             }
 
             this.modal.querySelector('.finder-close').addEventListener('click', () => this.close());
@@ -488,7 +497,13 @@
                             const rootId = await this.editor.driveStorage.ensureRootFolder();
                             this.driveBreadcrumb = [{ id: rootId, name: 'Markdown-pro' }];
                             this.currentFolderId = rootId;
-                        } catch (_) {}
+                        } catch (err) {
+                            this.currentSource = SOURCE_BROWSER;
+                            this.editor.showNotification?.(
+                                'Could not load Google Drive. ' + (err && err.message ? err.message : 'Please reconnect.'),
+                                'error'
+                            );
+                        }
                     }
                     this._refreshSources(sources);
                     this._refreshTree();
@@ -797,6 +812,13 @@
         async _onSaveHere() {
             try {
                 if (this.currentSource === SOURCE_DRIVE) {
+                    if (!this.editor.driveAuth?.isConnected()) {
+                        this.editor.showNotification?.(
+                            'Google Drive is not connected. Please reconnect first.',
+                            'error'
+                        );
+                        return;
+                    }
                     await this.controller.saveCurrentToDriveFolder(this.currentFolderId);
                     this.editor.showNotification?.('Saved to Google Drive', 'success');
                 } else {

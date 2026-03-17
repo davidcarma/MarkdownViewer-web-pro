@@ -43,7 +43,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             };
             updateDriveButton();
-            // Try to restore Drive silently on load if the browser still has a Google session.
+
+            window.addEventListener('drive-auth-changed', () => updateDriveButton());
+
             if (!driveAuth.isConnected() && driveAuth.shouldAttemptReconnect?.()) {
                 driveAuth.silentConnect().then((result) => {
                     updateDriveButton();

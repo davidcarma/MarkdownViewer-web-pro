@@ -34,7 +34,7 @@
             };
         }
 
-        async _fetch(url, options = {}) {
+        async _fetch(url, options = {}, _retried) {
             const headers = this._headers();
             if (!headers) return Promise.reject(new Error('Not connected to Drive'));
             const merged = {
@@ -42,8 +42,14 @@
                 headers: { ...headers, ...(options.headers || {}) }
             };
             const res = await fetch(url, merged);
-            if (res.status === 401 && this.driveAuth) {
+            if (res.status === 401 && this.driveAuth && !_retried) {
                 this.driveAuth.invalidateSession();
+                if (typeof this.driveAuth.refreshToken === 'function') {
+                    const refreshed = await this.driveAuth.refreshToken();
+                    if (refreshed && refreshed.ok) {
+                        return this._fetch(url, options, true);
+                    }
+                }
             }
             return res;
         }

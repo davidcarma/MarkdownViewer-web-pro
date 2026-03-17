@@ -1,8 +1,8 @@
 /**
  * Google Drive authentication via Google Identity Services (GIS).
- * Access token is persisted in localStorage (with expiry) so the connection
- * survives page refresh until the token expires. Disconnect or token expiry
- * clears the stored token. Graceful degradation if window.google is unavailable.
+ * Once the user connects, the session is kept alive indefinitely by
+ * silently refreshing the access token before it expires. Only an
+ * explicit disconnect (user action) ends the session.
  *
  * Security: Only the OAuth access token and expiry are stored; no refresh token.
  * The host "signs" the app: whoever hosts the site creates an OAuth 2.0 client
@@ -30,9 +30,12 @@
             this.userEmail = null;
             this.tokenClient = null;
             this._connecting = false;
+            this._refreshing = false;
             this._lastError = null;
+            this._expiryTimer = null;
             this._loadPersistedIdentity();
             this._loadPersistedSession();
+            if (this.token) this._startExpiryWatch();
         }
 
         _loadPersistedIdentity() {
@@ -84,6 +87,75 @@
             } catch (_) {}
         }
 
+        _getExpiresAt() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_TOKEN_EXPIRES_AT);
+                return raw ? parseInt(raw, 10) : 0;
+            } catch (_) {
+                return 0;
+            }
+        }
+
+        _startExpiryWatch() {
+            this._stopExpiryWatch();
+            this._expiryTimer = setInterval(() => {
+                if (!this.token && !this.shouldAttemptReconnect()) {
+                    this._stopExpiryWatch();
+                    return;
+                }
+                if (!this.token) {
+                    this._tryAutoRefresh();
+                    return;
+                }
+                const expiresAt = this._getExpiresAt();
+                if (!expiresAt) return;
+                const remaining = expiresAt - Date.now();
+                if (remaining <= 300000) {
+                    this._tryAutoRefresh();
+                }
+            }, 30000);
+        }
+
+        _stopExpiryWatch() {
+            if (this._expiryTimer) {
+                clearInterval(this._expiryTimer);
+                this._expiryTimer = null;
+            }
+        }
+
+        async _tryAutoRefresh() {
+            if (this._refreshing || this._connecting) return;
+            this._refreshing = true;
+            try {
+                await this.refreshToken();
+            } finally {
+                this._refreshing = false;
+            }
+        }
+
+        /**
+         * Attempt to obtain a fresh token silently. The previous token is
+         * restored if the silent request fails so callers can still use
+         * whatever time remains on the old token.
+         */
+        async refreshToken() {
+            const previousToken = this.token;
+            this.token = null;
+            const result = await this._requestToken({ interactive: false });
+            if (!result.ok && previousToken) {
+                this.token = previousToken;
+            }
+            return result;
+        }
+
+        _notifyAuthChange() {
+            try {
+                window.dispatchEvent(new CustomEvent('drive-auth-changed', {
+                    detail: { connected: this.isConnected() }
+                }));
+            } catch (_) {}
+        }
+
         _setReconnectPreference(enabled) {
             try {
                 if (enabled) localStorage.setItem(STORAGE_KEY_RECONNECT, '1');
@@ -132,15 +204,23 @@
             this.userEmail = null;
             this.tokenClient = null;
             this._connecting = false;
+            this._refreshing = false;
             this._lastError = null;
+            this._stopExpiryWatch();
             this._clearPersistedSession();
             this._setReconnectPreference(false);
+            this._notifyAuthChange();
         }
 
-        /** Call when the token is rejected (e.g. 401). Clears in-memory and stored token so reconnect is required. */
+        /**
+         * Call when the token is rejected (e.g. 401). Clears the current
+         * token but keeps the expiry watch running so background refresh
+         * can restore the connection automatically.
+         */
         invalidateSession() {
             this.token = null;
             this._clearPersistedSession();
+            this._notifyAuthChange();
         }
 
         getLastError() {
@@ -205,11 +285,10 @@
                                 this._lastError = null;
                                 this.token = response.access_token;
                                 this._persistSession(response.access_token, response.expires_in);
-                                // Do not call Drive "about" here. The drive.file scope is enough
-                                // for file operations, but it can still 403 on metadata endpoints
-                                // like /about, which creates noisy console errors after a valid login.
                                 this._setReconnectPreference(true);
                                 this._persistIdentity(this.userEmail);
+                                this._startExpiryWatch();
+                                this._notifyAuthChange();
                                 settle(true);
                             } else {
                                 const responseDetail = response

@@ -1,0 +1,12 @@
+---
+description: Interpret GCP requests as referring to the GCP MCP service by default
+alwaysApply: true
+---
+
+# GCP Means MCP Service
+
+When the user refers to `GCP`, `Google Cloud`, or `Google Cloud Platform`, default to the GCP MCP service if one is available for the task.
+
+- Treat `GCP` as meaning the MCP service first, not browser inspection, `gcloud`, or generic web research.
+- If the relevant GCP MCP service is unavailable, insufficient for the task, or not enabled in the current workspace, explicitly clarify that before proceeding.
+- Do not silently switch to browser, shell, or other non-MCP approaches for GCP tasks unless the user asks for that fallback or agrees after clarification.

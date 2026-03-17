@@ -438,7 +438,11 @@ class FileOperations {
                     this.editor.lastSavedContent = content;
                     this.editor.setModified(false);
                     this.editor.autoSave?.();
-                    this.editor.showNotification?.('Saved locally; Drive sync failed', 'info');
+                    const isAuthIssue = !this.editor.driveAuth?.isConnected();
+                    const msg = isAuthIssue
+                        ? 'Saved locally. Drive is reconnecting - try again shortly.'
+                        : 'Saved locally; Drive sync failed.';
+                    this.editor.showNotification?.(msg, 'info', { dismissible: true });
                     return true;
                 }
                 return false;
