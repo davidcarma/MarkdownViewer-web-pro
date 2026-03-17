@@ -3,7 +3,7 @@
     "gcp": {
       "command": "python3",
       "args": [
-        "/Users/davidsaliba/code/MarkdownViewer-web-pro/tools/gcp-mcp/server.py"
+        "tools/gcp-mcp/server.py"
       ]
     }
   }
