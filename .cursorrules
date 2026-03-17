@@ -13,11 +13,23 @@ Optional cloud integrations (Google Drive, GitHub, etc.) may make external API c
 3. **User-initiated** - network calls only happen after an explicit user action (sign in, open, save). No silent background fetches.
 4. **Auth libraries loaded async/defer** - external auth scripts (e.g., Google GIS) must not block page load.
 
+### Production analytics exception
+
+Google Analytics may load automatically on the production site **only** if all of the following are true:
+
+1. **Production-only** - analytics must not load on localhost, file URLs, or non-production preview hosts.
+2. **No feature dependency** - the editor and file system must continue working fully without analytics.
+3. **Async only** - analytics scripts must load asynchronously and must not block page render.
+4. **Privacy disclosure** - the site's privacy page must disclose analytics usage and the provider.
+
 ### Currently permitted external endpoints
 
 | Endpoint | Purpose |
 |----------|---------|
 | `https://accounts.google.com/gsi/client` | Google Identity Services OAuth (Drive integration) |
+| `https://www.googletagmanager.com/gtag/js` | Google Analytics tag loader for the production site |
+| `https://www.google-analytics.com/*` | Google Analytics event collection |
+| `https://region1.google-analytics.com/*` | Regional Google Analytics event collection |
 | `https://github.com/login/device/code` | GitHub device-flow auth |
 | `https://github.com/login/oauth/access_token` | GitHub device-flow token exchange |
 | `https://api.github.com/*` | GitHub REST API (repos, gists, contents) |

@@ -61,6 +61,7 @@ for file in \
     "js/events.js" \
     "js/file-browser.js" \
     "js/file-operations.js" \
+    "js/analytics.js" \
     "js/drive-auth.js" \
     "js/drive-storage.js" \
     "js/file-system.js" \
@@ -83,8 +84,9 @@ done
 echo ""
 echo "🔒 Checking for external runtime dependencies (scripts/styles from http(s)://)..."
 
-# Whitelist: Google Identity Services (Drive integration; app degrades if unavailable)
+# Whitelist: Google Identity Services and Google Analytics production loader
 GIS_WHITELIST="accounts.google.com/gsi/client"
+GA_SCRIPT_WHITELIST="www.googletagmanager.com/gtag/js"
 if grep -RInE "<script[^>]+src=[\"']https?://|<link[^>]+href=[\"']https?://" index.html >/dev/null 2>&1; then
     BAD_LINES=$(grep -nE "<script[^>]+src=[\"']https?://|<link[^>]+href=[\"']https?://" index.html | grep -v "$GIS_WHITELIST" || true)
     if [ -n "$BAD_LINES" ]; then
@@ -107,9 +109,14 @@ else
 fi
 
 if grep -RInE "script\\.src[[:space:]]*=[[:space:]]*[\"']https?://" js index.html >/dev/null 2>&1; then
-    echo "  ❌ External dynamic script injection found (NO CDNs allowed)"
-    grep -RIn "script\.src[[:space:]]*=[[:space:]]*[\"']https\?://" js index.html | head -n 20
-    error=1
+    BAD_DYNAMIC=$(grep -RInE "script\.src[[:space:]]*=[[:space:]]*[\"']https?://" js index.html | grep -v "$GA_SCRIPT_WHITELIST" || true)
+    if [ -n "$BAD_DYNAMIC" ]; then
+        echo "  ❌ External dynamic script injection found (only $GA_SCRIPT_WHITELIST is allowed)"
+        echo "$BAD_DYNAMIC" | head -n 20
+        error=1
+    else
+        echo "  ✅ Only whitelisted Google Analytics dynamic loader found"
+    fi
 else
     echo "  ✅ No external dynamic script injection"
 fi
