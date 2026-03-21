@@ -1292,6 +1292,27 @@ class MarkdownEditor {
                 personBorder: '#60a5fa',
                 personBkg: '#111827',
 
+                // Pie charts
+                pie1: '#60a5fa',
+                pie2: '#2dd4bf',
+                pie3: '#fbbf24',
+                pie4: '#fb7185',
+                pie5: '#34d399',
+                pie6: '#a78bfa',
+                pie7: '#f97316',
+                pie8: '#22d3ee',
+                pie9: '#f472b6',
+                pie10: '#a3e635',
+                pie11: '#818cf8',
+                pie12: '#e879f9',
+                pieSectionTextColor: '#0f172a',
+                pieSectionTextSize: '14px',
+                pieTitleTextColor: '#e5e7eb',
+                pieLegendTextColor: '#e5e7eb',
+                pieStrokeColor: '#1e293b',
+                pieStrokeWidth: '1px',
+                pieOpacity: '0.9',
+
                 // XY Charts (xychart-beta)
                 xyChart: {
                     backgroundColor: 'transparent',
