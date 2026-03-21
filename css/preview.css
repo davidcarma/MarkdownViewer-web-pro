@@ -311,17 +311,69 @@
     text-align: center;
 }
 
-/* Pan/zoom viewport */
+/* Pan/zoom viewport - locked by default (scroll passes through to page) */
 .mermaid-viewport {
     overflow: hidden;
-    cursor: grab;
+    cursor: default;
     min-height: 120px;
     max-height: 70vh;
     position: relative;
     padding: 1rem;
+    transition: box-shadow 0.2s ease;
 }
-.mermaid-viewport:active {
+
+/* "Click to zoom" hint overlay */
+.mermaid-viewport::after {
+    content: 'Click to zoom & pan';
+    position: absolute;
+    bottom: 10px;
+    right: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    z-index: 2;
+}
+.mermaid-viewport:hover::after {
+    opacity: 1;
+}
+
+/* Active (zoom/pan enabled) */
+.mermaid-viewport.zoom-active {
+    cursor: grab;
+    box-shadow: inset 0 0 0 2px var(--accent-color, #3b82f6);
+}
+.mermaid-viewport.zoom-active:active {
     cursor: grabbing;
+}
+.mermaid-viewport.zoom-active::after {
+    content: 'Zoom active - scroll to zoom, drag to pan';
+    opacity: 1;
+    background: var(--accent-color, #3b82f6);
+}
+.mermaid-viewport.zoom-active:hover::after {
+    opacity: 1;
+}
+
+[data-theme="dark"] .mermaid-viewport::after {
+    background: rgba(255,255,255,0.18);
+    color: #e5e7eb;
+}
+[data-theme="dark"] .mermaid-viewport.zoom-active::after {
+    background: #60a5fa;
+    color: #0f172a;
+}
+[data-theme="gwyneth"] .mermaid-viewport.zoom-active {
+    box-shadow: inset 0 0 0 2px #a78bfa;
+}
+[data-theme="gwyneth"] .mermaid-viewport.zoom-active::after {
+    background: #a78bfa;
+    color: #fff;
 }
 
 .mermaid-inner {

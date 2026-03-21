@@ -1744,19 +1744,65 @@ class MarkdownEditor {
         // State
         let scale = 1, panX = 0, panY = 0, dragging = false, lastX = 0, lastY = 0;
         const MIN_SCALE = 0.25, MAX_SCALE = 5;
+        const IDLE_TIMEOUT_MS = 10000;
+        let zoomActive = false;
+        let idleTimer = null;
 
         const applyTransform = () => {
             inner.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
             zoomLabel.textContent = `${Math.round(scale * 100)}%`;
         };
 
-        // Zoom buttons
-        btnZoomIn.addEventListener('click',  () => { scale = Math.min(MAX_SCALE, scale * 1.25); applyTransform(); });
-        btnZoomOut.addEventListener('click', () => { scale = Math.max(MIN_SCALE, scale / 1.25); applyTransform(); });
-        btnReset.addEventListener('click',   () => { scale = 1; panX = 0; panY = 0; applyTransform(); });
+        const resetIdleTimer = () => {
+            clearTimeout(idleTimer);
+            if (zoomActive) {
+                idleTimer = setTimeout(deactivateZoom, IDLE_TIMEOUT_MS);
+            }
+        };
 
-        // Mouse wheel zoom (centered on cursor)
+        const activateZoom = () => {
+            if (zoomActive) return;
+            zoomActive = true;
+            viewport.classList.add('zoom-active');
+            resetIdleTimer();
+        };
+
+        const deactivateZoom = () => {
+            if (!zoomActive) return;
+            zoomActive = false;
+            dragging = false;
+            viewport.classList.remove('zoom-active');
+            clearTimeout(idleTimer);
+        };
+
+        // Click on viewport to activate zoom/pan mode
+        viewport.addEventListener('click', (e) => {
+            if (e.target.closest('.mermaid-toolbar')) return;
+            if (zoomActive) return;
+            activateZoom();
+        });
+
+        // Deactivate when mouse leaves the diagram entirely
+        container.addEventListener('mouseleave', () => {
+            deactivateZoom();
+        });
+
+        // Deactivate on any click outside this container
+        document.addEventListener('mousedown', (e) => {
+            if (!zoomActive) return;
+            if (!container.contains(e.target)) {
+                deactivateZoom();
+            }
+        }, true);
+
+        // Zoom buttons always work (they're explicit user intent)
+        btnZoomIn.addEventListener('click',  () => { activateZoom(); scale = Math.min(MAX_SCALE, scale * 1.25); applyTransform(); resetIdleTimer(); });
+        btnZoomOut.addEventListener('click', () => { activateZoom(); scale = Math.max(MIN_SCALE, scale / 1.25); applyTransform(); resetIdleTimer(); });
+        btnReset.addEventListener('click',   () => { scale = 1; panX = 0; panY = 0; applyTransform(); deactivateZoom(); });
+
+        // Mouse wheel: only zoom when active, otherwise let page scroll
         viewport.addEventListener('wheel', (e) => {
+            if (!zoomActive) return;
             e.preventDefault();
             const rect = viewport.getBoundingClientRect();
             const mx = e.clientX - rect.left;
@@ -1769,13 +1815,15 @@ class MarkdownEditor {
             panX = mx - ratio * (mx - panX);
             panY = my - ratio * (my - panY);
             applyTransform();
+            resetIdleTimer();
         }, { passive: false });
 
-        // Pan via mouse drag
+        // Pan via mouse drag: only when active
         viewport.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return;
+            if (!zoomActive || e.button !== 0) return;
             dragging = true; lastX = e.clientX; lastY = e.clientY;
             viewport.style.cursor = 'grabbing';
+            e.preventDefault();
         });
         window.addEventListener('mousemove', (e) => {
             if (!dragging) return;
@@ -1783,6 +1831,7 @@ class MarkdownEditor {
             panY += e.clientY - lastY;
             lastX = e.clientX; lastY = e.clientY;
             applyTransform();
+            resetIdleTimer();
         });
         window.addEventListener('mouseup', () => {
             if (!dragging) return;
@@ -1790,17 +1839,18 @@ class MarkdownEditor {
             viewport.style.cursor = '';
         });
 
-        // Touch pan (single finger) + pinch zoom (two fingers)
+        // Touch: two-finger pinch always activates, single-finger pan only when active
         let lastTouches = null;
         viewport.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1) {
-                lastTouches = [{ x: e.touches[0].clientX, y: e.touches[0].clientY }];
-            } else if (e.touches.length === 2) {
+            if (e.touches.length === 2) {
+                activateZoom();
                 lastTouches = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+            } else if (e.touches.length === 1 && zoomActive) {
+                lastTouches = [{ x: e.touches[0].clientX, y: e.touches[0].clientY }];
             }
         }, { passive: true });
         viewport.addEventListener('touchmove', (e) => {
-            if (!lastTouches) return;
+            if (!lastTouches || !zoomActive) return;
             e.preventDefault();
             if (e.touches.length === 1 && lastTouches.length === 1) {
                 panX += e.touches[0].clientX - lastTouches[0].x;
@@ -1821,6 +1871,7 @@ class MarkdownEditor {
                 lastTouches = cur;
             }
             applyTransform();
+            resetIdleTimer();
         }, { passive: false });
         viewport.addEventListener('touchend', () => { lastTouches = null; }, { passive: true });
 
