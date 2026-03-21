@@ -1290,7 +1290,22 @@ class MarkdownEditor {
 
                 // ER / misc
                 personBorder: '#60a5fa',
-                personBkg: '#111827'
+                personBkg: '#111827',
+
+                // XY Charts (xychart-beta)
+                xyChart: {
+                    backgroundColor: 'transparent',
+                    titleColor: '#e5e7eb',
+                    xAxisTitleColor: '#94a3b8',
+                    xAxisLabelColor: '#94a3b8',
+                    xAxisTickColor: '#475569',
+                    xAxisLineColor: '#475569',
+                    yAxisTitleColor: '#94a3b8',
+                    yAxisLabelColor: '#94a3b8',
+                    yAxisTickColor: '#475569',
+                    yAxisLineColor: '#475569',
+                    plotColorPalette: '#60a5fa,#2dd4bf,#fbbf24,#fb7185,#34d399,#a78bfa,#f97316,#22d3ee,#f472b6,#a3e635'
+                }
             };
         } else if (currentTheme === 'gwyneth') {
             mermaidConfig.themeVariables = {
@@ -1343,7 +1358,22 @@ class MarkdownEditor {
                 critBkgColor: '#fecdd3',
                 todayLineColor: '#fbbf24',
                 personBorder: '#a78bfa',
-                personBkg: '#e9d5ff'
+                personBkg: '#e9d5ff',
+
+                // XY Charts (xychart-beta)
+                xyChart: {
+                    backgroundColor: 'transparent',
+                    titleColor: '#1e293b',
+                    xAxisTitleColor: '#6b21a8',
+                    xAxisLabelColor: '#6b21a8',
+                    xAxisTickColor: '#c084fc',
+                    xAxisLineColor: '#c084fc',
+                    yAxisTitleColor: '#6b21a8',
+                    yAxisLabelColor: '#6b21a8',
+                    yAxisTickColor: '#c084fc',
+                    yAxisLineColor: '#c084fc',
+                    plotColorPalette: '#8b5cf6,#c084fc,#d946ef,#6366f1,#a855f7,#ec4899,#818cf8,#e879f9,#7c3aed,#f472b6'
+                }
             };
         } else {
             // Light theme
@@ -1397,7 +1427,22 @@ class MarkdownEditor {
                 critBkgColor: '#fca5a5',
                 todayLineColor: '#fbbf24',
                 personBorder: '#3b82f6',
-                personBkg: '#dbeafe'
+                personBkg: '#dbeafe',
+
+                // XY Charts (xychart-beta)
+                xyChart: {
+                    backgroundColor: 'transparent',
+                    titleColor: '#0f172a',
+                    xAxisTitleColor: '#334155',
+                    xAxisLabelColor: '#334155',
+                    xAxisTickColor: '#94a3b8',
+                    xAxisLineColor: '#94a3b8',
+                    yAxisTitleColor: '#334155',
+                    yAxisLabelColor: '#334155',
+                    yAxisTickColor: '#94a3b8',
+                    yAxisLineColor: '#94a3b8',
+                    plotColorPalette: '#3b82f6,#10b981,#f59e0b,#ef4444,#8b5cf6,#ec4899,#14b8a6,#f97316,#6366f1,#84cc16'
+                }
             };
         }
 
