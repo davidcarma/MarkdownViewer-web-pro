@@ -2513,7 +2513,19 @@ class MarkdownEditor {
             /^\s*pie/i,
             /^\s*gitgraph/i,
             /^\s*erDiagram/i,
-            /^\s*mindmap/i
+            /^\s*mindmap/i,
+            /^\s*xychart-beta/i,
+            /^\s*timeline/i,
+            /^\s*sankey-beta/i,
+            /^\s*block-beta/i,
+            /^\s*quadrantChart/i,
+            /^\s*requirementDiagram/i,
+            /^\s*C4Context/i,
+            /^\s*C4Container/i,
+            /^\s*C4Component/i,
+            /^\s*C4Deployment/i,
+            /^\s*zenuml/i,
+            /^\s*packet-beta/i
         ];
         
         return validStartPatterns.some(pattern => pattern.test(code));
