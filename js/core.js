@@ -2508,6 +2508,30 @@ class MarkdownEditor {
         // Wait for all diagrams to be processed
         await Promise.all(promises);
     }
+
+    /**
+     * Mermaid allows optional %%{init:...}%% lines before the diagram keyword.
+     * Strip leading blank lines and full-line %%{...}%% directives so validation
+     * and diagram-type detection see the real first line (stateDiagram-v2, etc.).
+     */
+    _stripLeadingMermaidDirectives(code) {
+        if (!code) return '';
+        const lines = code.split('\n');
+        let i = 0;
+        while (i < lines.length) {
+            const t = lines[i].trim();
+            if (t === '') {
+                i++;
+                continue;
+            }
+            if (t.startsWith('%%{') && t.endsWith('%%')) {
+                i++;
+                continue;
+            }
+            break;
+        }
+        return lines.slice(i).join('\n');
+    }
     
     sanitizeMermaidCode(code) {
         // Security: Remove dangerous HTML/scripts
@@ -2521,8 +2545,9 @@ class MarkdownEditor {
         code = code.replace(/\r\n/g, '\n');
         code = code.trim();
         
-        // Detect diagram type from first meaningful line to apply targeted fixes
-        const firstLine = code.split('\n').find(l => l.trim().length > 0) || '';
+        // Detect diagram type from first non-directive line (skip %%{init:...}%%)
+        const bodyForType = this._stripLeadingMermaidDirectives(code);
+        const firstLine = bodyForType.split('\n').find(l => l.trim().length > 0) || '';
         const isStateDiagram = /^\s*stateDiagram/i.test(firstLine);
         const isFlowchart = /^\s*(graph|flowchart)\s/i.test(firstLine);
 
@@ -2617,6 +2642,8 @@ class MarkdownEditor {
     isValidMermaidCode(code) {
         // Minimal validation - let Mermaid's parser do the heavy lifting
         if (!code || code.length < 5) return false;
+        const body = this._stripLeadingMermaidDirectives(code);
+        if (!body || body.trim().length < 5) return false;
         
         // Check for basic Mermaid diagram types
         const validStartPatterns = [
@@ -2645,7 +2672,7 @@ class MarkdownEditor {
             /^\s*packet-beta/i
         ];
         
-        return validStartPatterns.some(pattern => pattern.test(code));
+        return validStartPatterns.some(pattern => pattern.test(body));
     }
     
     async printFile() {
