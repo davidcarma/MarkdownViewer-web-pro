@@ -2532,6 +2532,48 @@ class MarkdownEditor {
         }
         return lines.slice(i).join('\n');
     }
+
+    /**
+     * Rule generators and soft wraps sometimes break `style` lines so `color:` ends
+     * one line and `#rrggbb` continues on the next. Mermaid then fails to parse.
+     * Merge those continuations when the block is clearly a style line.
+     */
+    _mergeBrokenMermaidStyleLines(code) {
+        const rawLines = code.split('\n');
+        const out = [];
+        for (let i = 0; i < rawLines.length; ) {
+            let line = rawLines[i];
+            let j = i;
+            while (j + 1 < rawLines.length) {
+                const tEnd = line.replace(/\s+$/, '');
+                const nextLine = rawLines[j + 1];
+                const nextTrim = nextLine.trim();
+                const isStyleCtx = /(?:^|\s)style\s+/i.test(line);
+                if (
+                    isStyleCtx &&
+                    /(?:color|stroke|fill):\s*$/i.test(tEnd) &&
+                    /^#[0-9a-fA-F]{3,8}$/.test(nextTrim)
+                ) {
+                    line = tEnd + nextTrim;
+                    j++;
+                    continue;
+                }
+                if (
+                    isStyleCtx &&
+                    /#[0-9a-fA-F]{1,5}$/.test(tEnd) &&
+                    /^[0-9a-fA-F]{1,4}$/.test(nextTrim)
+                ) {
+                    line = tEnd + nextTrim;
+                    j++;
+                    continue;
+                }
+                break;
+            }
+            out.push(line);
+            i = j + 1;
+        }
+        return out.join('\n');
+    }
     
     sanitizeMermaidCode(code) {
         // Security: Remove dangerous HTML/scripts
@@ -2544,12 +2586,19 @@ class MarkdownEditor {
         // Normalize whitespace
         code = code.replace(/\r\n/g, '\n');
         code = code.trim();
+        code = this._mergeBrokenMermaidStyleLines(code);
         
         // Detect diagram type from first non-directive line (skip %%{init:...}%%)
         const bodyForType = this._stripLeadingMermaidDirectives(code);
         const firstLine = bodyForType.split('\n').find(l => l.trim().length > 0) || '';
         const isStateDiagram = /^\s*stateDiagram/i.test(firstLine);
         const isFlowchart = /^\s*(graph|flowchart)\s/i.test(firstLine);
+
+        // stateDiagram-v2 does not support the `style` directive (flowchart-only).
+        // Convert `style <id> <props>` into classDef/class pairs.
+        if (isStateDiagram) {
+            code = this._convertStateDiagramStyleToClassDef(code);
+        }
 
         // Process line-by-line for label quoting (stateDiagram + flowchart)
         if (isStateDiagram || isFlowchart) {
@@ -2568,12 +2617,44 @@ class MarkdownEditor {
     }
 
     /**
-     * stateDiagram-v2 transition labels are the #1 source of parse errors.
-     * Pattern: `StateA --> StateB : label text`
-     * Even quoted labels break if they contain /, :, —, etc.
-     * Always sanitize the label content regardless of quoting.
+     * Convert flowchart-style `style <id> <props>` lines (unsupported in
+     * stateDiagram-v2) into `classDef`/`class` pairs that the parser accepts.
+     * Each unique property string gets its own classDef; duplicate props share one.
      */
+    _convertStateDiagramStyleToClassDef(code) {
+        const lines = code.split('\n');
+        const stylePattern = /^(\s*)style\s+(\S+)\s+(.+)$/;
+        const propToName = new Map();
+        let counter = 0;
+        const classDefs = [];
+        const classAssigns = [];
+
+        const out = [];
+        for (const line of lines) {
+            const m = line.match(stylePattern);
+            if (!m) {
+                out.push(line);
+                continue;
+            }
+            const indent = m[1];
+            const stateId = m[2];
+            const props = m[3].trim();
+
+            let className = propToName.get(props);
+            if (!className) {
+                className = `_autoStyle${counter++}`;
+                propToName.set(props, className);
+                classDefs.push(`${indent}classDef ${className} ${props}`);
+            }
+            classAssigns.push(`${indent}class ${stateId} ${className}`);
+        }
+        return [...out, ...classDefs, ...classAssigns].join('\n');
+    }
+
     _sanitizeStateDiagramLine(line) {
+        if (/^\s*style\s+/i.test(line) || /^\s*classDef\s+/i.test(line) || /^\s*class\s+/i.test(line)) {
+            return line;
+        }
         const m = line.match(/^(\s*\S+\s+-->\s+\S+\s*:\s*)(.+)$/);
         if (!m) return line;
 

@@ -609,6 +609,39 @@
     transform: scale(1.03);
 }
 
+.finder-file-check {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.finder-file-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+    margin: 0;
+}
+
+.finder-file-row.is-selected {
+    background: color-mix(in srgb, var(--accent-color) 10%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--accent-color) 30%, var(--border-color));
+}
+
+.finder-file-row.is-selected:hover {
+    background: color-mix(in srgb, var(--accent-color) 14%, var(--bg-primary));
+}
+
+.finder-status-bar .btn {
+    font-size: 0.76rem;
+    padding: 0.38rem 0.72rem;
+    border-radius: 10px;
+}
+
 .finder-status-bar {
     display: flex;
     align-items: center;

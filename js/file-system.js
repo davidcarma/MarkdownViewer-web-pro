@@ -339,6 +339,7 @@
             this.selectedFile = null;
             this.driveBreadcrumb = [];
             this._escapeHandler = null;
+            this._selectedIds = new Set();
         }
 
         _closeFileMenus(exceptMenu) {
@@ -354,6 +355,7 @@
             this.currentSource = options.initialSource || (this.editor.driveAuth?.isConnected() ? SOURCE_DRIVE : SOURCE_BROWSER);
             this.currentFolderId = 'root';
             this.selectedFile = null;
+            this._selectedIds.clear();
 
             const sources = this.controller.getSources();
             if (!sources.some((s) => s.id === this.currentSource)) {
@@ -443,6 +445,7 @@
                                 <button type="button" class="btn btn-sm btn-primary" id="finderNewFile">New File</button>
                                 ${this.currentSource === SOURCE_DRIVE ? '<button type="button" class="btn btn-sm btn-secondary" id="finderNewFolder">New Folder</button>' : ''}
                                 <button type="button" class="btn btn-sm btn-secondary" id="finderImport">Import from Disk</button>
+                                <button type="button" class="btn btn-sm btn-secondary" id="finderSaveToDisk">Save to Disk</button>
                                 ${this.mode === 'save' ? '<button type="button" class="btn btn-sm btn-primary" id="finderSaveHere">Save current file here</button>' : ''}
                                 <input type="text" class="finder-search" id="finderSearch" placeholder="Search..." autocomplete="off">
                             </div>
@@ -505,6 +508,7 @@
                             );
                         }
                     }
+                    this._selectedIds.clear();
                     this._refreshSources(sources);
                     this._refreshTree();
                     this._refreshFileList();
@@ -541,6 +545,11 @@
             if (saveHereBtn) {
                 saveHereBtn.addEventListener('click', () => this._onSaveHere());
             }
+
+            this.modal.querySelector('#finderSaveToDisk').addEventListener('click', () => {
+                this.controller.triggerDownload();
+                this.close();
+            });
 
             const searchInput = this.modal.querySelector('#finderSearch');
             if (searchInput) {
@@ -653,6 +662,9 @@
                 const canMoveToDrive = !isFolder &&
                     f.source !== SOURCE_DRIVE &&
                     !!(this.editor.driveAuth?.isConnected() && this.editor.driveStorage);
+                const checkboxHtml = canMoveToDrive
+                    ? `<label class="finder-file-check" onclick="event.stopPropagation()"><input type="checkbox" class="finder-file-checkbox" data-check-id="${escapeHtml(f.id)}"${this._selectedIds.has(f.id) ? ' checked' : ''}></label>`
+                    : '';
                 const actionHtml = isFolder
                     ? ''
                     : `<div class="finder-file-actions">
@@ -670,7 +682,7 @@
                             &times;
                         </button>
                     </div>`;
-                const rowClass = isFolder ? ' is-folder' : ' is-file';
+                const rowClass = isFolder ? ' is-folder' : (' is-file' + (this._selectedIds.has(f.id) ? ' is-selected' : ''));
                 const iconBadgeClass = isFolder ? ' is-folder' : (f.source === SOURCE_DRIVE ? ' is-drive' : ' is-browser');
                 const metaPrefix = isFolder ? 'Folder' : (f.source === SOURCE_DRIVE ? 'Google Drive' : 'Browser');
                 const preview = isFolder
@@ -687,6 +699,7 @@
                     : '';
                 return `<div class="finder-file-row${rowClass}" role="button" tabindex="0" data-file-id="${escapeHtml(f.id)}" data-file-name="${escapeHtml(f.name || '')}" data-source="${escapeHtml(f.source || '')}" data-is-drive="${f.isDrive ? '1' : '0'}" data-is-folder="${isFolder ? '1' : '0'}">
                     <div class="finder-file-col finder-file-col-name">
+                        ${checkboxHtml}
                         <span class="finder-file-icon-badge${iconBadgeClass}">
                             <span class="finder-file-icon">${isFolder ? '&#128193;' : '&#128196;'}</span>
                         </span>
@@ -757,7 +770,27 @@
                         await this._moveRowToDrive(row);
                     });
                 }
+                const checkbox = row.querySelector('.finder-file-checkbox');
+                if (checkbox) {
+                    checkbox.addEventListener('change', () => {
+                        const fid = checkbox.getAttribute('data-check-id');
+                        if (checkbox.checked) {
+                            this._selectedIds.add(fid);
+                            row.classList.add('is-selected');
+                        } else {
+                            this._selectedIds.delete(fid);
+                            row.classList.remove('is-selected');
+                        }
+                        this._refreshBatchBar();
+                    });
+                }
             });
+
+            const visibleIds = new Set(files.filter((f) => !f.isFolder && f.source !== SOURCE_DRIVE).map((f) => f.id));
+            for (const id of this._selectedIds) {
+                if (!visibleIds.has(id)) this._selectedIds.delete(id);
+            }
+            this._refreshBatchBar();
         }
 
         async _openRow(row) {
@@ -807,6 +840,43 @@
             } catch (err) {
                 this.editor.showNotification?.('Could not move to Google Drive: ' + (err && err.message ? err.message : 'error'), 'error');
             }
+        }
+
+        _refreshBatchBar() {
+            const statusEl = this.modal?.querySelector('#finderStatus');
+            if (!statusEl) return;
+            const count = this._selectedIds.size;
+            if (count === 0) {
+                this._refreshStatus();
+                return;
+            }
+            statusEl.innerHTML =
+                '<span>' + count + ' file(s) selected</span>' +
+                '<button type="button" class="btn btn-sm btn-primary" id="finderBatchMove">Move ' + count + ' to Google Drive</button>';
+            statusEl.querySelector('#finderBatchMove').addEventListener('click', () => this._moveSelectedToDrive());
+        }
+
+        async _moveSelectedToDrive() {
+            const ids = [...this._selectedIds];
+            if (ids.length === 0) return;
+            const files = await this.controller.getFileList(this.currentSource, this.currentFolderId);
+            let moved = 0;
+            let failed = 0;
+            for (const id of ids) {
+                const file = files.find((f) => f.id === id);
+                if (!file) continue;
+                try {
+                    await this.controller.moveBrowserFileToDrive(file);
+                    moved++;
+                } catch (_) {
+                    failed++;
+                }
+            }
+            this._selectedIds.clear();
+            this._refreshFileList();
+            this._refreshBatchBar();
+            const msg = 'Moved ' + moved + ' file(s) to Google Drive' + (failed > 0 ? ', ' + failed + ' failed' : '');
+            this.editor.showNotification?.(msg, failed > 0 ? 'warning' : 'success');
         }
 
         async _onSaveHere() {
