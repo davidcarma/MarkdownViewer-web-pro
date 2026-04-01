@@ -340,6 +340,8 @@
             this.driveBreadcrumb = [];
             this._escapeHandler = null;
             this._selectedIds = new Set();
+            this._lastClickedIndex = null;
+            this._currentFiles = [];
         }
 
         _closeFileMenus(exceptMenu) {
@@ -356,6 +358,8 @@
             this.currentFolderId = 'root';
             this.selectedFile = null;
             this._selectedIds.clear();
+            this._lastClickedIndex = null;
+            this._currentFiles = [];
 
             const sources = this.controller.getSources();
             if (!sources.some((s) => s.id === this.currentSource)) {
@@ -449,6 +453,7 @@
                                 ${this.mode === 'save' ? '<button type="button" class="btn btn-sm btn-primary" id="finderSaveHere">Save current file here</button>' : ''}
                                 <input type="text" class="finder-search" id="finderSearch" placeholder="Search..." autocomplete="off">
                             </div>
+                            <nav class="finder-breadcrumb" id="finderBreadcrumb"></nav>
                             <div class="finder-file-list" id="finderFileList"></div>
                         </div>
                     </div>
@@ -509,6 +514,8 @@
                         }
                     }
                     this._selectedIds.clear();
+                    this._lastClickedIndex = null;
+                    this._currentFiles = [];
                     this._refreshSources(sources);
                     this._refreshTree();
                     this._refreshFileList();
@@ -569,6 +576,7 @@
         }
 
         async _refreshTree() {
+            this._refreshBreadcrumb();
             const treeEl = this.modal.querySelector('#finderTree');
             if (!treeEl) return;
             if (this.currentSource === SOURCE_RECENT) {
@@ -576,33 +584,50 @@
                 return;
             }
             if (this.currentSource === SOURCE_DRIVE && this.driveBreadcrumb.length > 0) {
-                const subfolders = await this.controller.getTreeItems(this.currentSource, this.currentFolderId);
-                const breadcrumbHtml = this.driveBreadcrumb.map((b, i) => {
-                    const active = b.id === this.currentFolderId ? ' active' : '';
-                    return `<button type="button" class="finder-tree-item${active}" data-folder-id="${escapeHtml(b.id)}" data-breadcrumb-index="${i}">
-                        <span class="finder-tree-chevron"></span>
+                const levels = await Promise.all(
+                    this.driveBreadcrumb.map((b) => this.controller.getTreeItems(this.currentSource, b.id))
+                );
+                const buildBranch = (depth) => {
+                    let out = '';
+                    const crumb = this.driveBreadcrumb[depth];
+                    const isCurrent = crumb.id === this.currentFolderId;
+                    const pad = 0.65 + depth * 0.75;
+                    out += `<button type="button" class="finder-tree-item${isCurrent ? ' active' : ''}" style="padding-left:${pad}rem" data-folder-id="${escapeHtml(crumb.id)}" data-folder-name="${escapeHtml(crumb.name)}" data-depth="${depth}">
+                        <span class="finder-tree-chevron">&#9662;</span>
                         <span class="finder-tree-icon">&#128193;</span>
-                        <span>${escapeHtml(b.name)}</span>
+                        <span>${escapeHtml(crumb.name)}</span>
                     </button>`;
-                }).join('');
-                const subHtml = subfolders.map((item) => {
-                    const active = item.id === this.currentFolderId ? ' active' : '';
-                    return `<button type="button" class="finder-tree-item${active}" data-folder-id="${escapeHtml(item.id)}">
-                        <span class="finder-tree-chevron">&#11208;</span>
-                        <span class="finder-tree-icon">&#128193;</span>
-                        <span>${escapeHtml(item.name)}</span>
-                    </button>`;
-                }).join('');
-                treeEl.innerHTML = breadcrumbHtml + subHtml;
+                    const children = levels[depth] || [];
+                    const nextCrumbId = depth + 1 < this.driveBreadcrumb.length
+                        ? this.driveBreadcrumb[depth + 1].id : null;
+                    const childPad = 0.65 + (depth + 1) * 0.75;
+                    let renderedNext = false;
+                    for (const child of children) {
+                        if (child.id === nextCrumbId) {
+                            out += buildBranch(depth + 1);
+                            renderedNext = true;
+                        } else {
+                            out += `<button type="button" class="finder-tree-item" style="padding-left:${childPad}rem" data-folder-id="${escapeHtml(child.id)}" data-folder-name="${escapeHtml(child.name)}" data-depth="${depth + 1}">
+                                <span class="finder-tree-chevron">&#11208;</span>
+                                <span class="finder-tree-icon">&#128193;</span>
+                                <span>${escapeHtml(child.name)}</span>
+                            </button>`;
+                        }
+                    }
+                    if (nextCrumbId && !renderedNext) {
+                        out += buildBranch(depth + 1);
+                    }
+                    return out;
+                };
+                treeEl.innerHTML = buildBranch(0);
                 treeEl.querySelectorAll('.finder-tree-item').forEach((btn) => {
                     btn.addEventListener('click', () => {
                         const folderId = btn.getAttribute('data-folder-id');
-                        const idx = btn.getAttribute('data-breadcrumb-index');
+                        const folderName = btn.getAttribute('data-folder-name') || '';
+                        const depth = parseInt(btn.getAttribute('data-depth'), 10);
+                        this.driveBreadcrumb = this.driveBreadcrumb.slice(0, depth);
+                        this.driveBreadcrumb.push({ id: folderId, name: folderName });
                         this.currentFolderId = folderId;
-                        if (idx != null) {
-                            const i = parseInt(idx, 10);
-                            this.driveBreadcrumb = this.driveBreadcrumb.slice(0, i + 1);
-                        }
                         this._refreshTree();
                         this._refreshFileList();
                         this._refreshStatus();
@@ -644,6 +669,7 @@
                 const q = query.toLowerCase();
                 files = files.filter((f) => (f.name || '').toLowerCase().includes(q));
             }
+            this._currentFiles = files;
             if (files.length === 0) {
                 listEl.innerHTML = '<div class="finder-empty"><p>No files here.</p><p>Use New File or Import from Disk.</p></div>';
                 return;
@@ -654,7 +680,7 @@
                 <div>Modified</div>
                 <div>Source</div>
             </div>`;
-            const rowsHtml = files.map((f) => {
+            const rowsHtml = files.map((f, i) => {
                 const meta = f.source === SOURCE_DRIVE
                     ? formatDate(f.modified)
                     : formatDate(f.modified) + ' · ' + formatSize(f.size);
@@ -697,7 +723,7 @@
                 const directionHtml = isFolder
                     ? '<div class="finder-file-direction" aria-hidden="true">&#8250;</div>'
                     : '';
-                return `<div class="finder-file-row${rowClass}" role="button" tabindex="0" data-file-id="${escapeHtml(f.id)}" data-file-name="${escapeHtml(f.name || '')}" data-source="${escapeHtml(f.source || '')}" data-is-drive="${f.isDrive ? '1' : '0'}" data-is-folder="${isFolder ? '1' : '0'}">
+                return `<div class="finder-file-row${rowClass}" role="button" tabindex="0" data-file-id="${escapeHtml(f.id)}" data-file-name="${escapeHtml(f.name || '')}" data-source="${escapeHtml(f.source || '')}" data-is-drive="${f.isDrive ? '1' : '0'}" data-is-folder="${isFolder ? '1' : '0'}" data-file-index="${i}">
                     <div class="finder-file-col finder-file-col-name">
                         ${checkboxHtml}
                         <span class="finder-file-icon-badge${iconBadgeClass}">
@@ -723,12 +749,40 @@
                 const isFolder = row.getAttribute('data-is-folder') === '1';
                 row.addEventListener('click', (e) => {
                     if (e.target.closest('[data-action]')) return;
+                    if (e.target.closest('.finder-file-check')) return;
                     if (isFolder) {
                         this.currentFolderId = row.getAttribute('data-file-id');
                         this.driveBreadcrumb.push({ id: this.currentFolderId, name: row.getAttribute('data-file-name') || '' });
                         this._refreshTree();
                         this._refreshFileList();
                         this._refreshStatus();
+                        return;
+                    }
+                    const hasModifier = e.ctrlKey || e.metaKey || e.shiftKey;
+                    const hasCheckbox = !!row.querySelector('.finder-file-checkbox');
+                    if (hasModifier && hasCheckbox) {
+                        const fileId = row.getAttribute('data-file-id');
+                        const rowIdx = parseInt(row.getAttribute('data-file-index'), 10);
+                        if (e.shiftKey && this._lastClickedIndex != null) {
+                            if (!e.ctrlKey && !e.metaKey) this._selectedIds.clear();
+                            const lo = Math.min(this._lastClickedIndex, rowIdx);
+                            const hi = Math.max(this._lastClickedIndex, rowIdx);
+                            for (let k = lo; k <= hi; k++) {
+                                const cf = this._currentFiles[k];
+                                if (cf && !cf.isFolder && cf.source !== SOURCE_DRIVE) {
+                                    this._selectedIds.add(cf.id);
+                                }
+                            }
+                        } else {
+                            if (this._selectedIds.has(fileId)) {
+                                this._selectedIds.delete(fileId);
+                            } else {
+                                this._selectedIds.add(fileId);
+                            }
+                            this._lastClickedIndex = rowIdx;
+                        }
+                        this._syncSelectionUI();
+                        this._refreshBatchBar();
                         return;
                     }
                     this._openRow(row);
@@ -781,6 +835,7 @@
                             this._selectedIds.delete(fid);
                             row.classList.remove('is-selected');
                         }
+                        this._lastClickedIndex = parseInt(row.getAttribute('data-file-index'), 10);
                         this._refreshBatchBar();
                     });
                 }
@@ -840,6 +895,52 @@
             } catch (err) {
                 this.editor.showNotification?.('Could not move to Google Drive: ' + (err && err.message ? err.message : 'error'), 'error');
             }
+        }
+
+        _syncSelectionUI() {
+            if (!this.modal) return;
+            this.modal.querySelectorAll('.finder-file-row').forEach((row) => {
+                const fid = row.getAttribute('data-file-id');
+                const sel = this._selectedIds.has(fid);
+                row.classList.toggle('is-selected', sel);
+                const cb = row.querySelector('.finder-file-checkbox');
+                if (cb) cb.checked = sel;
+            });
+        }
+
+        _refreshBreadcrumb() {
+            const el = this.modal?.querySelector('#finderBreadcrumb');
+            if (!el) return;
+            if (this.currentSource === SOURCE_RECENT) {
+                el.innerHTML = '<span class="finder-crumb is-current">Recent files</span>';
+                return;
+            }
+            if (this.currentSource === SOURCE_BROWSER) {
+                el.innerHTML = '<span class="finder-crumb is-current">My files</span>';
+                return;
+            }
+            if (this.currentSource === SOURCE_DRIVE && this.driveBreadcrumb.length > 0) {
+                el.innerHTML = this.driveBreadcrumb.map((b, idx) => {
+                    const isLast = idx === this.driveBreadcrumb.length - 1;
+                    const sep = idx > 0 ? '<span class="finder-crumb-sep">/</span>' : '';
+                    if (isLast) {
+                        return sep + '<span class="finder-crumb is-current">' + escapeHtml(b.name) + '</span>';
+                    }
+                    return sep + '<button type="button" class="finder-crumb" data-crumb-index="' + idx + '">' + escapeHtml(b.name) + '</button>';
+                }).join('');
+                el.querySelectorAll('button.finder-crumb').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const idx = parseInt(btn.getAttribute('data-crumb-index'), 10);
+                        this.driveBreadcrumb = this.driveBreadcrumb.slice(0, idx + 1);
+                        this.currentFolderId = this.driveBreadcrumb[idx].id;
+                        this._refreshTree();
+                        this._refreshFileList();
+                        this._refreshStatus();
+                    });
+                });
+                return;
+            }
+            el.innerHTML = '';
         }
 
         _refreshBatchBar() {
