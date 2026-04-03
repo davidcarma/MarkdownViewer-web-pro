@@ -34,6 +34,7 @@ Google Analytics may be used on the production site **only** if all of the follo
 | `https://github.com/login/device/code` | GitHub device-flow auth |
 | `https://github.com/login/oauth/access_token` | GitHub device-flow token exchange |
 | `https://api.github.com/*` | GitHub REST API (repos, gists, contents) |
+| `https://oauth2.googleapis.com/token` | Google OAuth token exchange and refresh (Drive auth code flow) |
 
 
 
