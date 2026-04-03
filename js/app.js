@@ -46,11 +46,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             window.addEventListener('drive-auth-changed', () => updateDriveButton());
 
-            if (!driveAuth.isConnected() && driveAuth.shouldAttemptReconnect?.()) {
-                driveAuth.silentConnect().then((result) => {
+            const shouldReconnect = driveAuth.hasRefreshToken?.() || driveAuth.shouldAttemptReconnect?.();
+            if (driveAuth.isConnected() && driveAuth.needsImmediateRefresh?.()) {
+                driveAuth.refreshToken().then(() => updateDriveButton());
+            } else if (!driveAuth.isConnected() && shouldReconnect) {
+                driveAuth.refreshToken().then((result) => {
                     updateDriveButton();
                     if (result && result.ok) {
                         window.markdownEditor.showNotification?.('Google Drive reconnected', 'success');
+                    } else {
+                        const last = driveAuth.getLastConnectedEmail?.() || '';
+                        const label = last
+                            ? 'Drive session expired (' + last + '). Click the Drive button to reconnect.'
+                            : 'Drive session expired. Click the Drive button to reconnect.';
+                        window.markdownEditor.showNotification?.(label, 'info', { dismissible: true });
                     }
                 }).catch(() => {
                     updateDriveButton();

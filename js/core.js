@@ -2671,11 +2671,25 @@ class MarkdownEditor {
      *   A -- "label text" --> B  (quoted between dashes)
      * Pipe-delimited labels with special chars also choke the parser.
      */
+    /**
+     * True when [...] holds a single outer ( ... ) group. That is valid cylinder
+     * and stadium syntax, e.g. db[("Database")] or x[(Redis)]. The generic
+     * "quote brackets containing parens" fix must not rewrite these or it turns
+     * them into invalid syntax like ["("Database")"].
+     */
+    _isMermaidFlowchartShapeParenWrapper(inner) {
+        const t = (inner || '').trim();
+        return t.length > 2 && t.startsWith('(') && t.endsWith(')') && /^\(.*\)$/.test(t);
+    }
+
     _sanitizeFlowchartLine(line) {
+        const quoteIfNotShape = (full, inner) =>
+            this._isMermaidFlowchartShapeParenWrapper(inner) ? full : `["${inner}"]`;
+
         // Fix unescaped double braces in node labels: [Text {{val}}] → ["Text {{val}}"]
-        line = line.replace(/\[([^"\]]*?\{\{.*?\}\}[^"\]]*?)\]/g, '["$1"]');
+        line = line.replace(/\[([^"\]]*?\{\{.*?\}\}[^"\]]*?)\]/g, quoteIfNotShape);
         // Fix unescaped parentheses in node labels: [Text (val)] → ["Text (val)"]
-        line = line.replace(/\[([^"\]]*?\(.*?\)[^"\]]*?)\]/g, '["$1"]');
+        line = line.replace(/\[([^"\]]*?\(.*?\)[^"\]]*?)\]/g, quoteIfNotShape);
 
         // Sanitize pipe-delimited edge labels: -->|label| or -.->|label|
         line = line.replace(/(--+>|-.->|==+>)\|([^|]+)\|/g, (_, arrow, label) => {
