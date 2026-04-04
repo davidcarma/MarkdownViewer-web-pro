@@ -1,6 +1,29 @@
 /**
  * Core Markdown Editor functionality
  */
+
+/** Unicode fixes for LLM Mermaid (see docs/MERMAID-SANITISATION.md). */
+const MERMAID_UNICODE_ARROW_MAP = [
+    [/\u2192/g, '-->'],
+    [/\u2190/g, '<--'],
+    [/\u2194/g, '<-->'],
+    [/\u27F6/g, '-->'],
+    [/\u27F5/g, '<--'],
+    [/\u21D2/g, '-->'],
+    [/\u2014>/g, '-->'],
+    [/\u2013>/g, '-->'],
+    [/\u2014/g, '--'],
+    [/\u2013/g, '--'],
+    [/\u201C/g, '"'],
+    [/\u201D/g, '"'],
+    [/\u2018/g, "'"],
+    [/\u2019/g, "'"],
+];
+
+/** First line of a diagram declaration: skip semicolon strip and bare-label quoting. */
+const MERMAID_DIAGRAM_DECL_LINE =
+    /^\s*(graph|flowchart|sequenceDiagram|gantt|pie|classDiagram|stateDiagram|erDiagram|journey|gitGraph|gitgraph|mindmap|timeline|sankey-beta|xychart-beta|block-beta|packet-beta|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Deployment|zenuml)\b/i;
+
 class MarkdownEditor {
     constructor() {
         this.editor = document.getElementById('editor');
@@ -1695,14 +1718,24 @@ class MarkdownEditor {
                     // snap scroll back before the browser paints.
                     this.preview.scrollTop = _scrollBefore;
                     
-                    // Render the mermaid diagram
+                    // Render the mermaid diagram (retry with aggressive sanitization on parse failure)
                     mermaid.render(id + '-svg', code).then(({ svg, bindFunctions }) => {
                         console.log(`Successfully rendered Mermaid diagram ${index + 1}`);
                         const _scrollBeforeRender = this.preview.scrollTop;
                         this._buildMermaidViewer(mermaidDiv, svg, bindFunctions);
                         // SVG injection can shift layout again — restore once more.
                         requestAnimationFrame(() => { this.preview.scrollTop = _scrollBeforeRender; });
-                    }).catch(error => {
+                    }).catch((error) => {
+                        console.warn('[mermaid] First render attempt failed:', error?.message || error);
+                        const minimal = this._aggressiveSanitizeMermaid(code);
+                        return mermaid.render(id + '-retry-svg', minimal).then(({ svg, bindFunctions }) => {
+                            console.log(`Successfully rendered Mermaid diagram ${index + 1} (after aggressive sanitize)`);
+                            const _scrollBeforeRender = this.preview.scrollTop;
+                            this._buildMermaidViewer(mermaidDiv, svg, bindFunctions);
+                            requestAnimationFrame(() => { this.preview.scrollTop = _scrollBeforeRender; });
+                        });
+                    }).catch((error) => {
+                        console.warn('[mermaid] Aggressive retry also failed:', error?.message || error);
                         console.error('Mermaid rendering error:', error);
                         const errorMsg = this.escapeHtml(error.message || error.toString());
                         const errorCode = this.escapeHtml(code);
@@ -1717,7 +1750,7 @@ class MarkdownEditor {
                                 <a href="https://mermaid.live/edit" target="_blank" style="color: #3b82f6; text-decoration: underline; font-weight: 600;">
                                     🔧 Test &amp; Fix in Mermaid Live Editor
                                 </a>
-                                <br><small style="color: #666; display: block; margin-top: 0.5rem;">💡 Tip: Enclose labels with special characters (like →, •, parentheses) in double quotes</small>
+                                <br><small style="color: #666; display: block; margin-top: 0.5rem;">💡 Tip: Use ASCII arrows (--&gt;), quoted labels, and avoid raw &amp; in labels. See docs/MERMAID-SANITISATION.md</small>
                             </p>
                         </div>`;
                     });
@@ -2485,12 +2518,20 @@ class MarkdownEditor {
                     preElement.parentNode.replaceChild(mermaidDiv, preElement);
                     
                     try {
-                        // Render the mermaid diagram
-                        const { svg } = await mermaid.render(id + '-svg', code);
-                        // Clean up the SVG for export (remove any script tags for security)
-                        const cleanedSvg = svg.replace(/<script[\s\S]*?<\/script>/gi, '');
+                        let svgMarkup;
+                        try {
+                            const r = await mermaid.render(id + '-svg', code);
+                            svgMarkup = r.svg;
+                        } catch (e1) {
+                            console.warn('[mermaid] Export first render failed:', e1?.message || e1);
+                            const minimal = this._aggressiveSanitizeMermaid(code);
+                            const r2 = await mermaid.render(id + '-retry-svg', minimal);
+                            svgMarkup = r2.svg;
+                        }
+                        const cleanedSvg = svgMarkup.replace(/<script[\s\S]*?<\/script>/gi, '');
                         mermaidDiv.innerHTML = cleanedSvg;
                     } catch (error) {
+                        console.warn('[mermaid] Export aggressive retry also failed:', error?.message || error);
                         console.error('Mermaid rendering error during export:', error);
                         const errorMsg = this.escapeHtml(error.message || error.toString());
                         const errorCode = this.escapeHtml(code);
@@ -2574,6 +2615,80 @@ class MarkdownEditor {
         }
         return out.join('\n');
     }
+
+    _unicodeNormalizeMermaid(text) {
+        let out = text;
+        for (const [pat, rep] of MERMAID_UNICODE_ARROW_MAP) {
+            out = out.replace(pat, rep);
+        }
+        return out;
+    }
+
+    /**
+     * LLM-oriented line pass (parity with RAG queryUI sanitizeMermaidSource):
+     * semicolons, bare labels with risky chars, ampersands in quoted labels.
+     */
+    _applyMermaidLLMLineSanitize(text) {
+        const lines = text.split('\n');
+        return lines.map((line) => {
+            if (MERMAID_DIAGRAM_DECL_LINE.test(line)) return line;
+            if (/^\s*%%/.test(line)) return line;
+
+            line = line.replace(/;\s*$/, '');
+
+            line = line.replace(/(\w+)\[([^\]"]+)\]/g, (m, id, label) => {
+                if (this._isMermaidFlowchartShapeParenWrapper(label)) return m;
+                return /[(){}&#<>;|'/]/.test(label)
+                    ? `${id}["${label.replace(/"/g, '#quot;')}"]`
+                    : m;
+            });
+
+            line = line.replace(/(\w+)\{([^}"]+)\}/g, (m, id, label) => {
+                if (this._isMermaidFlowchartShapeParenWrapper(label)) return m;
+                return /[()[\]&#<>;|'/]/.test(label)
+                    ? `${id}{"${label.replace(/"/g, '#quot;')}"}`
+                    : m;
+            });
+
+            line = line.replace(/(\w+)\(([^)"]+)\)/g, (m, id, label) => {
+                if (this._isMermaidFlowchartShapeParenWrapper(`(${label})`)) return m;
+                return /[[\]{}&#<>;|'/]/.test(label)
+                    ? `${id}("${label.replace(/"/g, '#quot;')}")`
+                    : m;
+            });
+
+            line = line.replace(/\["([^"]+)"\]/g, (m, label) =>
+                `["${label.replace(/&(?!amp;|lt;|gt;|quot;|#\w+;)/g, '#amp;')}"]`,
+            );
+            line = line.replace(/\{"([^"]+)"\}/g, (m, label) =>
+                `{"${label.replace(/&(?!amp;|lt;|gt;|quot;|#\w+;)/g, '#amp;')}"}`,
+            );
+
+            return line;
+        }).join('\n');
+    }
+
+    /**
+     * Second pass after a failed render: more destructive, RAG aggressiveSanitize parity.
+     */
+    _aggressiveSanitizeMermaid(text) {
+        const lines = text.split('\n');
+        const out = [];
+        for (const line of lines) {
+            let cleaned = line;
+            cleaned = cleaned.replace(/\["([^"]+)"\]/g, (m, l) =>
+                `["${l.replace(/&/g, 'and').replace(/[<>]/g, '')}"]`,
+            );
+            cleaned = cleaned.replace(/\{"([^"]+)"\}/g, (m, l) =>
+                `{"${l.replace(/&/g, 'and').replace(/[<>]/g, '')}"}`,
+            );
+            cleaned = cleaned.replace(/\["([^"]{60,})"\]/g, (m, l) => `["${l.slice(0, 57)}..."]`);
+            cleaned = cleaned.replace(/\{"([^"]{60,})"\}/g, (m, l) => `{"${l.slice(0, 57)}..."}`);
+            cleaned = cleaned.replace(/\|([^|]*[()][^|]*)\|/g, (m, l) => `|${l.replace(/[()]/g, '')}|`);
+            out.push(cleaned);
+        }
+        return out.join('\n');
+    }
     
     sanitizeMermaidCode(code) {
         // Security: Remove dangerous HTML/scripts
@@ -2587,6 +2702,8 @@ class MarkdownEditor {
         code = code.replace(/\r\n/g, '\n');
         code = code.trim();
         code = this._mergeBrokenMermaidStyleLines(code);
+        code = this._unicodeNormalizeMermaid(code);
+        code = this._applyMermaidLLMLineSanitize(code);
         
         // Detect diagram type from first non-directive line (skip %%{init:...}%%)
         const bodyForType = this._stripLeadingMermaidDirectives(code);

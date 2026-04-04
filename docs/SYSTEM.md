@@ -33,6 +33,7 @@ Enforcement:
 After markdown is rendered to HTML, `js/core.js` applies:
 - **Syntax highlighting** via `highlight.js` (best effort). Note: highlight may log security warnings for unescaped HTML inside code blocks; this is informational.
 - **Mermaid**: code fences tagged `mermaid` are replaced by rendered diagrams.
+  - **Sanitisation**: Unicode arrows, LLM-style label fixes, and a second aggressive pass on parse failure (`js/core.js`; see `docs/MERMAID-SANITISATION.md`).
   - **Invariant**: when mermaid replaces DOM nodes, the diagram container **must preserve** `data-line` / `data-line-end` copied from the original block, otherwise scroll sync drifts.
   - A click handler is attached to each diagram container to open the diagram viewer (zoom/pan/copy SVG).
 - **KaTeX**: math rendering via `katex-auto-render`. Inline math delimited by `$...$`, block math by `$$...$$`.
