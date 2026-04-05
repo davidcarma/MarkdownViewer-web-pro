@@ -316,7 +316,6 @@
     overflow: hidden;
     cursor: default;
     min-height: 120px;
-    max-height: 70vh;
     position: relative;
     padding: 1rem;
     transition: box-shadow 0.2s ease;
