@@ -1797,15 +1797,44 @@ class MarkdownEditor {
 
         // State
         let scale = 1, panX = 0, panY = 0, dragging = false, lastX = 0, lastY = 0;
-        const MIN_SCALE = 0.25, MAX_SCALE = 5;
+        let fitScale = 1;
+        let naturalW = 0, naturalH = 0;
+        const MIN_SCALE = 0.1, MAX_SCALE = 5;
         const IDLE_TIMEOUT_MS = 10000;
         let zoomActive = false;
         let idleTimer = null;
 
         const applyTransform = () => {
             inner.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
-            zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+            const pct = Math.round(scale * 100);
+            zoomLabel.textContent = (scale === fitScale && fitScale < 1) ? `Fit (${pct}%)` : `${pct}%`;
         };
+
+        const sizeViewportToFit = () => {
+            if (naturalH > 0 && fitScale > 0) {
+                viewport.style.height = Math.max(120, naturalH * fitScale + 32) + 'px';
+            }
+        };
+
+        const computeFitScale = () => {
+            const svg = inner.querySelector('svg');
+            if (!svg) return;
+            naturalW = parseFloat(svg.getAttribute('width')) || svg.getBoundingClientRect().width || inner.scrollWidth;
+            naturalH = parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height || inner.scrollHeight;
+            const vpW = viewport.clientWidth - 32;
+            if (naturalW > 0 && vpW > 0) {
+                fitScale = Math.min(1, vpW / naturalW);
+            } else {
+                fitScale = 1;
+            }
+        };
+
+        requestAnimationFrame(() => {
+            computeFitScale();
+            scale = fitScale;
+            applyTransform();
+            sizeViewportToFit();
+        });
 
         const resetIdleTimer = () => {
             clearTimeout(idleTimer);
@@ -1852,7 +1881,7 @@ class MarkdownEditor {
         // Zoom buttons always work (they're explicit user intent)
         btnZoomIn.addEventListener('click',  () => { activateZoom(); scale = Math.min(MAX_SCALE, scale * 1.25); applyTransform(); resetIdleTimer(); });
         btnZoomOut.addEventListener('click', () => { activateZoom(); scale = Math.max(MIN_SCALE, scale / 1.25); applyTransform(); resetIdleTimer(); });
-        btnReset.addEventListener('click',   () => { scale = 1; panX = 0; panY = 0; applyTransform(); deactivateZoom(); });
+        btnReset.addEventListener('click',   () => { computeFitScale(); scale = fitScale; panX = 0; panY = 0; applyTransform(); sizeViewportToFit(); deactivateZoom(); });
 
         // Mouse wheel: only zoom when active, otherwise let page scroll
         viewport.addEventListener('wheel', (e) => {
@@ -1928,6 +1957,21 @@ class MarkdownEditor {
             resetIdleTimer();
         }, { passive: false });
         viewport.addEventListener('touchend', () => { lastTouches = null; }, { passive: true });
+
+        // Recompute fit when the preview pane is resized (window resize, panel toggle)
+        const resizeObs = new ResizeObserver(() => {
+            if (!zoomActive && scale === fitScale) {
+                const oldFit = fitScale;
+                computeFitScale();
+                if (fitScale !== oldFit) {
+                    scale = fitScale;
+                    panX = 0; panY = 0;
+                    applyTransform();
+                    sizeViewportToFit();
+                }
+            }
+        });
+        resizeObs.observe(viewport);
 
         // Copy image at 2x resolution — pass the container so we can read its background
         btnCopy.addEventListener('click', () => this._copyMermaidAsImage(inner, btnCopy, container));
