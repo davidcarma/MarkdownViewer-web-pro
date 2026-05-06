@@ -2090,12 +2090,51 @@ class MarkdownEditor {
      * Walk two matching DOM trees (live + clone) and copy the full
      * computed cssText from each live element onto the clone.
      * Handles both SVG elements and HTML elements inside foreignObject.
+     *
+     * Fill correction: for SVG path/line/polyline elements, cssText bakes in
+     * the computed fill which is the inherited text color when Mermaid's own
+     * embedded styles set fill:none via class rules. The presentation attribute
+     * on the live element is the ground truth for fill:none - we restore it
+     * after inlining, and fall back to checking the computed fill string.
      */
     _deepInlineStyles(live, clone) {
         try {
             const cs = window.getComputedStyle(live);
-            // cssText gives us every resolved property in one shot
             clone.style.cssText = cs.cssText;
+
+            // Restore fill:none for SVG stroke-only shape elements.
+            //
+            // Root cause: cssText serialises the fully resolved computed fill,
+            // which is a color value even when the element visually has no fill
+            // (because fill:none comes from an SVG class rule that cssText
+            // overrides). The presentation attribute is the canonical source.
+            const tag = live.tagName ? live.tagName.toLowerCase() : '';
+            if (['path', 'line', 'polyline', 'polygon', 'circle', 'ellipse', 'rect'].includes(tag)) {
+                const attr = live.getAttribute('fill');
+                if (attr === 'none') {
+                    // Presentation attribute explicitly says none - honor it.
+                    clone.style.fill = 'none';
+                } else if (attr === null || attr === '') {
+                    // No presentation attribute. Check whether the cascaded
+                    // (pre-inheritance) computed fill is none/transparent.
+                    // SVG fill:none computes to "none"; rgba(0,0,0,0) means
+                    // transparent was resolved - both indicate no visible fill.
+                    const cf = cs.getPropertyValue('fill').trim();
+                    if (cf === 'none' || cf === 'rgba(0, 0, 0, 0)' || cf === 'transparent') {
+                        clone.style.fill = 'none';
+                    }
+                    // Additional guard: if the element carries edge/connector
+                    // class names from Mermaid, assume fill:none is intended
+                    // even if the computed value resolved to a color.
+                    else {
+                        const cls = live.className && live.className.baseVal
+                            ? live.className.baseVal
+                            : (live.className || '');
+                        const isEdge = /\b(edgePath|flowchart-link|edge-thickness-normal|edge-pattern)\b/.test(cls);
+                        if (isEdge) clone.style.fill = 'none';
+                    }
+                }
+            }
         } catch (_) {
             // getComputedStyle can fail on non-element nodes — skip
         }
