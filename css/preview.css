@@ -315,7 +315,8 @@
 .mermaid-viewport {
     overflow: hidden;
     cursor: default;
-    min-height: 120px;
+    min-height: 0;
+    height: auto;
     position: relative;
     padding: 1rem;
     transition: box-shadow 0.2s ease;
@@ -378,16 +379,16 @@
 .mermaid-inner {
     transform-origin: 0 0;
     transition: none;
-    display: inline-block;
-    text-align: center;
+    display: block;
     width: 100%;
+    line-height: 0;
 }
 
 .preview-content .mermaid-diagram svg {
-    max-width: 100%;
-    height: auto;
     display: block;
     margin: 0 auto;
+    max-width: none;
+    height: auto;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
 }
 

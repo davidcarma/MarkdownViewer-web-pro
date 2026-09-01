@@ -2,6 +2,12 @@
 
 ## Recent Session Notes
 
+### 2026-09-01
+- Preview Mermaid boxes now hug diagram height while still fitting the pane width.
+- Cause: `parseFloat` on Mermaid's `width="100%"` plus a 120px min-height.
+- Fix: `_normalizeMermaidSvgSize` in `js/core.js` uses viewBox/bbox; viewport height is scaled content + padding.
+- Lesson: `docs/lessons/L-2026-09-01-mermaid-percent-width-height.md`
+
 ### 2026-05-06
 - Fixed Mermaid "copy image" bug: edge curves appeared filled (dark wedge shapes) in the copied PNG.
 - Root cause: `_deepInlineStyles` in `core.js` inlines `cssText` which bakes in the computed `fill` (resolved from color inheritance) onto SVG path elements. Mermaid's CSS class rules set `fill:none` on edges at runtime, but inlined `cssText` overrides that.
