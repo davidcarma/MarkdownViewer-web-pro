@@ -1764,6 +1764,49 @@ class MarkdownEditor {
     }
     
     /**
+     * Pin a Mermaid SVG to real pixel size from viewBox / bbox.
+     * Mermaid's useMaxWidth sets width="100%" and omits height, which makes
+     * parseFloat(width) === 100 and leaves extra vertical space in the preview.
+     */
+    _normalizeMermaidSvgSize(svg) {
+        const vbParts = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+        let w = 0, h = 0;
+        if (vbParts.length === 4 && vbParts[2] > 0 && vbParts[3] > 0) {
+            w = vbParts[2];
+            h = vbParts[3];
+        }
+
+        const attrW = svg.getAttribute('width');
+        const attrH = svg.getAttribute('height');
+        const parsedW = attrW && !String(attrW).includes('%') ? parseFloat(attrW) : NaN;
+        const parsedH = attrH && !String(attrH).includes('%') ? parseFloat(attrH) : NaN;
+        if (!(w > 0) && parsedW > 0) w = parsedW;
+        if (!(h > 0) && parsedH > 0) h = parsedH;
+
+        try {
+            const box = svg.getBBox();
+            if (box && box.width > 0 && box.height > 0) {
+                w = Math.max(w, box.x + box.width, box.width);
+                h = Math.max(h, box.y + box.height, box.height);
+            }
+        } catch (_) { /* not in the document yet */ }
+
+        if (!(w > 0)) w = 300;
+        if (!(h > 0)) h = 150;
+
+        if (!svg.getAttribute('viewBox')) {
+            svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+        }
+        svg.setAttribute('width', String(w));
+        svg.setAttribute('height', String(h));
+        svg.style.width = `${w}px`;
+        svg.style.height = `${h}px`;
+        svg.style.maxWidth = 'none';
+        svg.style.maxHeight = 'none';
+        return { w, h };
+    }
+
+    /**
      * Build an interactive viewer around a rendered Mermaid SVG:
      * toolbar (zoom in/out/reset, copy image) + pan/zoom viewport.
      */
@@ -1810,31 +1853,49 @@ class MarkdownEditor {
             zoomLabel.textContent = (scale === fitScale && fitScale < 1) ? `Fit (${pct}%)` : `${pct}%`;
         };
 
+        const viewportPadding = () => {
+            const cs = window.getComputedStyle(viewport);
+            return {
+                x: (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0),
+                y: (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0)
+            };
+        };
+
         const sizeViewportToFit = () => {
-            if (naturalH > 0 && fitScale > 0) {
-                viewport.style.height = Math.max(120, naturalH * fitScale + 32) + 'px';
+            if (!(naturalH > 0) || !(fitScale > 0)) return;
+            const pad = viewportPadding();
+            const next = Math.ceil(naturalH * fitScale + pad.y);
+            const prev = parseFloat(viewport.style.height) || 0;
+            if (Math.abs(next - prev) > 1) {
+                viewport.style.height = next + 'px';
             }
         };
 
         const computeFitScale = () => {
             const svg = inner.querySelector('svg');
             if (!svg) return;
-            naturalW = parseFloat(svg.getAttribute('width')) || svg.getBoundingClientRect().width || inner.scrollWidth;
-            naturalH = parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height || inner.scrollHeight;
-            const vpW = viewport.clientWidth - 32;
-            if (naturalW > 0 && vpW > 0) {
+            const size = this._normalizeMermaidSvgSize(svg);
+            naturalW = size.w;
+            naturalH = size.h;
+            const pad = viewportPadding();
+            const vpW = viewport.clientWidth - pad.x;
+            if (naturalW > 0 && vpW > 8) {
                 fitScale = Math.min(1, vpW / naturalW);
             } else {
                 fitScale = 1;
             }
         };
 
-        requestAnimationFrame(() => {
+        const fitNow = () => {
             computeFitScale();
             scale = fitScale;
+            panX = 0;
+            panY = 0;
             applyTransform();
             sizeViewportToFit();
-        });
+        };
+
+        requestAnimationFrame(() => requestAnimationFrame(fitNow));
 
         const resetIdleTimer = () => {
             clearTimeout(idleTimer);
@@ -1960,16 +2021,17 @@ class MarkdownEditor {
 
         // Recompute fit when the preview pane is resized (window resize, panel toggle)
         const resizeObs = new ResizeObserver(() => {
-            if (!zoomActive && scale === fitScale) {
-                const oldFit = fitScale;
-                computeFitScale();
-                if (fitScale !== oldFit) {
-                    scale = fitScale;
-                    panX = 0; panY = 0;
-                    applyTransform();
-                    sizeViewportToFit();
-                }
+            if (zoomActive || scale !== fitScale) return;
+            const oldFit = fitScale;
+            const oldH = naturalH;
+            computeFitScale();
+            if (fitScale !== oldFit || naturalH !== oldH) {
+                scale = fitScale;
+                panX = 0;
+                panY = 0;
+                applyTransform();
             }
+            sizeViewportToFit();
         });
         resizeObs.observe(viewport);
 
