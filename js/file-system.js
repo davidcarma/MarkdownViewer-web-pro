@@ -1,6 +1,6 @@
 /**
- * Finder-style file system: single controller and view for open/save/new.
- * Replaces fragmented modal flows with one unified source rail, tree, and file list.
+ * File picker for open/save/new: locations rail, breadcrumb, and a single list.
+ * Drive folders are entered from the list or breadcrumb, not a separate tree pane.
  */
 (function () {
     'use strict';
@@ -8,6 +8,13 @@
     const SOURCE_BROWSER = 'browser';
     const SOURCE_DRIVE = 'drive';
     const SOURCE_RECENT = 'recent';
+
+    const ICON_FOLDER = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2"></path><path d="M3 8h18l-2 11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L3 8z"></path></svg>';
+    const ICON_FILE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+    const ICON_DEVICE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>';
+    const ICON_RECENT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
+    const ICON_DRIVE = '<svg width="16" height="16" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="drive-icon-green" d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z"/><path class="drive-icon-blue" d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z"/><path class="drive-icon-yellow" d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z"/><path class="drive-icon-blue" d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z"/><path class="drive-icon-red" d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z"/><path class="drive-icon-yellow" d="m73.4 26.8-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z"/></svg>';
+    const ICON_CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>';
 
     function escapeHtml(text) {
         if (text == null) return '';
@@ -46,6 +53,19 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
+    function sourceIcon(icon) {
+        if (icon === 'drive') return ICON_DRIVE;
+        if (icon === 'recent') return ICON_RECENT;
+        return ICON_DEVICE;
+    }
+
+    function normalizeMarkdownName(raw) {
+        let name = String(raw || '').trim();
+        if (!name) name = 'Untitled.md';
+        if (!/\.md$/i.test(name)) name += '.md';
+        return name;
+    }
+
     class FileSystemController {
         constructor(editor) {
             this.editor = editor;
@@ -56,25 +76,10 @@
                 { id: SOURCE_BROWSER, label: 'This Device', icon: 'device' },
                 { id: SOURCE_RECENT, label: 'Recent', icon: 'recent' }
             ];
-            if (this.editor.driveAuth && this.editor.driveAuth.isAvailable() && this.editor.driveAuth.isConnected()) {
+            if (this.editor.driveAuth && this.editor.driveAuth.isAvailable()) {
                 list.splice(1, 0, { id: SOURCE_DRIVE, label: 'Google Drive', icon: 'drive' });
             }
             return list;
-        }
-
-        async getTreeItems(source, parentId) {
-            if (source === SOURCE_BROWSER || source === SOURCE_RECENT) {
-                return [{ id: 'root', name: 'My files', isFolder: true }];
-            }
-            if (source === SOURCE_DRIVE && this.editor.driveStorage) {
-                const rootId = await this.editor.driveStorage.ensureRootFolder();
-                if (!parentId || parentId === 'root') {
-                    return [{ id: rootId, name: 'Markdown-pro', isFolder: true }];
-                }
-                const items = await this.editor.driveStorage.listFiles(parentId);
-                return items.filter((f) => f.isFolder).map((f) => ({ id: f.id, name: f.name, isFolder: true }));
-            }
-            return [];
         }
 
         async getFileList(source, folderId) {
@@ -113,9 +118,9 @@
                     lineCount: f.lineCount
                 }));
             }
-            if (source === SOURCE_DRIVE && this.editor.driveStorage && folderId) {
-                const rootId = await this.editor.driveStorage.ensureRootFolder();
-                const effectiveId = folderId === 'root' ? rootId : folderId;
+            if (source === SOURCE_DRIVE && this.editor.driveStorage) {
+                if (!this.editor.driveAuth?.isConnected()) return [];
+                const effectiveId = await this.editor.driveStorage.resolveWorkingFolder(folderId, { fallbackToRoot: true });
                 const items = await this.editor.driveStorage.listFiles(effectiveId);
                 const folders = items.filter((f) => f.isFolder).map((f) => ({
                     id: f.id,
@@ -203,12 +208,13 @@
             return this.editor.fileBrowser ? await this.editor.fileBrowser.saveCurrentFile() : false;
         }
 
-        async saveCurrentToDriveFolder(folderId) {
+        async saveCurrentToDriveFolder(folderId, fileName) {
             const content = this.getEditorContent();
-            const name = /\.md$/i.test(this.editor.currentFileName || '') ? this.editor.currentFileName : (this.editor.currentFileName || 'Untitled') + '.md';
-            const slug = (this.editor.currentFileName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled-md';
-            const rootId = await this.editor.driveStorage.ensureRootFolder();
-            const effectiveId = folderId === 'root' ? rootId : folderId;
+            const name = normalizeMarkdownName(fileName || this.editor.currentFileName);
+            this.editor.currentFileName = name;
+            this.editor.setDocumentTitle?.(name);
+            const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled-md';
+            const effectiveId = await this.editor.driveStorage.resolveWorkingFolder(folderId);
             const existing = await this.editor.driveStorage.listFiles(effectiveId).then((items) => items.find((f) => !f.isFolder && f.name === name));
             if (existing) {
                 await this.editor.driveStorage.updateFile(existing.id, content);
@@ -219,7 +225,7 @@
             }
             if (this.editor.indexedDBManager) {
                 await this.editor.indexedDBManager.saveFile({
-                    id: slug, name: this.editor.currentFileName || name, content,
+                    id: slug, name: name, content,
                     cursorPosition: this.editor.editor?.selectionStart ?? 0, isModified: false,
                     created: new Date().toISOString(), modified: new Date().toISOString(),
                     size: content.length,
@@ -263,7 +269,7 @@
             const content = isActiveFile
                 ? this.getEditorContent()
                 : (file.content || '');
-            const targetFolderId = folderId || await this.editor.driveStorage.ensureRootFolder();
+            const targetFolderId = await this.editor.driveStorage.resolveWorkingFolder(folderId || 'root');
             const existing = await this.editor.driveStorage.listFiles(targetFolderId).then((items) => items.find((f) => !f.isFolder && f.name === name));
 
             let driveFileId = null;
@@ -335,13 +341,35 @@
             this.modal = null;
             this.mode = 'open';
             this.currentSource = SOURCE_BROWSER;
-            this.currentFolderId = 'root';
+            this.currentFolderId = null;
             this.selectedFile = null;
             this.driveBreadcrumb = [];
             this._escapeHandler = null;
             this._selectedIds = new Set();
             this._lastClickedIndex = null;
             this._currentFiles = [];
+            this._overwriteFileId = null;
+        }
+
+        _isDriveConnected() {
+            return !!(this.editor.driveAuth?.isConnected() && this.editor.driveStorage);
+        }
+
+        _driveFolderId() {
+            const last = this.driveBreadcrumb[this.driveBreadcrumb.length - 1];
+            return last && last.id ? last.id : null;
+        }
+
+        async _loadDriveRoot() {
+            const rootId = await this.editor.driveStorage.ensureRootFolder();
+            this.driveBreadcrumb = [{ id: rootId, name: 'Markdown-pro' }];
+            this.currentFolderId = rootId;
+            return rootId;
+        }
+
+        _resetDrivePath() {
+            this.driveBreadcrumb = [];
+            this.currentFolderId = null;
         }
 
         _closeFileMenus(exceptMenu) {
@@ -355,11 +383,12 @@
         show(options = {}) {
             this.mode = options.mode || 'open';
             this.currentSource = options.initialSource || (this.editor.driveAuth?.isConnected() ? SOURCE_DRIVE : SOURCE_BROWSER);
-            this.currentFolderId = 'root';
+            this.currentFolderId = null;
             this.selectedFile = null;
             this._selectedIds.clear();
             this._lastClickedIndex = null;
             this._currentFiles = [];
+            this._overwriteFileId = null;
 
             const sources = this.controller.getSources();
             if (!sources.some((s) => s.id === this.currentSource)) {
@@ -402,26 +431,31 @@
             const sourceRailHtml = sources.map((s) => {
                 const active = s.id === this.currentSource ? ' active' : '';
                 const icon = s.id === SOURCE_DRIVE ? 'drive' : s.id === SOURCE_RECENT ? 'recent' : 'device';
-                return `<button type="button" class="finder-source-item finder-source-item-${escapeHtml(icon)}${active}" data-source="${escapeHtml(s.id)}">
-                    <span class="finder-source-icon">${icon === 'drive' ? '&#128190;' : icon === 'recent' ? '&#128336;' : '&#128187;'}</span>
+                const driveNote = this._isDriveConnected() ? 'Markdown-pro' : 'Not connected';
+                const disconnected = icon === 'drive' && !this._isDriveConnected() ? ' is-disconnected' : '';
+                return `<button type="button" class="finder-source-item finder-source-item-${escapeHtml(icon)}${disconnected}${active}" data-source="${escapeHtml(s.id)}">
+                    <span class="finder-source-icon">${sourceIcon(icon)}</span>
                     <span class="finder-source-copy">
                         <span class="finder-source-name">${escapeHtml(s.label)}</span>
-                        <span class="finder-source-note">${icon === 'drive' ? 'Cloud sync' : icon === 'recent' ? 'Quick access' : 'Local drafts'}</span>
+                        <span class="finder-source-note">${icon === 'drive' ? driveNote : icon === 'recent' ? 'Quick access' : 'Local drafts'}</span>
                     </span>
                 </button>`;
             }).join('');
 
-            const title = this.mode === 'open' ? 'Open Files' : this.mode === 'save' ? 'Save Files' : 'Files';
-            const subtitle = this.mode === 'save'
-                ? 'Choose a destination and save the current document'
+            const isSave = this.mode === 'save';
+            const title = isSave ? 'Save' : this.mode === 'open' ? 'Open' : 'Files';
+            const subtitle = isSave
+                ? 'Choose a folder and file name'
                 : this.mode === 'new'
                     ? 'Start clean without losing your current work'
                     : 'Browse local and Google Drive markdown files';
             const connectionLabel = this.editor.driveAuth?.isConnected()
                 ? 'Drive connected'
                 : 'Browser only';
+            const defaultName = normalizeMarkdownName(this.editor.currentFileName || 'Untitled.md');
+
             this.modal = document.createElement('div');
-            this.modal.className = 'finder-overlay';
+            this.modal.className = 'finder-overlay' + (isSave ? ' is-save' : ' is-open');
             this.modal.innerHTML = `
                 <div class="finder-window">
                     <div class="finder-header">
@@ -440,45 +474,36 @@
                             <div class="finder-pane-label">Locations</div>
                             ${sourceRailHtml}
                         </nav>
-                        <div class="finder-tree-pane">
-                            <div class="finder-pane-label">Folders</div>
-                            <div id="finderTree"></div>
-                        </div>
                         <div class="finder-main">
                             <div class="finder-command-bar">
                                 <button type="button" class="btn btn-sm btn-primary" id="finderNewFile">New File</button>
-                                ${this.currentSource === SOURCE_DRIVE ? '<button type="button" class="btn btn-sm btn-secondary" id="finderNewFolder">New Folder</button>' : ''}
+                                <button type="button" class="btn btn-sm btn-secondary" id="finderNewFolder">New Folder</button>
                                 <button type="button" class="btn btn-sm btn-secondary" id="finderImport">Import from Disk</button>
-                                <button type="button" class="btn btn-sm btn-secondary" id="finderSaveToDisk">Save to Disk</button>
-                                ${this.mode === 'save' ? '<button type="button" class="btn btn-sm btn-primary" id="finderSaveHere">Save current file here</button>' : ''}
                                 <input type="text" class="finder-search" id="finderSearch" placeholder="Search..." autocomplete="off">
                             </div>
                             <nav class="finder-breadcrumb" id="finderBreadcrumb"></nav>
+                            <form class="finder-new-folder" id="finderNewFolderForm" hidden>
+                                <input type="text" id="finderNewFolderName" placeholder="Folder name" autocomplete="off" maxlength="120">
+                                <button type="submit" class="btn btn-sm btn-primary" id="finderNewFolderCreate">Create</button>
+                                <button type="button" class="btn btn-sm btn-secondary" id="finderNewFolderCancel">Cancel</button>
+                            </form>
                             <div class="finder-file-list" id="finderFileList"></div>
                         </div>
+                    </div>
+                    <div class="finder-save-footer" id="finderSaveFooter">
+                        <label class="finder-filename-label" for="finderFileName">File name</label>
+                        <input type="text" class="finder-filename" id="finderFileName" value="${escapeHtml(defaultName)}" autocomplete="off">
+                        <div class="finder-destination" id="finderDestination"></div>
+                        <button type="button" class="btn btn-sm btn-secondary" id="finderSaveToDisk">Save to Disk</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="finderSaveHere">Save here</button>
                     </div>
                     <div class="finder-status-bar" id="finderStatus"></div>
                 </div>`;
 
             document.body.appendChild(this.modal);
 
-            if (this.currentSource === SOURCE_DRIVE && this.editor.driveStorage) {
-                this.editor.driveStorage.ensureRootFolder().then((rootId) => {
-                    this.driveBreadcrumb = [{ id: rootId, name: 'Markdown-pro' }];
-                    this.currentFolderId = rootId;
-                    this._refreshTree();
-                    this._refreshFileList();
-                    this._refreshStatus();
-                }).catch((err) => {
-                    this.currentSource = SOURCE_BROWSER;
-                    this._refreshSources(sources);
-                    this._refreshTree();
-                    this._refreshFileList();
-                    this.editor.showNotification?.(
-                        'Could not load Google Drive. ' + (err && err.message ? err.message : 'Please reconnect.'),
-                        'error'
-                    );
-                });
+            if (this.currentSource === SOURCE_DRIVE) {
+                this._activateDriveSource().then(() => this._refreshAfterNavigate());
             }
 
             this.modal.querySelector('.finder-close').addEventListener('click', () => this.close());
@@ -488,38 +513,19 @@
                 if (e.target === this.modal) this.close();
             });
             this._escapeHandler = (e) => {
-                if (e.key === 'Escape') {
-                    this.close();
-                    document.removeEventListener('keydown', this._escapeHandler);
+                if (e.key !== 'Escape') return;
+                const form = this.modal && this.modal.querySelector('#finderNewFolderForm');
+                if (form && !form.hidden) {
+                    this._hideNewFolderForm();
+                    return;
                 }
+                this.close();
             };
             document.addEventListener('keydown', this._escapeHandler);
 
             this.modal.querySelectorAll('.finder-source-item').forEach((btn) => {
                 btn.addEventListener('click', async () => {
-                    this.currentSource = btn.getAttribute('data-source');
-                    this.currentFolderId = 'root';
-                    this.driveBreadcrumb = [];
-                    if (this.currentSource === SOURCE_DRIVE && this.editor.driveStorage) {
-                        try {
-                            const rootId = await this.editor.driveStorage.ensureRootFolder();
-                            this.driveBreadcrumb = [{ id: rootId, name: 'Markdown-pro' }];
-                            this.currentFolderId = rootId;
-                        } catch (err) {
-                            this.currentSource = SOURCE_BROWSER;
-                            this.editor.showNotification?.(
-                                'Could not load Google Drive. ' + (err && err.message ? err.message : 'Please reconnect.'),
-                                'error'
-                            );
-                        }
-                    }
-                    this._selectedIds.clear();
-                    this._lastClickedIndex = null;
-                    this._currentFiles = [];
-                    this._refreshSources(sources);
-                    this._refreshTree();
-                    this._refreshFileList();
-                    this._refreshCommandBar();
+                    await this._selectSource(btn.getAttribute('data-source'));
                 });
             });
 
@@ -538,22 +544,21 @@
                 this.show({ mode: 'new', initialSource: this.currentSource });
             });
 
-            const newFolderBtn = this.modal.querySelector('#finderNewFolder');
-            if (newFolderBtn) {
-                newFolderBtn.addEventListener('click', () => this._onNewFolder());
-            }
+            this.modal.querySelector('#finderNewFolder').addEventListener('click', () => this._showNewFolderForm());
+            this.modal.querySelector('#finderNewFolderForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                this._onNewFolder();
+            });
+            this.modal.querySelector('#finderNewFolderCancel').addEventListener('click', () => this._hideNewFolderForm());
 
             this.modal.querySelector('#finderImport').addEventListener('click', () => {
                 this.close();
                 if (this.editor.fileInput) this.editor.fileInput.click();
             });
 
-            const saveHereBtn = this.modal.querySelector('#finderSaveHere');
-            if (saveHereBtn) {
-                saveHereBtn.addEventListener('click', () => this._onSaveHere());
-            }
-
+            this.modal.querySelector('#finderSaveHere').addEventListener('click', () => this._onSaveHere());
             this.modal.querySelector('#finderSaveToDisk').addEventListener('click', () => {
+                this._applyFooterFileName();
                 this.controller.triggerDownload();
                 this.close();
             });
@@ -563,137 +568,199 @@
                 searchInput.addEventListener('input', () => this._refreshFileList());
             }
 
-            this._refreshTree();
+            this._refreshAfterNavigate();
+        }
+
+        _refreshAfterNavigate() {
+            this._refreshCommandBar();
+            this._refreshBreadcrumb();
+            this._refreshDestination();
             this._refreshFileList();
             this._refreshStatus();
         }
 
-        _refreshSources(sources) {
+        async _selectSource(sourceId) {
+            this.currentSource = sourceId;
+            this._overwriteFileId = null;
+            this._selectedIds.clear();
+            this._lastClickedIndex = null;
+            this._currentFiles = [];
+            this._hideNewFolderForm();
+            if (sourceId === SOURCE_DRIVE) {
+                await this._activateDriveSource();
+            } else {
+                this._resetDrivePath();
+            }
+            this._refreshSources();
+            this._refreshAfterNavigate();
+        }
+
+        async _activateDriveSource() {
+            this.currentSource = SOURCE_DRIVE;
+            if (!this._isDriveConnected()) {
+                this._resetDrivePath();
+                return;
+            }
+            try {
+                await this._loadDriveRoot();
+            } catch (err) {
+                this._resetDrivePath();
+                this.editor.showNotification?.(
+                    'Could not load Google Drive. ' + (err && err.message ? err.message : 'Please reconnect.'),
+                    'error'
+                );
+            }
+        }
+
+        async _connectDriveFromPicker() {
+            if (!this.editor.driveAuth) return;
+            const result = await this.editor.driveAuth.connect();
+            if (result && result.ok) {
+                this.editor.showNotification?.('Connected to Google Drive', 'success');
+                await this._activateDriveSource();
+                this._refreshSources();
+                this._rebuildSourceRailNotes();
+                this._refreshAfterNavigate();
+                return;
+            }
+            const err = this.editor.driveAuth.getLastError?.() || 'Sign-in did not complete.';
+            this.editor.showNotification?.('Could not connect to Google Drive. ' + err, 'info', { dismissible: true });
+        }
+
+        _rebuildSourceRailNotes() {
+            if (!this.modal) return;
+            this.modal.querySelectorAll('.finder-source-item').forEach((btn) => {
+                const id = btn.getAttribute('data-source');
+                const note = btn.querySelector('.finder-source-note');
+                if (id === SOURCE_DRIVE && note) {
+                    note.textContent = this._isDriveConnected() ? 'Markdown-pro' : 'Not connected';
+                    btn.classList.toggle('is-disconnected', !this._isDriveConnected());
+                }
+            });
+        }
+
+        _refreshSources() {
+            if (!this.modal) return;
             this.modal.querySelectorAll('.finder-source-item').forEach((btn) => {
                 const id = btn.getAttribute('data-source');
                 btn.classList.toggle('active', id === this.currentSource);
             });
         }
 
-        async _refreshTree() {
-            this._refreshBreadcrumb();
-            const treeEl = this.modal.querySelector('#finderTree');
-            if (!treeEl) return;
-            if (this.currentSource === SOURCE_RECENT) {
-                treeEl.innerHTML = '<div class="finder-tree-item active">Recent files</div>';
-                return;
-            }
+        _refreshCommandBar() {
+            if (!this.modal) return;
+            const isSave = this.mode === 'save';
+            const isDrive = this.currentSource === SOURCE_DRIVE;
+            const newFile = this.modal.querySelector('#finderNewFile');
+            const newFolder = this.modal.querySelector('#finderNewFolder');
+            const importBtn = this.modal.querySelector('#finderImport');
+            const saveFooter = this.modal.querySelector('#finderSaveFooter');
+            const saveHere = this.modal.querySelector('#finderSaveHere');
+            if (newFile) newFile.hidden = isSave;
+            if (importBtn) importBtn.hidden = isSave;
+            if (newFolder) newFolder.hidden = !(isDrive && this._isDriveConnected());
+            if (saveFooter) saveFooter.hidden = !isSave;
+            if (saveHere && isSave) saveHere.disabled = isDrive && !this._isDriveConnected();
+            if (!isDrive || !this._isDriveConnected()) this._hideNewFolderForm();
+        }
+
+        _destinationLabel() {
             if (this.currentSource === SOURCE_DRIVE && this.driveBreadcrumb.length > 0) {
-                const levels = await Promise.all(
-                    this.driveBreadcrumb.map((b) => this.controller.getTreeItems(this.currentSource, b.id))
-                );
-                const buildBranch = (depth) => {
-                    let out = '';
-                    const crumb = this.driveBreadcrumb[depth];
-                    const isCurrent = crumb.id === this.currentFolderId;
-                    const pad = 0.65 + depth * 0.75;
-                    out += `<button type="button" class="finder-tree-item${isCurrent ? ' active' : ''}" style="padding-left:${pad}rem" data-folder-id="${escapeHtml(crumb.id)}" data-folder-name="${escapeHtml(crumb.name)}" data-depth="${depth}">
-                        <span class="finder-tree-chevron">&#9662;</span>
-                        <span class="finder-tree-icon">&#128193;</span>
-                        <span>${escapeHtml(crumb.name)}</span>
-                    </button>`;
-                    const children = levels[depth] || [];
-                    const nextCrumbId = depth + 1 < this.driveBreadcrumb.length
-                        ? this.driveBreadcrumb[depth + 1].id : null;
-                    const childPad = 0.65 + (depth + 1) * 0.75;
-                    let renderedNext = false;
-                    for (const child of children) {
-                        if (child.id === nextCrumbId) {
-                            out += buildBranch(depth + 1);
-                            renderedNext = true;
-                        } else {
-                            out += `<button type="button" class="finder-tree-item" style="padding-left:${childPad}rem" data-folder-id="${escapeHtml(child.id)}" data-folder-name="${escapeHtml(child.name)}" data-depth="${depth + 1}">
-                                <span class="finder-tree-chevron">&#11208;</span>
-                                <span class="finder-tree-icon">&#128193;</span>
-                                <span>${escapeHtml(child.name)}</span>
-                            </button>`;
-                        }
-                    }
-                    if (nextCrumbId && !renderedNext) {
-                        out += buildBranch(depth + 1);
-                    }
-                    return out;
-                };
-                treeEl.innerHTML = buildBranch(0);
-                treeEl.querySelectorAll('.finder-tree-item').forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                        const folderId = btn.getAttribute('data-folder-id');
-                        const folderName = btn.getAttribute('data-folder-name') || '';
-                        const depth = parseInt(btn.getAttribute('data-depth'), 10);
-                        this.driveBreadcrumb = this.driveBreadcrumb.slice(0, depth);
-                        this.driveBreadcrumb.push({ id: folderId, name: folderName });
-                        this.currentFolderId = folderId;
-                        this._refreshTree();
-                        this._refreshFileList();
-                        this._refreshStatus();
-                    });
-                });
-                return;
+                return this.driveBreadcrumb.map((b) => b.name).join(' / ');
             }
-            const items = await this.controller.getTreeItems(this.currentSource, this.currentFolderId);
-            if (this.currentSource === SOURCE_DRIVE && this.currentFolderId !== 'root' && this.driveBreadcrumb.length === 0) {
-                this.driveBreadcrumb = [{ id: this.currentFolderId, name: 'Markdown-pro' }];
-            }
-            treeEl.innerHTML = items.map((item) => {
-                const active = (item.id === this.currentFolderId || (item.id !== 'root' && this.currentFolderId === item.id)) ? ' active' : '';
-                return `<button type="button" class="finder-tree-item${active}" data-folder-id="${escapeHtml(item.id)}">
-                    <span class="finder-tree-chevron"></span>
-                    <span class="finder-tree-icon">&#128193;</span>
-                    <span>${escapeHtml(item.name)}</span>
-                </button>`;
-            }).join('');
-            treeEl.querySelectorAll('.finder-tree-item').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    this.currentFolderId = btn.getAttribute('data-folder-id');
-                    if (this.currentSource === SOURCE_DRIVE && this.driveBreadcrumb.length === 0) {
-                        this.driveBreadcrumb = [{ id: this.currentFolderId, name: 'Markdown-pro' }];
-                    }
-                    this._refreshTree();
-                    this._refreshFileList();
-                    this._refreshStatus();
-                });
-            });
+            if (this.currentSource === SOURCE_DRIVE) return 'Google Drive (not connected)';
+            if (this.currentSource === SOURCE_RECENT) return 'Recent files';
+            return 'This Device';
+        }
+
+        _refreshDestination() {
+            const el = this.modal?.querySelector('#finderDestination');
+            if (!el) return;
+            el.textContent = this._destinationLabel();
+        }
+
+        _showNewFolderForm() {
+            if (!this._isDriveConnected() || !this._driveFolderId()) return;
+            const form = this.modal?.querySelector('#finderNewFolderForm');
+            const input = this.modal?.querySelector('#finderNewFolderName');
+            if (!form || !input) return;
+            form.hidden = false;
+            input.value = '';
+            input.focus();
+        }
+
+        _hideNewFolderForm() {
+            const form = this.modal?.querySelector('#finderNewFolderForm');
+            if (form) form.hidden = true;
+        }
+
+        _enterFolder(id, name) {
+            if (this.currentSource !== SOURCE_DRIVE) return;
+            if (!id || this._driveFolderId() === id) return;
+            const listed = this._currentFiles.find((f) => f.isFolder && f.id === id);
+            if (!listed) return;
+            this.driveBreadcrumb.push({ id: listed.id, name: listed.name || name || '' });
+            this.currentFolderId = listed.id;
+            this._overwriteFileId = null;
+            this._hideNewFolderForm();
+            this._refreshAfterNavigate();
+        }
+
+        _applyFooterFileName() {
+            const input = this.modal?.querySelector('#finderFileName');
+            if (!input) return normalizeMarkdownName(this.editor.currentFileName);
+            const name = normalizeMarkdownName(input.value);
+            input.value = name;
+            this.editor.currentFileName = name;
+            this.editor.setDocumentTitle?.(name);
+            return name;
         }
 
         async _refreshFileList() {
-            const listEl = this.modal.querySelector('#finderFileList');
+            const listEl = this.modal?.querySelector('#finderFileList');
             if (!listEl) return;
             const query = (this.modal.querySelector('#finderSearch') && this.modal.querySelector('#finderSearch').value) || '';
-            let files = await this.controller.getFileList(this.currentSource, this.currentFolderId);
+            if (this.currentSource === SOURCE_DRIVE && !this._isDriveConnected()) {
+                listEl.innerHTML = `<div class="finder-empty">
+                    <p>Google Drive is not connected</p>
+                    <p>Connect to browse and save inside your Markdown-pro folder.</p>
+                    <button type="button" class="btn btn-sm btn-primary" id="finderConnectDrive">Connect Google Drive</button>
+                </div>`;
+                const connectBtn = listEl.querySelector('#finderConnectDrive');
+                if (connectBtn) connectBtn.addEventListener('click', () => this._connectDriveFromPicker());
+                return;
+            }
+            let files = await this.controller.getFileList(this.currentSource, this.currentSource === SOURCE_DRIVE ? this._driveFolderId() : this.currentFolderId);
             if (query.trim()) {
                 const q = query.toLowerCase();
                 files = files.filter((f) => (f.name || '').toLowerCase().includes(q));
             }
             this._currentFiles = files;
             if (files.length === 0) {
-                listEl.innerHTML = '<div class="finder-empty"><p>No files here.</p><p>Use New File or Import from Disk.</p></div>';
+                const driveHint = this.currentSource === SOURCE_DRIVE
+                    ? 'Create a folder or save a markdown file here.'
+                    : 'Use New File or Import from Disk.';
+                listEl.innerHTML = '<div class="finder-empty"><p>No files in this folder</p><p>' + driveHint + '</p></div>';
                 return;
             }
             const headerHtml = `<div class="finder-list-header">
                 <div>Name</div>
-                <div>Preview</div>
                 <div>Modified</div>
-                <div>Source</div>
             </div>`;
             const rowsHtml = files.map((f, i) => {
+                const isFolder = !!f.isFolder;
                 const meta = f.source === SOURCE_DRIVE
                     ? formatDate(f.modified)
-                    : formatDate(f.modified) + ' · ' + formatSize(f.size);
-                const isFolder = !!f.isFolder;
-                const canMoveToDrive = !isFolder &&
+                    : (formatDate(f.modified) + (f.size ? ' · ' + formatSize(f.size) : ''));
+                const canMoveToDrive = this.mode !== 'save' && !isFolder &&
                     f.source !== SOURCE_DRIVE &&
                     !!(this.editor.driveAuth?.isConnected() && this.editor.driveStorage);
+                const showActions = this.mode !== 'save' && !isFolder;
                 const checkboxHtml = canMoveToDrive
                     ? `<label class="finder-file-check" onclick="event.stopPropagation()"><input type="checkbox" class="finder-file-checkbox" data-check-id="${escapeHtml(f.id)}"${this._selectedIds.has(f.id) ? ' checked' : ''}></label>`
                     : '';
-                const actionHtml = isFolder
-                    ? ''
-                    : `<div class="finder-file-actions">
+                const actionHtml = showActions
+                    ? `<div class="finder-file-actions">
                         ${canMoveToDrive ? `<div class="finder-file-menu">
                             <button type="button" class="finder-file-move" data-action="move-menu" title="Move options" aria-label="Move options">
                                 &#8599;
@@ -707,37 +774,29 @@
                         <button type="button" class="finder-file-delete" data-action="delete" title="Delete file" aria-label="Delete file">
                             &times;
                         </button>
-                    </div>`;
-                const rowClass = isFolder ? ' is-folder' : (' is-file' + (this._selectedIds.has(f.id) ? ' is-selected' : ''));
+                    </div>`
+                    : '';
+                const selected = this._overwriteFileId === f.id || this._selectedIds.has(f.id);
+                const rowClass = (isFolder ? ' is-folder' : ' is-file') + (selected ? ' is-selected' : '');
                 const iconBadgeClass = isFolder ? ' is-folder' : (f.source === SOURCE_DRIVE ? ' is-drive' : ' is-browser');
-                const metaPrefix = isFolder ? 'Folder' : (f.source === SOURCE_DRIVE ? 'Google Drive' : 'Browser');
-                const preview = isFolder
-                    ? 'Open this folder to view its contents'
-                    : f.source === SOURCE_DRIVE
-                        ? 'Markdown file stored in Google Drive'
-                        : ((f.content || '').replace(/\s+/g, ' ').trim().slice(0, 72) || 'Markdown document');
-                const displayName = truncateMiddle(f.name || 'Untitled.md', 24, 10);
-                const sourceChipClass = isFolder
-                    ? ' is-folder'
-                    : (f.source === SOURCE_DRIVE ? ' is-drive' : ' is-browser');
+                const displayName = truncateMiddle(f.name || 'Untitled.md', 28, 12);
+                const subtitle = isFolder ? 'Folder' : (f.wordCount ? f.wordCount + ' words' : '');
                 const directionHtml = isFolder
-                    ? '<div class="finder-file-direction" aria-hidden="true">&#8250;</div>'
+                    ? `<div class="finder-file-direction" aria-hidden="true">${ICON_CHEVRON}</div>`
                     : '';
                 return `<div class="finder-file-row${rowClass}" role="button" tabindex="0" data-file-id="${escapeHtml(f.id)}" data-file-name="${escapeHtml(f.name || '')}" data-source="${escapeHtml(f.source || '')}" data-is-drive="${f.isDrive ? '1' : '0'}" data-is-folder="${isFolder ? '1' : '0'}" data-file-index="${i}">
                     <div class="finder-file-col finder-file-col-name">
                         ${checkboxHtml}
                         <span class="finder-file-icon-badge${iconBadgeClass}">
-                            <span class="finder-file-icon">${isFolder ? '&#128193;' : '&#128196;'}</span>
+                            <span class="finder-file-icon">${isFolder ? ICON_FOLDER : ICON_FILE}</span>
                         </span>
                         <div class="finder-file-info">
                             <div class="finder-file-name" title="${escapeHtml(f.name || 'Untitled.md')}">${escapeHtml(displayName)}</div>
-                            <div class="finder-file-meta">${escapeHtml(isFolder ? 'Directory' : (f.wordCount ? f.wordCount + ' words' : metaPrefix))}</div>
+                            ${subtitle ? `<div class="finder-file-meta">${escapeHtml(subtitle)}</div>` : ''}
                         </div>
                     </div>
-                    <div class="finder-file-col finder-file-col-preview">${escapeHtml(preview)}</div>
                     <div class="finder-file-col finder-file-col-modified">${escapeHtml(meta)}</div>
-                    <div class="finder-file-col finder-file-col-source">
-                        <span class="finder-file-source-chip${sourceChipClass}">${escapeHtml(metaPrefix)}</span>
+                    <div class="finder-file-col finder-file-col-actions">
                         ${directionHtml}
                         ${actionHtml}
                     </div>
@@ -751,11 +810,11 @@
                     if (e.target.closest('[data-action]')) return;
                     if (e.target.closest('.finder-file-check')) return;
                     if (isFolder) {
-                        this.currentFolderId = row.getAttribute('data-file-id');
-                        this.driveBreadcrumb.push({ id: this.currentFolderId, name: row.getAttribute('data-file-name') || '' });
-                        this._refreshTree();
-                        this._refreshFileList();
-                        this._refreshStatus();
+                        this._enterFolder(row.getAttribute('data-file-id'), row.getAttribute('data-file-name') || '');
+                        return;
+                    }
+                    if (this.mode === 'save') {
+                        this._selectSaveTarget(row);
                         return;
                     }
                     const hasModifier = e.ctrlKey || e.metaKey || e.shiftKey;
@@ -791,11 +850,11 @@
                     if (e.key !== 'Enter' && e.key !== ' ') return;
                     e.preventDefault();
                     if (isFolder) {
-                        this.currentFolderId = row.getAttribute('data-file-id');
-                        this.driveBreadcrumb.push({ id: this.currentFolderId, name: row.getAttribute('data-file-name') || '' });
-                        this._refreshTree();
-                        this._refreshFileList();
-                        this._refreshStatus();
+                        this._enterFolder(row.getAttribute('data-file-id'), row.getAttribute('data-file-name') || '');
+                        return;
+                    }
+                    if (this.mode === 'save') {
+                        this._selectSaveTarget(row);
                         return;
                     }
                     await this._openRow(row);
@@ -846,6 +905,16 @@
                 if (!visibleIds.has(id)) this._selectedIds.delete(id);
             }
             this._refreshBatchBar();
+        }
+
+        _selectSaveTarget(row) {
+            const name = row.getAttribute('data-file-name') || '';
+            const input = this.modal.querySelector('#finderFileName');
+            if (input) input.value = normalizeMarkdownName(name);
+            this._overwriteFileId = row.getAttribute('data-file-id');
+            this.modal.querySelectorAll('.finder-file-row').forEach((r) => {
+                r.classList.toggle('is-selected', r === row);
+            });
         }
 
         async _openRow(row) {
@@ -919,6 +988,10 @@
                 el.innerHTML = '<span class="finder-crumb is-current">My files</span>';
                 return;
             }
+            if (this.currentSource === SOURCE_DRIVE && !this._isDriveConnected()) {
+                el.innerHTML = '<span class="finder-crumb is-current">Markdown-pro</span>';
+                return;
+            }
             if (this.currentSource === SOURCE_DRIVE && this.driveBreadcrumb.length > 0) {
                 el.innerHTML = this.driveBreadcrumb.map((b, idx) => {
                     const isLast = idx === this.driveBreadcrumb.length - 1;
@@ -930,12 +1003,13 @@
                 }).join('');
                 el.querySelectorAll('button.finder-crumb').forEach((btn) => {
                     btn.addEventListener('click', () => {
-                        const idx = parseInt(btn.getAttribute('data-crumb-index'), 10);
-                        this.driveBreadcrumb = this.driveBreadcrumb.slice(0, idx + 1);
-                        this.currentFolderId = this.driveBreadcrumb[idx].id;
-                        this._refreshTree();
-                        this._refreshFileList();
-                        this._refreshStatus();
+                        let idx = parseInt(btn.getAttribute('data-crumb-index'), 10);
+                        if (!Number.isFinite(idx) || idx < 0) idx = 0;
+                        if (idx >= this.driveBreadcrumb.length) return;
+                        this.driveBreadcrumb = this.driveBreadcrumb.slice(0, Math.max(idx, 0) + 1);
+                        this.currentFolderId = this._driveFolderId();
+                        this._overwriteFileId = null;
+                        this._refreshAfterNavigate();
                     });
                 });
                 return;
@@ -982,6 +1056,7 @@
 
         async _onSaveHere() {
             try {
+                const name = this._applyFooterFileName();
                 if (this.currentSource === SOURCE_DRIVE) {
                     if (!this.editor.driveAuth?.isConnected()) {
                         this.editor.showNotification?.(
@@ -990,7 +1065,12 @@
                         );
                         return;
                     }
-                    await this.controller.saveCurrentToDriveFolder(this.currentFolderId);
+                    const folderId = this._driveFolderId();
+                    if (!folderId) {
+                        this.editor.showNotification?.('Choose a Google Drive folder first.', 'error');
+                        return;
+                    }
+                    await this.controller.saveCurrentToDriveFolder(folderId, name);
                     this.editor.showNotification?.('Saved to Google Drive', 'success');
                 } else {
                     const ok = await this.controller.saveCurrentToBrowser();
@@ -1003,32 +1083,43 @@
         }
 
         async _onNewFolder() {
-            const name = window.prompt('New folder name:');
-            if (!name || !name.trim()) return;
+            const input = this.modal?.querySelector('#finderNewFolderName');
+            const name = (input && input.value || '').trim();
+            if (!name) {
+                input?.focus();
+                return;
+            }
+            const parentId = this._driveFolderId();
+            if (!this._isDriveConnected() || !parentId) {
+                this.editor.showNotification?.('Connect Google Drive first.', 'error');
+                return;
+            }
             try {
-                const rootId = await this.editor.driveStorage.ensureRootFolder();
-                const parentId = this.currentFolderId === 'root' ? rootId : this.currentFolderId;
-                await this.editor.driveStorage.createFolder(parentId, name.trim());
+                await this.editor.driveStorage.createFolder(parentId, name);
                 this.editor.showNotification?.('Folder created', 'success');
-                this._refreshTree();
+                this._hideNewFolderForm();
                 this._refreshFileList();
+                this._refreshStatus();
             } catch (err) {
                 this.editor.showNotification?.('Could not create folder: ' + (err && err.message ? err.message : 'error'), 'error');
             }
         }
 
-        _refreshCommandBar() {
-            const newFolderBtn = this.modal.querySelector('#finderNewFolder');
-            if (newFolderBtn) {
-                newFolderBtn.style.display = this.currentSource === SOURCE_DRIVE ? '' : 'none';
-            }
-        }
-
         _refreshStatus() {
-            const statusEl = this.modal.querySelector('#finderStatus');
+            const statusEl = this.modal?.querySelector('#finderStatus');
             if (!statusEl) return;
-            this.controller.getFileList(this.currentSource, this.currentFolderId).then((files) => {
-                statusEl.textContent = files.length + ' file(s)';
+            if (this.currentSource === SOURCE_DRIVE && !this._isDriveConnected()) {
+                statusEl.textContent = 'Not connected';
+                return;
+            }
+            const folderId = this.currentSource === SOURCE_DRIVE ? this._driveFolderId() : this.currentFolderId;
+            this.controller.getFileList(this.currentSource, folderId).then((files) => {
+                const folders = files.filter((f) => f.isFolder).length;
+                const docs = files.length - folders;
+                const parts = [];
+                if (folders) parts.push(folders + ' folder' + (folders === 1 ? '' : 's'));
+                parts.push(docs + ' file' + (docs === 1 ? '' : 's'));
+                statusEl.textContent = parts.join(', ');
             }).catch(() => {
                 statusEl.textContent = '';
             });

@@ -2,6 +2,12 @@
 
 ## Recent Session Notes
 
+### 2026-09-23
+- Rewrote Finder to a two-pane path picker: Locations + list/breadcrumb. No Folders tree pane.
+- Open vs Save chrome is split. Save has filename footer, destination label, Save here / Save to Disk.
+- New Drive folder is an inline form, not `window.prompt`. `#finderNewFolder` is always in the markup and shown when Drive is selected.
+- Drive stays in the Locations rail even when disconnected. Navigation is locked to Markdown-pro: no Google `root` listing, folder IDs only from list/breadcrumb, create/save use `resolveWorkingFolder`.
+
 ### 2026-09-01
 - Preview Mermaid boxes now hug diagram height while still fitting the pane width.
 - Cause: `parseFloat` on Mermaid's `width="100%"` plus a 120px min-height.
