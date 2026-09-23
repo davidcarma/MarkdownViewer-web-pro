@@ -321,12 +321,35 @@
             this._setStoredRootFolderId(null);
         }
 
+        sanitizeFolderName(name) {
+            let n = String(name || '').trim().replace(/[\\/]/g, '-').replace(/[\x00-\x1f]/g, '');
+            if (!n) throw new Error('Folder name is required');
+            if (n.length > 120) n = n.slice(0, 120);
+            return n;
+        }
+
+        /**
+         * Never list Google's My Drive root (403 with drive.file).
+         * Unknown or dead folder IDs fall back to Markdown-pro only when asked.
+         */
+        async resolveWorkingFolder(folderId, options = {}) {
+            const rootId = await this.ensureRootFolder();
+            if (!folderId || folderId === 'root') return rootId;
+            const ok = await this._validateFolderId(folderId);
+            if (ok) return folderId;
+            if (options.fallbackToRoot) return rootId;
+            throw new Error('That Drive folder is no longer available');
+        }
+
         async listFiles(folderId, retryOnRootReset = true) {
-            const q = "'" + (folderId || 'root').replace(/'/g, "\\'") + "' in parents and trashed = false";
+            const workingId = (!folderId || folderId === 'root')
+                ? await this.ensureRootFolder()
+                : folderId;
+            const q = "'" + workingId.replace(/'/g, "\\'") + "' in parents and trashed = false";
             const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,mimeType,modifiedTime)&orderBy=name&spaces=drive';
             const res = await this._fetch(url);
             if (!res.ok) {
-                const isCachedRoot = !!folderId && (folderId === this._rootFolderId || folderId === this._getStoredRootFolderId());
+                const isCachedRoot = workingId === this._rootFolderId || workingId === this._getStoredRootFolderId();
                 if (retryOnRootReset && isCachedRoot && (res.status === 403 || res.status === 404)) {
                     this.clearRootFolderCache();
                     const freshRootId = await this.ensureRootFolder();
@@ -348,13 +371,15 @@
         }
 
         async createFolder(parentId, name) {
+            const folderName = this.sanitizeFolderName(name);
+            const parent = await this.resolveWorkingFolder(parentId);
             const res = await this._fetch(DRIVE_API + '/files', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: name,
+                    name: folderName,
                     mimeType: MIME_FOLDER,
-                    parents: [parentId]
+                    parents: [parent]
                 })
             });
             if (!res.ok) {
@@ -378,10 +403,11 @@
         }
 
         async createFile(parentId, name, content) {
+            const parent = await this.resolveWorkingFolder(parentId);
             const boundary = '-------mdpro_' + Math.random().toString(36).slice(2);
             const meta = JSON.stringify({
                 name: name,
-                parents: [parentId],
+                parents: [parent],
                 mimeType: MIME_MARKDOWN
             });
             const body =

@@ -1,4 +1,4 @@
-/* Finder-style file system modal */
+/* Two-pane file picker: locations + list */
 .finder-overlay {
     position: fixed;
     top: 0;
@@ -21,9 +21,9 @@
     border-radius: 18px;
     box-shadow: var(--shadow-lg);
     border: 1px solid color-mix(in srgb, var(--border-color) 75%, white 25%);
-    min-width: 720px;
-    max-width: min(96vw, 1280px);
-    width: 1120px;
+    min-width: 0;
+    max-width: min(96vw, 960px);
+    width: 860px;
     height: 78vh;
     max-height: 720px;
     display: flex;
@@ -134,12 +134,13 @@
 }
 
 .finder-source-rail {
-    width: 156px;
+    width: 176px;
     flex-shrink: 0;
     border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
     background:
         linear-gradient(180deg, color-mix(in srgb, var(--accent-color) 7%, var(--bg-secondary)), var(--bg-secondary));
     padding: 0.75rem 0.6rem;
+    overflow-y: auto;
 }
 
 .finder-source-item {
@@ -156,21 +157,19 @@
     font-weight: 500;
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .finder-source-item:hover {
     background: color-mix(in srgb, var(--bg-tertiary) 86%, transparent);
     border-color: color-mix(in srgb, var(--border-color) 82%, transparent);
     color: var(--text-primary);
-    transform: translateX(1px);
 }
 
 .finder-source-item.active {
     background: linear-gradient(180deg, color-mix(in srgb, var(--accent-color) 16%, transparent), color-mix(in srgb, var(--accent-color) 10%, transparent));
     color: var(--accent-color);
     border-color: color-mix(in srgb, var(--accent-color) 28%, transparent);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .finder-source-item .finder-source-icon {
@@ -182,6 +181,12 @@
     justify-content: center;
     border-radius: 9px;
     background: color-mix(in srgb, var(--bg-primary) 74%, transparent);
+}
+
+.finder-source-item .finder-source-icon svg {
+    width: 15px;
+    height: 15px;
+    display: block;
 }
 
 .finder-source-copy {
@@ -216,16 +221,6 @@
     color: var(--warning-color);
 }
 
-.finder-tree-pane {
-    width: 220px;
-    flex-shrink: 0;
-    border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0.75rem 0.6rem;
-    background: color-mix(in srgb, var(--bg-primary) 96%, transparent);
-}
-
 .finder-pane-label {
     font-size: 0.68rem;
     font-weight: 700;
@@ -233,45 +228,6 @@
     text-transform: uppercase;
     color: var(--text-muted);
     padding: 0.2rem 0.55rem 0.6rem;
-}
-
-.finder-tree-item {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.48rem 0.65rem;
-    font-size: 0.8rem;
-    color: var(--text-primary);
-    cursor: pointer;
-    border: 1px solid transparent;
-    background: transparent;
-    width: 100%;
-    text-align: left;
-    border-radius: 12px;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.finder-tree-item:hover {
-    background: color-mix(in srgb, var(--bg-tertiary) 86%, transparent);
-    border-color: color-mix(in srgb, var(--border-color) 78%, transparent);
-}
-
-.finder-tree-item.active {
-    background: color-mix(in srgb, var(--accent-color) 14%, transparent);
-    color: var(--accent-color);
-    border-color: color-mix(in srgb, var(--accent-color) 24%, transparent);
-}
-
-.finder-tree-item .finder-tree-chevron {
-    width: 16px;
-    flex-shrink: 0;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-}
-
-.finder-tree-item .finder-tree-icon {
-    flex-shrink: 0;
-    width: 18px;
 }
 
 .finder-main {
@@ -291,13 +247,18 @@
     flex-shrink: 0;
     background:
         linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 96%, white 4%), var(--bg-primary));
-    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .finder-command-bar .btn {
     font-size: 0.76rem;
     padding: 0.42rem 0.68rem;
     border-radius: 10px;
+}
+
+.finder-command-bar .btn[hidden],
+.finder-save-footer[hidden],
+.finder-new-folder[hidden] {
+    display: none !important;
 }
 
 .finder-search {
@@ -369,11 +330,31 @@
     flex-shrink: 0;
 }
 
-.finder-tree-empty {
-    padding: 0.6rem 0.65rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-style: italic;
+.finder-new-folder {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.9rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--accent-color) 6%, var(--bg-primary));
+}
+
+.finder-new-folder input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.42rem 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+    border-radius: 10px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+}
+
+.finder-new-folder input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 14%, transparent);
 }
 
 .finder-file-list {
@@ -388,7 +369,7 @@
 
 .finder-list-header {
     display: grid;
-    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1.45fr) 116px 108px;
+    grid-template-columns: minmax(0, 1fr) 140px 72px;
     gap: 0.65rem;
     padding: 0 0.7rem 0.45rem;
     margin-bottom: 0.2rem;
@@ -405,7 +386,7 @@
 
 .finder-file-row {
     display: grid;
-    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1.45fr) 116px 108px;
+    grid-template-columns: minmax(0, 1fr) 140px 72px;
     align-items: center;
     gap: 0.65rem;
     padding: 0.55rem 0.7rem;
@@ -417,15 +398,13 @@
     font-size: 0.84rem;
     color: var(--text-primary);
     border-radius: 12px;
-    transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     margin-bottom: 0.35rem;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .finder-file-row:hover {
     background: linear-gradient(90deg, color-mix(in srgb, var(--accent-color) 6%, var(--bg-primary)), color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary)));
     border-color: color-mix(in srgb, var(--accent-color) 28%, var(--border-color));
-    transform: translateY(-1px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
@@ -441,7 +420,6 @@
     overflow: hidden;
 }
 
-.finder-file-col-preview,
 .finder-file-col-modified {
     white-space: nowrap;
     overflow: hidden;
@@ -450,14 +428,12 @@
     font-size: 0.78rem;
 }
 
-.finder-file-col-source {
+.finder-file-col-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 0.22rem;
     min-width: 0;
-    flex-wrap: nowrap;
-    white-space: nowrap;
 }
 
 .finder-file-icon-badge {
@@ -489,13 +465,16 @@
 
 .finder-file-row .finder-file-icon {
     flex-shrink: 0;
-    width: auto;
-    height: auto;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-primary);
-    font-size: 0.9rem;
+}
+
+.finder-file-row .finder-file-icon svg {
+    width: 15px;
+    height: 15px;
+    display: block;
 }
 
 .finder-file-row .finder-file-info {
@@ -520,48 +499,13 @@
 
 .finder-file-direction {
     flex-shrink: 0;
-    font-size: 1.05rem;
-    line-height: 1;
     color: var(--text-muted);
-    padding-right: 0.05rem;
-    transition: color 0.15s, transform 0.15s;
+    display: flex;
+    align-items: center;
 }
 
 .finder-file-row.is-folder:hover .finder-file-direction {
     color: var(--accent-color);
-    transform: translateX(1px);
-}
-
-.finder-file-source-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.22rem 0.5rem;
-    border-radius: 999px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
-    background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
-    color: var(--text-secondary);
-    white-space: nowrap;
-}
-
-.finder-file-source-chip.is-browser {
-    color: var(--success-color);
-    background: color-mix(in srgb, var(--success-color) 14%, transparent);
-    border-color: color-mix(in srgb, var(--success-color) 25%, transparent);
-}
-
-.finder-file-source-chip.is-drive {
-    color: var(--accent-color);
-    background: color-mix(in srgb, var(--accent-color) 14%, transparent);
-    border-color: color-mix(in srgb, var(--accent-color) 25%, transparent);
-}
-
-.finder-file-source-chip.is-folder {
-    color: var(--warning-color);
-    background: color-mix(in srgb, var(--warning-color) 16%, transparent);
-    border-color: color-mix(in srgb, var(--warning-color) 28%, transparent);
 }
 
 .finder-file-row .finder-file-actions {
@@ -596,14 +540,12 @@
     cursor: pointer;
     font-size: 0.9rem;
     line-height: 1;
-    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
 }
 
 .finder-file-move:hover,
 .finder-file-menu.is-open .finder-file-move {
     background: color-mix(in srgb, var(--accent-color) 18%, transparent);
     border-color: color-mix(in srgb, var(--accent-color) 55%, transparent);
-    transform: scale(1.03);
 }
 
 .finder-file-popup-menu {
@@ -655,14 +597,11 @@
     cursor: pointer;
     font-size: 0.92rem;
     line-height: 1;
-    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
 }
 
 .finder-file-delete:hover {
     background: color-mix(in srgb, var(--danger-color) 20%, transparent);
     border-color: color-mix(in srgb, var(--danger-color) 55%, transparent);
-    color: var(--danger-color);
-    transform: scale(1.03);
 }
 
 .finder-file-check {
@@ -692,6 +631,68 @@
     background: color-mix(in srgb, var(--accent-color) 14%, var(--bg-primary));
 }
 
+.finder-save-footer {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "label name disk save"
+        "dest dest dest dest";
+    gap: 0.45rem 0.6rem;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+}
+
+.finder-filename-label {
+    grid-area: label;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.finder-filename {
+    grid-area: name;
+    min-width: 0;
+    padding: 0.46rem 0.72rem;
+    border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+    border-radius: 11px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+}
+
+.finder-filename:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 14%, transparent);
+}
+
+.finder-destination {
+    grid-area: dest;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.finder-save-footer #finderSaveToDisk {
+    grid-area: disk;
+}
+
+.finder-save-footer #finderSaveHere {
+    grid-area: save;
+}
+
+.finder-save-footer #finderSaveHere:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .finder-status-bar .btn {
     font-size: 0.76rem;
     padding: 0.38rem 0.72rem;
@@ -702,7 +703,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.7rem 1rem;
+    padding: 0.55rem 1rem;
     border-top: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
     font-size: 0.78rem;
     color: var(--text-secondary);
@@ -731,6 +732,14 @@
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.finder-empty .btn {
+    margin-top: 0.75rem;
+}
+
+.finder-source-item.is-disconnected .finder-source-note {
+    color: var(--warning-color);
 }
 
 @keyframes finderFadeIn {

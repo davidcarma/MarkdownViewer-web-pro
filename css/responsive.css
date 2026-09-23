@@ -91,6 +91,48 @@
         left: 10px;
         max-width: none;
     }
+
+    .finder-window {
+        width: 96vw;
+        height: 92vh;
+        max-height: none;
+        border-radius: 12px;
+    }
+
+    .finder-body {
+        flex-direction: column;
+    }
+
+    .finder-source-rail {
+        width: 100%;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.35rem;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+        padding: 0.5rem 0.6rem;
+    }
+
+    .finder-source-rail .finder-pane-label {
+        display: none;
+    }
+
+    .finder-source-item {
+        width: auto;
+        flex-shrink: 0;
+    }
+
+    .finder-save-footer {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "label label"
+            "name name"
+            "dest dest"
+            "disk save";
+    }
 }
 
 @media (max-width: 480px) {
