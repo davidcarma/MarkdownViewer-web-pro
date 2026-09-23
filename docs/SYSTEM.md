@@ -35,7 +35,7 @@ After markdown is rendered to HTML, `js/core.js` applies:
 - **Mermaid**: code fences tagged `mermaid` are replaced by rendered diagrams.
   - **Sanitisation**: Unicode arrows, LLM-style label fixes, and a second aggressive pass on parse failure (`js/core.js`; see `docs/MERMAID-SANITISATION.md`).
   - **Invariant**: when mermaid replaces DOM nodes, the diagram container **must preserve** `data-line` / `data-line-end` copied from the original block, otherwise scroll sync drifts.
-  - A click handler is attached to each diagram container to open the diagram viewer (zoom/pan/copy SVG).
+  - Each diagram gets an inline zoom/pan toolbar and copy-image control (not a separate fullscreen modal).
 - **KaTeX**: math rendering via `katex-auto-render`. Inline math delimited by `$...$`, block math by `$$...$$`.
 
 ## Minimap
@@ -91,6 +91,15 @@ Enable detailed logs:
 - Disable with `localStorage.removeItem('markdownpro-debug-scroll')`
 
 ## Storage & persistence
+
+### Google Drive uniqueness (ID, not name)
+
+Google Drive allows many files or folders with the same name in one parent. Markdown Pro must reuse one ID per `(parent, name, kind)`.
+
+- `createFolder` / `createFile` query that parent by name first. If a hit exists, reuse it (update file content). Do not POST a second item.
+- Same-parent duplicates are merged into the canonical ID. Nested folders that only share the name `Markdown-pro` are left alone.
+- A localStorage root folder ID is a cache. `ensureRootFolder` still searches for extra `Markdown-pro` folders at the same parent.
+- Do not invent `Markdown-pro 2` wrapper folders or `name (2)` suffixes to hide collisions.
 
 ### Storage layers
 

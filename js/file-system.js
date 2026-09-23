@@ -215,14 +215,8 @@
             this.editor.setDocumentTitle?.(name);
             const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled-md';
             const effectiveId = await this.editor.driveStorage.resolveWorkingFolder(folderId);
-            const existing = await this.editor.driveStorage.listFiles(effectiveId).then((items) => items.find((f) => !f.isFolder && f.name === name));
-            if (existing) {
-                await this.editor.driveStorage.updateFile(existing.id, content);
-                this.editor.currentDriveFileId = existing.id;
-            } else {
-                const created = await this.editor.driveStorage.createFile(effectiveId, name, content);
-                this.editor.currentDriveFileId = created.id;
-            }
+            const saved = await this.editor.driveStorage.createFile(effectiveId, name, content);
+            this.editor.currentDriveFileId = saved.id;
             if (this.editor.indexedDBManager) {
                 await this.editor.indexedDBManager.saveFile({
                     id: slug, name: name, content,
@@ -270,16 +264,8 @@
                 ? this.getEditorContent()
                 : (file.content || '');
             const targetFolderId = await this.editor.driveStorage.resolveWorkingFolder(folderId || 'root');
-            const existing = await this.editor.driveStorage.listFiles(targetFolderId).then((items) => items.find((f) => !f.isFolder && f.name === name));
-
-            let driveFileId = null;
-            if (existing) {
-                await this.editor.driveStorage.updateFile(existing.id, content);
-                driveFileId = existing.id;
-            } else {
-                const created = await this.editor.driveStorage.createFile(targetFolderId, name, content);
-                driveFileId = created.id;
-            }
+            const saved = await this.editor.driveStorage.createFile(targetFolderId, name, content);
+            const driveFileId = saved.id;
 
             if (this.editor.indexedDBManager) {
                 await this.editor.indexedDBManager.deleteFile(file.id);
@@ -1095,8 +1081,11 @@
                 return;
             }
             try {
-                await this.editor.driveStorage.createFolder(parentId, name);
-                this.editor.showNotification?.('Folder created', 'success');
+                const folder = await this.editor.driveStorage.createFolder(parentId, name);
+                this.editor.showNotification?.(
+                    folder && folder.existed ? 'Using existing folder' : 'Folder created',
+                    'success'
+                );
                 this._hideNewFolderForm();
                 this._refreshFileList();
                 this._refreshStatus();

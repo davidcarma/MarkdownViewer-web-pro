@@ -414,10 +414,11 @@ graph TD
 ````
 
 ### Diagram Viewer
-Click any rendered diagram in the preview to open a full-screen viewer with:
-- **Zoom**: Scroll or use buttons to zoom in/out
-- **Pan**: Click and drag to pan around large diagrams
-- **Copy SVG**: Copy the raw SVG to clipboard
+Each rendered diagram has an inline toolbar for zoom, pan, and copy-image:
+- **Zoom**: Click the diagram to activate, then scroll or use +/- buttons
+- **Pan**: Drag while zoom is active
+- **Reset**: Fit the diagram to the preview pane width
+- **Copy image**: Copy a PNG of the diagram to the clipboard
 
 ## Fullscreen Editing Mode
 
@@ -472,7 +473,7 @@ The editor uses CSS custom properties for easy theming. Edit `css/variables.css`
 ### Current - Minimap, KaTeX, Diagram Viewer, View Mode Persistence
 - **Minimap**: Sublime-style canvas minimap on both editor and preview panes
 - **KaTeX Math**: Inline (`$...$`) and block (`$$...$$`) LaTeX math rendering
-- **Mermaid Diagram Viewer**: Click any diagram for a full-screen viewer with zoom, pan, and SVG copy
+- **Mermaid Diagram Viewer**: Inline zoom/pan toolbar on each diagram, plus copy-image
 - **View Mode Persistence**: Editor/preview split mode remembered across sessions
 - **Drag-Drop on Preview**: Files can be dropped onto the preview pane as well as the editor
 - **Internal Anchor Links**: Fixed in-page anchor navigation

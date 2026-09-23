@@ -1185,17 +1185,21 @@ class MarkdownEditor {
         if (typeof mermaid === 'undefined') return;
 
         const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        // Host owns width/height fit via _buildMermaidViewer; Mermaid must emit
+        // real pixel dimensions (useMaxWidth: false), not width="100%".
         let mermaidConfig = {
             startOnLoad: false,
             theme: 'base',
+            htmlLabels: true,
+            markdownAutoWrap: true,
             flowchart: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 htmlLabels: true,
                 curve: 'basis',
                 padding: 20
             },
             sequence: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 wrap: true,
                 diagramMarginX: 20,
                 diagramMarginY: 20,
@@ -1206,7 +1210,7 @@ class MarkdownEditor {
                 messageMargin: 45
             },
             gantt: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 leftPadding: 80,
                 gridLineStartPadding: 40,
                 fontSize: 12,
@@ -1215,33 +1219,33 @@ class MarkdownEditor {
                 axisFormat: '%Y-%m-%d'
             },
             journey: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 diagramMarginX: 50,
                 diagramMarginY: 20
             },
             class: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 padding: 15
             },
             state: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 padding: 15
             },
             er: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 layoutDirection: 'TB',
                 diagramPadding: 30,
                 entityPadding: 20,
                 fontSize: 14
             },
             pie: {
-                useMaxWidth: true
+                useMaxWidth: false
             },
             git: {
-                useMaxWidth: true
+                useMaxWidth: false
             },
             graph: {
-                useMaxWidth: true,
+                useMaxWidth: false,
                 htmlLabels: true
             }
         };
@@ -1765,10 +1769,16 @@ class MarkdownEditor {
     
     /**
      * Pin a Mermaid SVG to real pixel size from viewBox / bbox.
-     * Mermaid's useMaxWidth sets width="100%" and omits height, which makes
-     * parseFloat(width) === 100 and leaves extra vertical space in the preview.
+     * With useMaxWidth: false Mermaid usually emits pixels already; still
+     * guard against percentage attrs left over from older configs.
      */
     _normalizeMermaidSvgSize(svg) {
+        // Keep HTML labels from clipping when CSSOM lowercases foreignObject rules
+        svg.querySelectorAll('foreignObject').forEach((fo) => {
+            fo.setAttribute('overflow', 'visible');
+            if (fo.style) fo.style.overflow = 'visible';
+        });
+
         const vbParts = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
         let w = 0, h = 0;
         if (vbParts.length === 4 && vbParts[2] > 0 && vbParts[3] > 0) {
@@ -1874,9 +1884,20 @@ class MarkdownEditor {
         const computeFitScale = () => {
             const svg = inner.querySelector('svg');
             if (!svg) return;
+            // Measure unscaled: clear transform briefly if needed is expensive;
+            // use attribute/viewBox size, then lift from painted size / current scale.
+            const prevTransform = inner.style.transform;
+            inner.style.transform = 'none';
             const size = this._normalizeMermaidSvgSize(svg);
             naturalW = size.w;
             naturalH = size.h;
+            try {
+                const rect = svg.getBoundingClientRect();
+                if (rect.width > 0) naturalW = Math.max(naturalW, rect.width);
+                if (rect.height > 0) naturalH = Math.max(naturalH, rect.height);
+            } catch (_) { /* ignore */ }
+            inner.style.transform = prevTransform;
+
             const pad = viewportPadding();
             const vpW = viewport.clientWidth - pad.x;
             if (naturalW > 0 && vpW > 8) {
@@ -1895,7 +1916,18 @@ class MarkdownEditor {
             sizeViewportToFit();
         };
 
-        requestAnimationFrame(() => requestAnimationFrame(fitNow));
+        // Double rAF, then one more pass after fonts so tall/long diagrams settle.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            fitNow();
+            const afterFonts = () => {
+                fitNow();
+            };
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(afterFonts).catch(afterFonts);
+            } else {
+                setTimeout(afterFonts, 50);
+            }
+        }));
 
         const resetIdleTimer = () => {
             clearTimeout(idleTimer);
@@ -2675,6 +2707,8 @@ class MarkdownEditor {
                         }
                         const cleanedSvg = svgMarkup.replace(/<script[\s\S]*?<\/script>/gi, '');
                         mermaidDiv.innerHTML = cleanedSvg;
+                        const exportSvg = mermaidDiv.querySelector('svg');
+                        if (exportSvg) this._normalizeMermaidSvgSize(exportSvg);
                     } catch (error) {
                         console.warn('[mermaid] Export aggressive retry also failed:', error?.message || error);
                         console.error('Mermaid rendering error during export:', error);
@@ -2991,8 +3025,10 @@ class MarkdownEditor {
             .replace(/;/g, ',')             // semicolons are statement separators
             .replace(/:/g, ' -')            // colons break stateDiagram label parser
             .replace(/\//g, ' ')            // slashes confuse the tokenizer
-            .replace(/\n/g, ' ')            // newlines
-            .replace(/\s{2,}/g, ' ')        // collapse runs of whitespace from replacements
+            // Keep real newlines as Mermaid line breaks (v11: \n in plain quoted labels).
+            // Collapse only runs of spaces/tabs so multi-line labels still wrap.
+            .replace(/[ \t]{2,}/g, ' ')
+            .replace(/ *\n+ */g, '\n')
             .trim();
     }
     

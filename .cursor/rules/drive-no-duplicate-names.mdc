@@ -1,0 +1,24 @@
+---
+description: Google Drive must reuse IDs; never create a second file or folder with the same name in the same parent
+globs: js/drive-storage.js,js/drive-identity.js,js/file-system.js,js/file-operations.js
+alwaysApply: false
+---
+
+# Drive identity is the ID, not the name
+
+Google Drive allows many files or folders with the same name in one parent. Each is a different ID. Markdown Pro must never create a second `Markdown-pro` root, a second sibling folder, or a second `.md` file just because a name lookup was skipped.
+
+## Rules
+
+- Before `files.create` for a folder or markdown file, query that parent for `name + trashed = false` (and folder mime, or not-folder for files).
+- If one or more hits exist, reuse the canonical ID. Update file content on that ID. Do not POST another item.
+- If several hits share the same parent, merge extras into the canonical item (move folder children; for files keep one and delete the rest). Do not park extras in a `Markdown-pro 2` wrapper folder.
+- Only merge duplicates that share the same parent. A nested folder that happens to be named `Markdown-pro` is not a second app root.
+- `ensureRootFolder` must reconcile same-parent `Markdown-pro` folders even when localStorage already has a valid folder ID. A stored ID is a cache, not proof there is only one root.
+- `createFolder` / `createFile` are get-or-create. Callers must not list-then-create as a second uniqueness path.
+
+## Do not
+
+- Treat `listFiles().find(name === x)` as sufficient uniqueness. That misses pagination and races. Query by name in the Drive API, then create only if zero hits, then query again.
+- Short-circuit root ensure on a cached ID without a periodic same-name search.
+- Suffix user-visible names (`aimonger (2)`) to dodge collisions. Absorb into the existing ID instead.

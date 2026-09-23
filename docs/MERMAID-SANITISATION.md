@@ -41,7 +41,15 @@ If both attempts fail, the existing preview shows the parse error, expandable so
 
 ## Mermaid build
 
-Vendored bundle: `lib/mermaid.min.js` (no CDN). Initialise via `updateMermaidTheme()` / `mermaid.initialize(...)`. Rendering uses `mermaid.render(id, text)` (async, Promise-based errors).
+Vendored bundle: `lib/mermaid.min.js` **11.17.2** (no CDN). Initialise via `updateMermaidTheme()` / `mermaid.initialize(...)`.
+
+Host config highlights:
+
+- `htmlLabels: true` (root) and `markdownAutoWrap: true`
+- `useMaxWidth: false` on diagram types so SVG gets real pixel width/height; the preview viewer owns fit-to-pane scaling
+- Label newlines are kept (`\n` in quoted plain labels). Do not collapse them to spaces.
+
+Rendering uses `mermaid.render(id, text)` (async, Promise-based errors).
 
 ## Parity with the RAG project
 

@@ -381,7 +381,26 @@
     transition: none;
     display: block;
     width: 100%;
+    /* Collapse SVG layout gaps; MUST NOT cascade into foreignObject HTML labels */
     line-height: 0;
+}
+
+/*
+ * Mermaid measures HTML labels at line-height: normal. Host line-height (or
+ * .mermaid-inner's 0) cascading into foreignObject makes boxes too short/tall
+ * and clips node text. Reset measurement-matched metrics inside labels only.
+ */
+.preview-content .mermaid-diagram foreignObject,
+.preview-content .mermaid-diagram foreignObject div,
+.preview-content .mermaid-diagram .nodeLabel,
+.preview-content .mermaid-diagram .edgeLabel,
+.preview-content .mermaid-diagram .label {
+    line-height: normal !important;
+    overflow: visible;
+}
+
+.preview-content .mermaid-diagram foreignObject {
+    overflow: visible;
 }
 
 .preview-content .mermaid-diagram svg {
@@ -389,6 +408,7 @@
     margin: 0 auto;
     max-width: none;
     height: auto;
+    overflow: visible;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
 }
 
