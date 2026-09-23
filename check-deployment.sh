@@ -63,6 +63,7 @@ for file in \
     "js/file-operations.js" \
     "js/analytics.js" \
     "js/drive-auth.js" \
+    "js/drive-identity.js" \
     "js/drive-storage.js" \
     "js/file-system.js" \
     "js/image-paste.js" \

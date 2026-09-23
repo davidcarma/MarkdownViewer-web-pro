@@ -15,6 +15,8 @@ Grep this file for a tag (for example `mermaid`, `silent-failure`). Open only th
 
 | ID | Title | Tags | Severity | Date | File |
 |----|-------|------|----------|------|------|
+| L-2026-09-23-drive-duplicate-names | Drive uniqueness is the ID; never create a second same-name sibling | ui, auth, silent-failure, high, lesson | high | 2026-09-23 | [L-2026-09-23-drive-duplicate-names.md](L-2026-09-23-drive-duplicate-names.md) |
+| L-2026-09-23-mermaid-foreignobject-lineheight | Host line-height must not cascade into Mermaid foreignObject labels | ui, mermaid, preview, silent-failure, high, lesson | high | 2026-09-23 | [L-2026-09-23-mermaid-foreignobject-lineheight.md](L-2026-09-23-mermaid-foreignobject-lineheight.md) |
 | L-2026-09-01-mermaid-percent-width-height | Mermaid preview height must use viewBox, not parseFloat("100%") | ui, mermaid, preview, silent-failure, medium, lesson | medium | 2026-09-01 | [L-2026-09-01-mermaid-percent-width-height.md](L-2026-09-01-mermaid-percent-width-height.md) |
 
 ## Related external docs

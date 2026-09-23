@@ -2,6 +2,22 @@
 
 ## Recent Session Notes
 
+### 2026-09-23 (Drive uniqueness)
+- Drive keys items by ID. Same visible name in one parent can exist many times.
+- Old root cache skipped the name search, so extra `Markdown-pro` folders and same-name files kept appearing. The merge path parked extras in a wrapper folder instead of absorbing them.
+- `createFolder` / `createFile` are now get-or-create. Same-parent duplicates merge into one ID. Nested folders that only share the name `Markdown-pro` are left alone.
+- Rule: `.cursor/rules/drive-no-duplicate-names.mdc`. Test: `node test/drive-uniqueness.cjs`.
+
+### 2026-09-23 (mermaid-fixes)
+- Branch: `mermaid-fixes` (from main). Local only - no remote deploy yet.
+- Vendored Mermaid **11.17.2** into `lib/mermaid.min.js`.
+- Host: `useMaxWidth: false`, root `htmlLabels` + `markdownAutoWrap`; stop collapsing label `\n` to spaces.
+- CSS: reset foreignObject / label `line-height: normal` so `.mermaid-inner { line-height: 0 }` does not clip text.
+- Vertical fit: measure unscaled painted size, then fonts.ready second pass.
+- Export path: `_normalizeMermaidSvgSize` after export render. README/SYSTEM no longer claim a fullscreen Mermaid modal.
+- Fixture: `test/mermaid-identity-store.md`. Lesson: `docs/lessons/L-2026-09-23-mermaid-foreignobject-lineheight.md`.
+- Local QA: identity + multiline OK; stress 12/0; suite 9/0; themes light/dark/gwyneth all render with toolbar.
+
 ### 2026-09-23
 - Rewrote Finder to a two-pane path picker: Locations + list/breadcrumb. No Folders tree pane.
 - Open vs Save chrome is split. Save has filename footer, destination label, Save here / Save to Disk.

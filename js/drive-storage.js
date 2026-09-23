@@ -1,6 +1,9 @@
 /**
  * Google Drive REST v3 API wrapper for Markdown Pro.
  * List, read, create, update, delete files and folders under Markdown-pro/.
+ *
+ * Drive keys items by ID. Same name in one parent can exist many times.
+ * createFolder / createFile are get-or-create; duplicate siblings are merged.
  */
 (function () {
     'use strict';
@@ -14,12 +17,30 @@
     const STORAGE_KEY_ROOT_FOLDER_LOCK = 'markdownpro_drive_root_folder_lock';
     const ROOT_FOLDER_LOCK_TTL_MS = 15000;
     const ROOT_FOLDER_LOCK_WAIT_MS = 20000;
+    const ROOT_RECONCILE_TTL_MS = 10000;
+    const identity = (typeof window !== 'undefined' && window.DriveIdentity) ? window.DriveIdentity : {};
+
+    function escapeDriveQueryValue(value) {
+        if (identity.escapeDriveQueryValue) return identity.escapeDriveQueryValue(value);
+        return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function selectCanonicalItem(items, preferredId) {
+        if (identity.selectCanonicalItem) return identity.selectCanonicalItem(items, preferredId);
+        return (items && items[0]) || null;
+    }
+
+    function sameParent(a, b) {
+        if (identity.sameParent) return identity.sameParent(a, b);
+        return true;
+    }
 
     class DriveStorage {
         constructor(driveAuth) {
             this.driveAuth = driveAuth;
             this._rootFolderId = null;
             this._rootFolderPromise = null;
+            this._lastReconcileAt = 0;
         }
 
         getToken() {
@@ -122,12 +143,62 @@
             return task();
         }
 
+        async _queryFiles(q, fileFields) {
+            const files = [];
+            let pageToken = '';
+            const fields = 'nextPageToken,files(' + (fileFields || 'id,name,mimeType,modifiedTime') + ')';
+            do {
+                let url = DRIVE_API + '/files?q=' + encodeURIComponent(q) +
+                    '&fields=' + encodeURIComponent(fields) +
+                    '&pageSize=100&spaces=drive';
+                if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
+                const res = await this._fetch(url);
+                if (!res.ok) {
+                    const err = new Error('Drive query failed: ' + res.status);
+                    err.status = res.status;
+                    throw err;
+                }
+                const data = await res.json();
+                files.push.apply(files, data.files || []);
+                pageToken = data.nextPageToken || '';
+            } while (pageToken);
+            return files;
+        }
+
+        _namedChildQuery(parentId, name, mimeType) {
+            const parts = [
+                "name = '" + escapeDriveQueryValue(name) + "'",
+                "'" + escapeDriveQueryValue(parentId) + "' in parents",
+                'trashed = false'
+            ];
+            if (mimeType === MIME_FOLDER) {
+                parts.push("mimeType = '" + MIME_FOLDER + "'");
+            } else if (mimeType) {
+                parts.push("mimeType = '" + escapeDriveQueryValue(mimeType) + "'");
+            } else {
+                parts.push("mimeType != '" + MIME_FOLDER + "'");
+            }
+            return parts.join(' and ');
+        }
+
+        async _findNamedChildren(parentId, name, mimeType) {
+            try {
+                return await this._queryFiles(
+                    this._namedChildQuery(parentId, name, mimeType),
+                    'id,name,mimeType,modifiedTime,createdTime,parents'
+                );
+            } catch (err) {
+                if (err && (err.status === 403 || err.status === 404)) return [];
+                throw err;
+            }
+        }
+
         /**
          * With drive.file scope we cannot list the user's root folder (403).
          * We create the Markdown-pro folder once and persist its ID so we never need to list root.
+         * A stored ID is not uniqueness: still search for same-parent duplicates.
          */
         async ensureRootFolder() {
-            if (this._rootFolderId) return this._rootFolderId;
             if (this._rootFolderPromise) return this._rootFolderPromise;
 
             this._rootFolderPromise = this._ensureRootFolderImpl();
@@ -142,13 +213,16 @@
             const token = this.getToken();
             if (!token) throw new Error('Not connected to Drive');
 
-            const storedId = this._getStoredRootFolderId();
+            const storedId = this._rootFolderId || this._getStoredRootFolderId();
             if (storedId) {
                 const ok = await this._validateFolderId(storedId);
                 if (ok) {
                     this._rootFolderId = storedId;
+                    this._setStoredRootFolderId(storedId);
+                    await this._reconcileRootDuplicates(storedId);
                     return this._rootFolderId;
                 }
+                this._rootFolderId = null;
                 this._setStoredRootFolderId(null);
             }
 
@@ -158,15 +232,12 @@
                     const ok = await this._validateFolderId(lockedStoredId);
                     if (ok) {
                         this._rootFolderId = lockedStoredId;
+                        await this._reconcileRootDuplicates(lockedStoredId);
                         return this._rootFolderId;
                     }
                     this._setStoredRootFolderId(null);
                 }
 
-                // Reuse an accessible Markdown-pro folder if one already exists.
-                // With drive.file we cannot enumerate My Drive root reliably, but we can
-                // search among files/folders this app can already access. This helps us
-                // recover older Markdown-pro roots instead of creating a fresh empty one.
                 const rootResolution = await this._resolveRootFolderCandidates();
                 if (rootResolution) {
                     this._rootFolderId = rootResolution.id;
@@ -190,34 +261,53 @@
                 const createData = await createRes.json();
                 this._rootFolderId = createData.id;
                 this._setStoredRootFolderId(this._rootFolderId);
+                await this._reconcileRootDuplicates(createData.id, true);
                 return this._rootFolderId;
             });
         }
 
-        async _resolveRootFolderCandidates() {
+        async _reconcileRootDuplicates(preferredId, force) {
+            if (!force && this._lastReconcileAt && (Date.now() - this._lastReconcileAt) < ROOT_RECONCILE_TTL_MS) {
+                return preferredId;
+            }
+            const canonical = await this._resolveRootFolderCandidates(preferredId);
+            this._lastReconcileAt = Date.now();
+            if (canonical && canonical.id) {
+                this._rootFolderId = canonical.id;
+                this._setStoredRootFolderId(canonical.id);
+                return canonical.id;
+            }
+            return preferredId;
+        }
+
+        async _resolveRootFolderCandidates(preferredId) {
             const candidates = await this._getRootFolderCandidates();
             if (candidates.length === 0) return null;
 
-            const canonical = this._selectCanonicalRootFolder(candidates);
-            const duplicates = candidates.filter((candidate) => candidate.id !== canonical.id);
+            const canonical = selectCanonicalItem(candidates, preferredId || this._getStoredRootFolderId());
+            if (!canonical) return null;
+
+            const duplicates = candidates.filter((candidate) => {
+                return candidate.id !== canonical.id && sameParent(candidate, canonical);
+            });
             if (duplicates.length > 0) {
-                await this._mergeDuplicateRootFolders(canonical, duplicates);
+                await this._mergeDuplicateFolders(canonical, duplicates);
             }
             return canonical;
         }
 
         async _getRootFolderCandidates() {
             const q = [
-                "name = '" + ROOT_FOLDER_NAME.replace(/'/g, "\\'") + "'",
+                "name = '" + escapeDriveQueryValue(ROOT_FOLDER_NAME) + "'",
                 "mimeType = '" + MIME_FOLDER + "'",
                 'trashed = false'
             ].join(' and ');
-            const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,modifiedTime,createdTime)&orderBy=modifiedTime desc&spaces=drive';
-            const res = await this._fetch(url);
-            if (!res.ok) return [];
-
-            const data = await res.json();
-            const candidates = data.files || [];
+            let candidates = [];
+            try {
+                candidates = await this._queryFiles(q, 'id,name,mimeType,modifiedTime,createdTime,parents');
+            } catch (_) {
+                return [];
+            }
             if (candidates.length === 0) return [];
 
             const withChildren = [];
@@ -230,49 +320,68 @@
             return withChildren;
         }
 
-        _selectCanonicalRootFolder(candidates) {
-            // Prefer a candidate that already has visible children, which is more likely
-            // to be the user's existing Markdown-pro root rather than a newly created empty one.
-            for (const candidate of candidates) {
-                if (candidate.childCount > 0) {
-                    return candidate;
-                }
+        async _mergeDuplicateFolders(canonical, duplicates) {
+            for (const duplicate of duplicates) {
+                await this._absorbFolder(canonical.id, duplicate.id);
             }
-
-            return candidates[0];
         }
 
-        async _mergeDuplicateRootFolders(canonical, duplicates) {
-            let duplicateIndex = 2;
-            for (const duplicate of duplicates) {
-                const duplicateChildren = await this.listFiles(duplicate.id, false);
-                if (duplicateChildren.length === 0) {
-                    await this.deleteFile(duplicate.id);
-                    duplicateIndex += 1;
+        async _absorbFolder(canonicalId, duplicateId) {
+            if (!canonicalId || !duplicateId || canonicalId === duplicateId) return;
+            const duplicateChildren = await this.listFiles(duplicateId, false);
+            if (duplicateChildren.length === 0) {
+                await this.deleteFile(duplicateId);
+                return;
+            }
+
+            for (const child of duplicateChildren) {
+                if (child.isFolder) {
+                    const destFolders = await this._findNamedChildren(canonicalId, child.name, MIME_FOLDER);
+                    if (destFolders.length > 0) {
+                        const dest = selectCanonicalItem(destFolders);
+                        await this._absorbFolder(dest.id, child.id);
+                        continue;
+                    }
+                    await this._moveItemToFolder(child.id, canonicalId);
                     continue;
                 }
 
-                const existingNames = await this.listFiles(canonical.id, false).then((items) => items.map((item) => item.name));
-                const mergeFolderName = this._getUniqueChildName(existingNames, ROOT_FOLDER_NAME + ' ' + duplicateIndex);
-                const mergeFolder = await this.createFolder(canonical.id, mergeFolderName);
-
-                for (const child of duplicateChildren) {
-                    await this._moveItemToFolder(child.id, mergeFolder.id);
+                const destFiles = await this._findNamedChildren(canonicalId, child.name, null);
+                if (destFiles.length > 0) {
+                    const dest = selectCanonicalItem(destFiles);
+                    const extras = destFiles.filter((item) => item.id !== dest.id);
+                    if (this._newerItem(child, dest) === child) {
+                        try {
+                            const content = await this.readFile(child.id);
+                            await this.updateFile(dest.id, content);
+                        } catch (_) {}
+                    }
+                    await this.deleteFile(child.id);
+                    if (extras.length > 0) await this._mergeDuplicateFiles(dest, extras);
+                    continue;
                 }
+                await this._moveItemToFolder(child.id, canonicalId);
+            }
 
-                await this.deleteFile(duplicate.id);
-                duplicateIndex += 1;
+            const leftover = await this.listFiles(duplicateId, false);
+            if (leftover.length === 0) {
+                await this.deleteFile(duplicateId);
             }
         }
 
-        _getUniqueChildName(existingNames, preferredName) {
-            const taken = new Set((existingNames || []).map((name) => String(name || '')));
-            if (!taken.has(preferredName)) return preferredName;
-            let index = 2;
-            while (taken.has(preferredName + ' (' + index + ')')) {
-                index += 1;
+        _newerItem(a, b) {
+            const ta = Date.parse((a && a.modifiedTime) || '') || 0;
+            const tb = Date.parse((b && b.modifiedTime) || '') || 0;
+            if (ta !== tb) return ta >= tb ? a : b;
+            return a;
+        }
+
+        async _mergeDuplicateFiles(canonical, duplicates) {
+            for (const duplicate of duplicates) {
+                if (duplicate && duplicate.id && duplicate.id !== canonical.id) {
+                    await this.deleteFile(duplicate.id);
+                }
             }
-            return preferredName + ' (' + index + ')';
         }
 
         async _moveItemToFolder(itemId, newParentId) {
@@ -284,6 +393,7 @@
             }
             const meta = await metaRes.json();
             const parentIds = (meta.parents || []).filter(Boolean);
+            if (parentIds.length === 1 && parentIds[0] === newParentId) return;
             const removeParents = parentIds.join(',');
             const query = '?addParents=' + encodeURIComponent(newParentId) + (removeParents ? '&removeParents=' + encodeURIComponent(removeParents) : '');
             const moveRes = await this._fetch(DRIVE_API + '/files/' + encodeURIComponent(itemId) + query, {
@@ -299,12 +409,16 @@
         }
 
         async _countChildren(folderId) {
-            const q = "'" + folderId.replace(/'/g, "\\'") + "' in parents and trashed = false";
-            const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id)&pageSize=1&spaces=drive';
-            const res = await this._fetch(url);
-            if (!res.ok) return 0;
-            const data = await res.json();
-            return (data.files || []).length;
+            const q = "'" + escapeDriveQueryValue(folderId) + "' in parents and trashed = false";
+            try {
+                const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id)&pageSize=1&spaces=drive';
+                const res = await this._fetch(url);
+                if (!res.ok) return 0;
+                const data = await res.json();
+                return (data.files || []).length;
+            } catch (_) {
+                return 0;
+            }
         }
 
         async _validateFolderId(folderId) {
@@ -318,6 +432,7 @@
 
         clearRootFolderCache() {
             this._rootFolderId = null;
+            this._lastReconcileAt = 0;
             this._setStoredRootFolderId(null);
         }
 
@@ -345,34 +460,39 @@
             const workingId = (!folderId || folderId === 'root')
                 ? await this.ensureRootFolder()
                 : folderId;
-            const q = "'" + workingId.replace(/'/g, "\\'") + "' in parents and trashed = false";
-            const url = DRIVE_API + '/files?q=' + encodeURIComponent(q) + '&fields=files(id,name,mimeType,modifiedTime)&orderBy=name&spaces=drive';
-            const res = await this._fetch(url);
-            if (!res.ok) {
+            const q = "'" + escapeDriveQueryValue(workingId) + "' in parents and trashed = false";
+            let raw;
+            try {
+                raw = await this._queryFiles(q, 'id,name,mimeType,modifiedTime');
+            } catch (err) {
                 const isCachedRoot = workingId === this._rootFolderId || workingId === this._getStoredRootFolderId();
-                if (retryOnRootReset && isCachedRoot && (res.status === 403 || res.status === 404)) {
+                if (retryOnRootReset && isCachedRoot && err && (err.status === 403 || err.status === 404)) {
                     this.clearRootFolderCache();
                     const freshRootId = await this.ensureRootFolder();
                     return this.listFiles(freshRootId, false);
                 }
-                const err = new Error('Drive list failed: ' + res.status);
-                err.status = res.status;
                 throw err;
             }
-            const data = await res.json();
-            const files = (data.files || []).map((f) => ({
+            return raw.map((f) => ({
                 id: f.id,
                 name: f.name,
                 mimeType: f.mimeType || '',
                 modifiedTime: f.modifiedTime || null,
                 isFolder: f.mimeType === MIME_FOLDER
             }));
-            return files;
         }
 
         async createFolder(parentId, name) {
             const folderName = this.sanitizeFolderName(name);
             const parent = await this.resolveWorkingFolder(parentId);
+            const existing = await this._findNamedChildren(parent, folderName, MIME_FOLDER);
+            if (existing.length > 0) {
+                const canonical = selectCanonicalItem(existing);
+                const extras = existing.filter((item) => item.id !== canonical.id);
+                if (extras.length > 0) await this._mergeDuplicateFolders(canonical, extras);
+                return { id: canonical.id, name: canonical.name || folderName, existed: true };
+            }
+
             const res = await this._fetch(DRIVE_API + '/files', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -383,12 +503,24 @@
                 })
             });
             if (!res.ok) {
+                const raced = await this._findNamedChildren(parent, folderName, MIME_FOLDER);
+                if (raced.length > 0) {
+                    const canonical = selectCanonicalItem(raced);
+                    return { id: canonical.id, name: canonical.name || folderName, existed: true };
+                }
                 const err = new Error('Drive create folder failed: ' + res.status);
                 err.status = res.status;
                 throw err;
             }
             const data = await res.json();
-            return { id: data.id, name: data.name };
+            const after = await this._findNamedChildren(parent, folderName, MIME_FOLDER);
+            if (after.length > 1) {
+                const canonical = selectCanonicalItem(after, data.id);
+                const extras = after.filter((item) => item.id !== canonical.id);
+                await this._mergeDuplicateFolders(canonical, extras);
+                return { id: canonical.id, name: canonical.name || folderName, existed: extras.some((item) => item.id === data.id) };
+            }
+            return { id: data.id, name: data.name || folderName, existed: false };
         }
 
         async readFile(fileId) {
@@ -404,6 +536,30 @@
 
         async createFile(parentId, name, content) {
             const parent = await this.resolveWorkingFolder(parentId);
+            const existing = await this._findNamedChildren(parent, name, null);
+            if (existing.length > 0) {
+                const canonical = selectCanonicalItem(existing);
+                const extras = existing.filter((item) => item.id !== canonical.id);
+                if (extras.length > 0) await this._mergeDuplicateFiles(canonical, extras);
+                await this.updateFile(canonical.id, content);
+                return { id: canonical.id, name: canonical.name || name, existed: true };
+            }
+
+            const created = await this._postMarkdownFile(parent, name, content);
+            const after = await this._findNamedChildren(parent, name, null);
+            if (after.length > 1) {
+                const canonical = selectCanonicalItem(after, created.id);
+                const extras = after.filter((item) => item.id !== canonical.id);
+                if (canonical.id !== created.id) {
+                    await this.updateFile(canonical.id, content);
+                }
+                await this._mergeDuplicateFiles(canonical, extras);
+                return { id: canonical.id, name: canonical.name || name, existed: true };
+            }
+            return { id: created.id, name: created.name || name, existed: false };
+        }
+
+        async _postMarkdownFile(parent, name, content) {
             const boundary = '-------mdpro_' + Math.random().toString(36).slice(2);
             const meta = JSON.stringify({
                 name: name,
@@ -427,12 +583,17 @@
                 body: body
             });
             if (!res.ok) {
+                const raced = await this._findNamedChildren(parent, name, null);
+                if (raced.length > 0) {
+                    const canonical = selectCanonicalItem(raced);
+                    await this.updateFile(canonical.id, content);
+                    return { id: canonical.id, name: canonical.name || name };
+                }
                 const err = new Error('Drive create file failed: ' + res.status);
                 err.status = res.status;
                 throw err;
             }
-            const data = await res.json();
-            return { id: data.id, name: data.name };
+            return res.json();
         }
 
         async updateFile(fileId, content) {
