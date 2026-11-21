@@ -98,38 +98,41 @@
     flex: 0 0 16px;
 }
 
-/* Color “tones” for toolbar icon buttons (icons use currentColor) */
-.btn-icon.btn-tone-danger {
-    color: var(--danger-color);
-    background-color: color-mix(in srgb, var(--danger-color) 12%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--danger-color) 28%, var(--border-color));
+/* Colour “tones”. A modifier sets one hue; the shared rules paint the chip,
+   so adding a colour later is a one-line job. */
+.btn-tone-danger  { --tone: var(--danger-color); }
+.btn-tone-success { --tone: var(--success-color); }
+.btn-tone-primary { --tone: var(--accent-color); }
+.btn-tone-warning { --tone: var(--warning-color); }
+.btn-tone-info    { --tone: var(--info-color); }
+.btn-tone-violet  { --tone: var(--violet-color); }
+.btn-tone-neutral { --tone: var(--text-secondary); }
+
+/* Icon buttons carry the tone as a tinted chip */
+.btn-icon[class*="btn-tone-"] {
+    color: var(--tone);
+    background-color: color-mix(in srgb, var(--tone) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--tone) 28%, var(--border-color));
 }
 
-.btn-icon.btn-tone-danger:hover {
-    background-color: color-mix(in srgb, var(--danger-color) 18%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--danger-color) 42%, var(--border-color));
+.btn-icon[class*="btn-tone-"]:hover {
+    background-color: color-mix(in srgb, var(--tone) 20%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--tone) 45%, var(--border-color));
 }
 
-.btn-icon.btn-tone-success {
-    color: var(--success-color);
-    background-color: color-mix(in srgb, var(--success-color) 12%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--success-color) 28%, var(--border-color));
+/* Format buttons keep a quiet chip and carry the tone in the glyph only */
+.btn-format[class*="btn-tone-"] {
+    color: var(--tone);
 }
 
-.btn-icon.btn-tone-success:hover {
-    background-color: color-mix(in srgb, var(--success-color) 18%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--success-color) 42%, var(--border-color));
+.btn-format[class*="btn-tone-"]:hover {
+    background-color: color-mix(in srgb, var(--tone) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--tone) 32%, var(--border-color));
 }
 
-.btn-icon.btn-tone-primary {
-    color: var(--accent-color);
-    background-color: color-mix(in srgb, var(--accent-color) 12%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--accent-color) 28%, var(--border-color));
-}
-
-.btn-icon.btn-tone-primary:hover {
-    background-color: color-mix(in srgb, var(--accent-color) 18%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--accent-color) 42%, var(--border-color));
+/* Small text buttons (e.g. Copy HTML) get the colour without a chip */
+.btn-sm[class*="btn-tone-"] {
+    color: var(--tone);
 }
 
 /* Widget Toggle Button */
@@ -139,14 +142,12 @@
     padding: 0.25rem 0.5rem;
 }
 
-/* PDF Export Button - neutral until hovered, so the toolbar reads as one set */
+/* PDF Export Button - red at rest, filled red on hover */
 .btn-pdf-export {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
     position: relative;
 }
 
-.btn-pdf-export:hover {
+.btn.btn-pdf-export:hover {
     background-color: var(--danger-color);
     color: white;
     border-color: var(--danger-color);
