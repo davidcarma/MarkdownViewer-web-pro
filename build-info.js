@@ -1,8 +1,8 @@
 // Auto-generated build information
 // This file is updated automatically on deploy push
 window.BUILD_INFO = {
-    hash: '56d0dad',
-    hashFull: '56d0dadd09ac0fa964bfd3f6a3f2f613e9ed7dbf',
-    date: '2026-11-21 19:47:39',
+    hash: '6b6a1ae',
+    hashFull: '6b6a1ae754a5bdbfc40517859cf03778840030af',
+    date: '2026-11-21 19:59:04',
     version: '1.0.0'
 };
