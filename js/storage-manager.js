@@ -357,6 +357,13 @@ class LocalStorageManager {
         }
     }
     
+    // Cleanup only the files that were copied; retain settings and concurrent edits.
+    clearMigratedFiles(snapshot) {
+        const current = this.getAllData();
+        if (!current || JSON.stringify(current.files) !== JSON.stringify(snapshot)) return false;
+        return this.saveAllData({ ...current, files: {}, lastActiveFile: null });
+    }
+
     // Clear all data (for reset functionality)
     clearAllData() {
         try {

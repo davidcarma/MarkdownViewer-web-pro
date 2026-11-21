@@ -62,17 +62,13 @@ class FileOperations {
             // Replace localStorage buffer with loaded file
             this.editor.replaceLocalStorageFile();
             
-            this.editor.editor.focus();
+            this.editor.editor.focus({ preventScroll: true });
             
             // Show notification
             this.editor.showNotification(`File loaded to localStorage: ${file.name}`, 'success');
             
             // Reset scroll state AFTER everything is loaded and rendered
-            setTimeout(() => {
-                if (this.editor.resetScrollState) {
-                    this.editor.resetScrollState();
-                }
-            }, 50);
+            this.editor.resetScrollState?.();
         };
         reader.readAsText(file);
         
@@ -148,14 +144,10 @@ class FileOperations {
             // Replace localStorage buffer with converted file
             this.editor.replaceLocalStorageFile();
             
-            this.editor.editor.focus();
+            this.editor.editor.focus({ preventScroll: true });
             
             // Reset scroll state AFTER everything is loaded and rendered
-            setTimeout(() => {
-                if (this.editor.resetScrollState) {
-                    this.editor.resetScrollState();
-                }
-            }, 50);
+            this.editor.resetScrollState?.();
             
             // Show success notification with any warnings
             const warnings = result.messages.filter(msg => msg.type === 'warning');
@@ -185,7 +177,7 @@ class FileOperations {
     htmlToMarkdown(html) {
         // Create a temporary DOM element to parse HTML
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
+        tempDiv.replaceChildren(RenderBoundary.html(html));
         
         let markdown = '';
         

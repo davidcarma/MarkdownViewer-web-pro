@@ -28,6 +28,10 @@ Enforcement:
 - The renderer attaches **`data-line`** and **`data-line-end`** attributes to **leaf block elements** (paragraphs, headings, fences, etc.) so scroll sync can map source → rendered position.
 - **`marked.min.js`** is still shipped/loaded but is not the primary preview renderer; keep it only if used by legacy/export paths.
 
+### Document boundary
+
+`js/render-boundary.js` uses the bundled DOMPurify library before document HTML enters the editing page. Remote document images do not load automatically: the viewer can open an external image deliberately; the Markdown source is unchanged. Drive sign-in is optional and uses a short-lived token for the tab session, not a refresh token in persistent localStorage.
+
 ### Post-processing (preview)
 
 After markdown is rendered to HTML, `js/core.js` applies:
@@ -46,6 +50,8 @@ After markdown is rendered to HTML, `js/core.js` applies:
 - **`PreviewMinimap`**: scans the rendered preview DOM and draws proportional block representations for headings, paragraphs, code fences, images, tables, and Mermaid diagrams.
 
 Both share a viewport slider that can be clicked or dragged to navigate. Colors are sampled from CSS variables to match the active theme.
+
+On screens 640px and below the workspace switches to a Write/Preview one-pane layout (`index.html` `.pane-switch`, `js/events.js`), with the low-frequency file actions behind the toolbar's More button. A pane whose document already fits hides its minimap and reclaims the width.
 
 **Invariant**: minimap renders must not trigger editor re-renders or affect the scroll sync state.
 

@@ -96,7 +96,8 @@
 /* Notification styles */
 .notification {
     position: fixed;
-    top: 20px;
+    /* Sit above the status bar, never on top of the toolbar controls */
+    bottom: 2.75rem;
     right: 20px;
     padding: 1rem 1.5rem;
     border-radius: var(--border-radius);

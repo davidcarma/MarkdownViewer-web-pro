@@ -78,37 +78,29 @@ class IndexedDBManager {
         });
     }
 
+    async write(storeName, operation) {
+        if (!this.db && !await this.init()) return false;
+        return new Promise((resolve, reject) => {
+            const tx = this.db.transaction(storeName, 'readwrite');
+            tx.oncomplete = () => resolve(true);
+            tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+            tx.onerror = event => reject(event.target.error || tx.error);
+            operation(tx.objectStore(storeName));
+        });
+    }
+
     /**
      * Save an image entry (id -> dataUrl + metadata) to IndexedDB.
      * @param {{id: string, alt?: string, dataUrl: string, fullMarkdown?: string, created?: string}} imageData
      */
     async saveImage(imageData) {
-        if (!this.db) {
-            await this.init();
-        }
-        if (!this.db) return false;
-
         const now = new Date().toISOString();
-        const payload = {
-            id: imageData.id,
-            alt: imageData.alt || '',
-            dataUrl: imageData.dataUrl,
-            fullMarkdown: imageData.fullMarkdown || `![${imageData.alt || ''}](${imageData.dataUrl})`,
-            created: imageData.created || now,
-            modified: now
-        };
-
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([this.imagesStoreName], 'readwrite');
-            const objectStore = transaction.objectStore(this.imagesStoreName);
-            const request = objectStore.put(payload);
-
-            request.onsuccess = () => resolve(true);
-            request.onerror = () => {
-                console.error('Failed to save image to IndexedDB:', request.error);
-                reject(request.error);
-            };
-        });
+        const alt = imageData.alt || '';
+        return this.write(this.imagesStoreName, store => store.put({
+            id: imageData.id, alt, dataUrl: imageData.dataUrl,
+            fullMarkdown: imageData.fullMarkdown || `![${alt}](${imageData.dataUrl})`,
+            created: imageData.created || now, modified: imageData.modified || now
+        }));
     }
 
     /**
@@ -144,7 +136,7 @@ class IndexedDBManager {
             await this.init();
         }
         if (!this.db) {
-            return [];
+            throw new Error('IndexedDB unavailable');
         }
 
         return new Promise((resolve, reject) => {
@@ -169,22 +161,7 @@ class IndexedDBManager {
      * @returns {Promise<boolean>}
      */
     async deleteImage(imageId) {
-        if (!this.db) {
-            await this.init();
-        }
-        if (!this.db) return false;
-
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([this.imagesStoreName], 'readwrite');
-            const objectStore = transaction.objectStore(this.imagesStoreName);
-            const request = objectStore.delete(imageId);
-
-            request.onsuccess = () => resolve(true);
-            request.onerror = () => {
-                console.error('Failed to delete image from IndexedDB:', request.error);
-                reject(request.error);
-            };
-        });
+        return this.write(this.imagesStoreName, store => store.delete(imageId));
     }
     
     /**
@@ -193,33 +170,9 @@ class IndexedDBManager {
      * @returns {Promise<boolean>}
      */
     async saveFile(fileData) {
-        if (!this.db) {
-            await this.init();
-        }
-        
-        if (!this.db) {
-            return false;
-        }
-        
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([this.storeName], 'readwrite');
-            const objectStore = transaction.objectStore(this.storeName);
-            
-            // Ensure modified timestamp is current
-            fileData.modified = new Date().toISOString();
-            
-            const request = objectStore.put(fileData);
-            
-            request.onsuccess = () => {
-                console.log('✅ File saved to IndexedDB:', fileData.name);
-                resolve(true);
-            };
-            
-            request.onerror = () => {
-                console.error('Failed to save file to IndexedDB:', request.error);
-                reject(request.error);
-            };
-        });
+        return this.write(this.storeName, store => store.put({
+            ...fileData, modified: fileData.modified || new Date().toISOString()
+        }));
     }
     
     /**
@@ -262,7 +215,7 @@ class IndexedDBManager {
         }
         
         if (!this.db) {
-            return [];
+            throw new Error('IndexedDB unavailable');
         }
         
         return new Promise((resolve, reject) => {
@@ -287,29 +240,7 @@ class IndexedDBManager {
      * @returns {Promise<boolean>}
      */
     async deleteFile(fileId) {
-        if (!this.db) {
-            await this.init();
-        }
-        
-        if (!this.db) {
-            return false;
-        }
-        
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([this.storeName], 'readwrite');
-            const objectStore = transaction.objectStore(this.storeName);
-            const request = objectStore.delete(fileId);
-            
-            request.onsuccess = () => {
-                console.log('✅ File deleted from IndexedDB:', fileId);
-                resolve(true);
-            };
-            
-            request.onerror = () => {
-                console.error('Failed to delete file from IndexedDB:', request.error);
-                reject(request.error);
-            };
-        });
+        return this.write(this.storeName, store => store.delete(fileId));
     }
     
     /**
@@ -317,29 +248,7 @@ class IndexedDBManager {
      * @returns {Promise<boolean>}
      */
     async clearAll() {
-        if (!this.db) {
-            await this.init();
-        }
-        
-        if (!this.db) {
-            return false;
-        }
-        
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([this.storeName], 'readwrite');
-            const objectStore = transaction.objectStore(this.storeName);
-            const request = objectStore.clear();
-            
-            request.onsuccess = () => {
-                console.log('✅ All files cleared from IndexedDB');
-                resolve(true);
-            };
-            
-            request.onerror = () => {
-                console.error('Failed to clear IndexedDB:', request.error);
-                reject(request.error);
-            };
-        });
+        return this.write(this.storeName, store => store.clear());
     }
     
     /**
@@ -415,10 +324,9 @@ class IndexedDBManager {
         let imported = 0;
         for (const file of data.files) {
             try {
-                await this.saveFile(file);
-                imported++;
+                if (await this.saveFile(file)) imported++;
             } catch (error) {
-                console.error('Failed to import file:', file.name, error);
+                console.error('Failed to import file:', file?.name, error);
             }
         }
         

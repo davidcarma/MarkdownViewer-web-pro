@@ -508,8 +508,8 @@
     cursor: pointer;
     border-left: 1px solid var(--border-color);
     /* Dimmed by default so it's clearly secondary to main content */
-    opacity: 0.5;
-    filter: brightness(0.85) saturate(0.9);
+    opacity: 0.38;
+    filter: brightness(0.9) saturate(0.8);
     transition: opacity 0.2s, filter 0.2s;
 }
 .minimap:hover,
@@ -528,16 +528,17 @@
     position: absolute;
     left: 0;
     right: 0;
-    background: var(--accent-color-alpha, rgba(13, 110, 253, 0.18));
-    border: 1px solid var(--accent-color);
-    border-left: 2px solid var(--accent-color);
+    /* Whisper, not a panel: an outlined viewport, filled only on hover */
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--accent-color) 38%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent-color) 70%, transparent);
     border-radius: 2px;
     pointer-events: none;
     transition: top 0.06s linear, height 0.06s linear;
     min-height: 14px;
 }
 .minimap:hover .minimap-slider {
-    background: var(--accent-color-alpha, rgba(13, 110, 253, 0.28));
+    background: color-mix(in srgb, var(--accent-color) 14%, transparent);
 }
 
 /* The pane already has position: relative — minimap uses absolute
@@ -605,6 +606,12 @@
     .preview-pane.has-minimap .preview-content { padding-right: 1rem; }
     .minimap-toggle { display: none; }
 }
+
+/* A document that already fits needs no overview: reclaim the width */
+.pane.minimap-idle .minimap,
+.pane.minimap-idle .minimap-toggle { display: none; }
+.editor-pane.minimap-idle #editor { padding-right: 1rem; }
+.preview-pane.minimap-idle .preview-content { padding-right: 1rem; }
 
 /* Loading state for image processing */
 .editor-pane.processing-image {

@@ -1494,11 +1494,14 @@ class MarkdownEditor {
             };
         }
 
-        mermaid.initialize(mermaidConfig);
+        this._mermaidConfig = mermaidConfig;
         console.log(`Mermaid theme updated to: ${currentTheme}`);
     }
     
     updatePreview() {
+        this._previewWork?.abort();
+        this._previewWork = new AbortController();
+        const { signal } = this._previewWork;
         // Reset line map log flag so we log the new map on first scroll
         this._lastLineMapLog = false;
         
@@ -1570,7 +1573,7 @@ class MarkdownEditor {
             // Capture scroll before replacing DOM so we can restore exactly.
             const _savedScrollTop = this.preview.scrollTop;
 
-            this.preview.innerHTML = html;
+            this.preview.replaceChildren(RenderBoundary.html(html));
 
             // Restore scroll immediately so content doesn't jump.
             this.preview.scrollTop = _savedScrollTop;
@@ -1591,36 +1594,13 @@ class MarkdownEditor {
                 console.warn('Math render failed (non-fatal):', e);
             }
             
-            // Process Mermaid diagrams with proper timing and retry logic (non-fatal)
-            setTimeout(() => {
-                try {
-                this.processMermaidDiagrams();
-                } catch (e) {
-                    console.warn('Mermaid processing failed (non-fatal):', e);
-                }
-                // Restore scroll again after mermaid block replacement shifts layout.
-                requestAnimationFrame(() => { this.preview.scrollTop = _savedScrollTop; });
-                // Retry if no blocks found initially (DOM timing issue)
-                setTimeout(() => {
-                    try {
-                    const blocks = this.preview.querySelectorAll('pre code.language-mermaid');
-                    if (blocks.length > 0) {
-                        console.log('Retrying Mermaid processing for any missed blocks');
-                        this.processMermaidDiagrams();
-                    }
-                    } catch (e) {
-                        console.warn('Mermaid retry failed (non-fatal):', e);
-                    }
-
-                    // Mermaid rendering can change layout heights; refresh scroll map after it settles.
-                    setTimeout(() => {
-                        this._rebuildScrollMap();
-                    }, 50);
-                }, 100);
-            }, 50);
+            // Never restore a captured scroll position asynchronously: the reader may have moved.
+            requestAnimationFrame(() => {
+                if (!signal.aborted) this.processMermaidDiagrams(signal);
+            });
         } catch (error) {
             console.error('Markdown parsing error:', error);
-            this.preview.innerHTML = '<div class="error">Error parsing markdown: ' + error.message + '</div>';
+            this.preview.textContent = 'Error parsing markdown: ' + error.message;
         }
     }
     
@@ -1653,7 +1633,7 @@ class MarkdownEditor {
         }
     }
     
-    processMermaidDiagrams() {
+    processMermaidDiagrams(signal = this._previewWork?.signal) {
         if (typeof mermaid === 'undefined') {
             console.warn('Mermaid is not loaded');
             return;
@@ -1723,22 +1703,12 @@ class MarkdownEditor {
                     this.preview.scrollTop = _scrollBefore;
                     
                     // Render the mermaid diagram (retry with aggressive sanitization on parse failure)
-                    mermaid.render(id + '-svg', code).then(({ svg, bindFunctions }) => {
-                        console.log(`Successfully rendered Mermaid diagram ${index + 1}`);
-                        const _scrollBeforeRender = this.preview.scrollTop;
-                        this._buildMermaidViewer(mermaidDiv, svg, bindFunctions);
-                        // SVG injection can shift layout again — restore once more.
-                        requestAnimationFrame(() => { this.preview.scrollTop = _scrollBeforeRender; });
+                    this._renderDiagram(id, code, signal).then(svg => {
+                        if (signal?.aborted || !mermaidDiv.isConnected) return;
+                        this._buildMermaidViewer(mermaidDiv, svg, signal);
+                        this._rebuildScrollMap();
                     }).catch((error) => {
-                        console.warn('[mermaid] First render attempt failed:', error?.message || error);
-                        const minimal = this._aggressiveSanitizeMermaid(code);
-                        return mermaid.render(id + '-retry-svg', minimal).then(({ svg, bindFunctions }) => {
-                            console.log(`Successfully rendered Mermaid diagram ${index + 1} (after aggressive sanitize)`);
-                            const _scrollBeforeRender = this.preview.scrollTop;
-                            this._buildMermaidViewer(mermaidDiv, svg, bindFunctions);
-                            requestAnimationFrame(() => { this.preview.scrollTop = _scrollBeforeRender; });
-                        });
-                    }).catch((error) => {
+                        if (signal?.aborted) return;
                         console.warn('[mermaid] Aggressive retry also failed:', error?.message || error);
                         console.error('Mermaid rendering error:', error);
                         const errorMsg = this.escapeHtml(error.message || error.toString());
@@ -1820,7 +1790,16 @@ class MarkdownEditor {
      * Build an interactive viewer around a rendered Mermaid SVG:
      * toolbar (zoom in/out/reset, copy image) + pan/zoom viewport.
      */
-    _buildMermaidViewer(container, svgMarkup, bindFunctions) {
+    async _renderDiagram(id, code, signal) {
+        try {
+            return await RenderBoundary.renderDiagram(id + '-svg', code, this._mermaidConfig, signal);
+        } catch (error) {
+            if (signal?.aborted) throw error;
+            return RenderBoundary.renderDiagram(id + '-retry-svg', this._aggressiveSanitizeMermaid(code), this._mermaidConfig, signal);
+        }
+    }
+
+    _buildMermaidViewer(container, svg, signal) {
         container.innerHTML = '';
 
         // Toolbar
@@ -1843,8 +1822,7 @@ class MarkdownEditor {
         viewport.className = 'mermaid-viewport';
         const inner = document.createElement('div');
         inner.className = 'mermaid-inner';
-        inner.innerHTML = svgMarkup;
-        if (bindFunctions) bindFunctions(inner);
+        inner.append(svg);
         viewport.appendChild(inner);
         container.appendChild(viewport);
 
@@ -1908,6 +1886,7 @@ class MarkdownEditor {
         };
 
         const fitNow = () => {
+            if (signal?.aborted) return;
             computeFitScale();
             scale = fitScale;
             panX = 0;
@@ -1969,7 +1948,7 @@ class MarkdownEditor {
             if (!container.contains(e.target)) {
                 deactivateZoom();
             }
-        }, true);
+        }, { capture: true, signal });
 
         // Zoom buttons always work (they're explicit user intent)
         btnZoomIn.addEventListener('click',  () => { activateZoom(); scale = Math.min(MAX_SCALE, scale * 1.25); applyTransform(); resetIdleTimer(); });
@@ -2008,12 +1987,12 @@ class MarkdownEditor {
             lastX = e.clientX; lastY = e.clientY;
             applyTransform();
             resetIdleTimer();
-        });
+        }, { signal });
         window.addEventListener('mouseup', () => {
             if (!dragging) return;
             dragging = false;
             viewport.style.cursor = '';
-        });
+        }, { signal });
 
         // Touch: two-finger pinch always activates, single-finger pan only when active
         let lastTouches = null;
@@ -2066,6 +2045,7 @@ class MarkdownEditor {
             sizeViewportToFit();
         });
         resizeObs.observe(viewport);
+        signal?.addEventListener('abort', () => { resizeObs.disconnect(); clearTimeout(idleTimer); }, { once: true });
 
         // Copy image at 2x resolution — pass the container so we can read its background
         btnCopy.addEventListener('click', () => this._copyMermaidAsImage(inner, btnCopy, container));
@@ -2612,14 +2592,10 @@ class MarkdownEditor {
             markdownText = this.imageCollapse.getPreviewContent();
         }
         
-        // Extract mermaid blocks before processing (for export)
-        this.extractMermaidBlocks(markdownText);
-        
-        const html = marked.parse(markdownText);
-        tempContainer.innerHTML = html;
-        
-        // Apply syntax highlighting
-        tempContainer.querySelectorAll('pre code').forEach((block) => {
+        const html = this.useMarkdownIt && this.md ? this.md.render(markdownText) : marked.parse(markdownText);
+        tempContainer.replaceChildren(RenderBoundary.html(html));
+
+        tempContainer.querySelectorAll('pre code:not(.language-mermaid)').forEach((block) => {
             hljs.highlightElement(block);
         });
         
@@ -2663,20 +2639,7 @@ class MarkdownEditor {
         // Process each mermaid block
         const promises = Array.from(mermaidBlocks).map(async (block, index) => {
             try {
-                let code;
-                
-                // Try to get the original code from cache first (by index)
-                const cacheKey = `mermaid_block_${index}`;
-                if (this.mermaidCodeCache.has(cacheKey)) {
-                    code = this.mermaidCodeCache.get(cacheKey);
-                } else {
-                    // Fallback to textContent if cache is not available
-                    code = block.textContent.trim();
-                }
-                
-                // Clean the code using the same sanitization
-                code = this.sanitizeMermaidCode(code);
-                
+                const code = this.sanitizeMermaidCode(block.textContent.trim());
                 if (!this.isValidMermaidCode(code)) {
                     console.warn(`Skipping invalid Mermaid diagram ${index + 1} during export`);
                     return;
@@ -2695,20 +2658,9 @@ class MarkdownEditor {
                     preElement.parentNode.replaceChild(mermaidDiv, preElement);
                     
                     try {
-                        let svgMarkup;
-                        try {
-                            const r = await mermaid.render(id + '-svg', code);
-                            svgMarkup = r.svg;
-                        } catch (e1) {
-                            console.warn('[mermaid] Export first render failed:', e1?.message || e1);
-                            const minimal = this._aggressiveSanitizeMermaid(code);
-                            const r2 = await mermaid.render(id + '-retry-svg', minimal);
-                            svgMarkup = r2.svg;
-                        }
-                        const cleanedSvg = svgMarkup.replace(/<script[\s\S]*?<\/script>/gi, '');
-                        mermaidDiv.innerHTML = cleanedSvg;
-                        const exportSvg = mermaidDiv.querySelector('svg');
-                        if (exportSvg) this._normalizeMermaidSvgSize(exportSvg);
+                        const exportSvg = await this._renderDiagram(id, code);
+                        mermaidDiv.replaceChildren(exportSvg);
+                        this._normalizeMermaidSvgSize(exportSvg);
                     } catch (error) {
                         console.warn('[mermaid] Export aggressive retry also failed:', error?.message || error);
                         console.error('Mermaid rendering error during export:', error);
@@ -3085,7 +3037,8 @@ class MarkdownEditor {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>${this.currentFileName}</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'">
+    <title>${this.escapeHtml(this.currentFileName)}</title>
     <link rel="stylesheet" href="lib/katex.min.css">
     <style>
         body {
@@ -3236,12 +3189,13 @@ class MarkdownEditor {
 </head>
 <body>
     <div class="print-header">
-        <h1 style="margin-top: 0; border-bottom: 2px solid #333; padding-bottom: 10px;">${this.currentFileName}</h1>
+        <h1 style="margin-top: 0; border-bottom: 2px solid #333; padding-bottom: 10px;">${this.escapeHtml(this.currentFileName)}</h1>
     </div>
     ${html}
 </body>
 </html>`;
             
+            printWindow.opener = null;
             printWindow.document.write(printContent);
             printWindow.document.close();
             
@@ -3286,7 +3240,8 @@ class MarkdownEditor {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>${pdfFileName}</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'">
+    <title>${this.escapeHtml(pdfFileName)}</title>
     <link rel="stylesheet" href="lib/katex.min.css">
     <style>
         @page {
@@ -3462,20 +3417,15 @@ class MarkdownEditor {
 </head>
 <body>
     <div class="pdf-header">
-        <h1>${this.currentFileName}</h1>
+        <h1>${this.escapeHtml(this.currentFileName)}</h1>
     </div>
     ${html}
-    <script>
-        // Auto-print to PDF when page loads
-        window.onload = function() {
-            setTimeout(() => {
-                window.print();
-            }, 500);
-        };
-    </script>
+
 </body>
 </html>`;
             
+            pdfWindow.opener = null;
+            pdfWindow.onload = () => setTimeout(() => pdfWindow.print(), 500);
             pdfWindow.document.write(pdfContent);
             pdfWindow.document.close();
             
@@ -3626,10 +3576,7 @@ class MarkdownEditor {
             // Get all files from localStorage
             const localStorageData = this.storageManager.getAllData();
             if (!localStorageData || !localStorageData.files) {
-                console.log('ℹ️ No files in localStorage to migrate');
-                // Mark migration as done even if no files
-                localStorage.setItem('markdown-editor-migrated-to-indexeddb', 'true');
-                return { migrated: 0, skipped: 0, cleared: false };
+                throw new Error('Cannot read localStorage files');
             }
             
             const files = Object.values(localStorageData.files);
@@ -3651,46 +3598,32 @@ class MarkdownEditor {
                     const existingFile = await this.indexedDBManager.getFile(file.id);
                     
                     if (existingFile) {
-                        // File already exists, skip or update if localStorage is newer
-                        const localStorageDate = new Date(file.modified || file.created || 0);
-                        const indexedDBDate = new Date(existingFile.modified || existingFile.created || 0);
-                        
-                        if (localStorageDate > indexedDBDate) {
-                            // localStorage version is newer, update IndexedDB
-                            await this.indexedDBManager.saveFile(file);
-                            migratedCount++;
-                            console.log(`  ✅ Updated: ${file.name}`);
-                        } else {
+                        const sourceDate = new Date(file.modified || file.created || 0);
+                        const targetDate = new Date(existingFile.modified || existingFile.created || 0);
+                        if (targetDate >= sourceDate) {
                             skippedCount++;
-                            console.log(`  ⏭️ Skipped (already exists): ${file.name}`);
+                            continue;
                         }
-                    } else {
-                        // File doesn't exist in IndexedDB, migrate it
-                        await this.indexedDBManager.saveFile(file);
-                        migratedCount++;
-                        console.log(`  ✅ Migrated: ${file.name}`);
+                        if (!(sourceDate > targetDate)) throw new Error('Cannot compare file timestamps');
                     }
+                    if (!await this.indexedDBManager.saveFile(file)) throw new Error('File was not saved');
+                    migratedCount++;
                 } catch (error) {
-                    console.error(`  ❌ Failed to migrate ${file.name}:`, error);
+                    console.error(`Failed to migrate ${file?.name}:`, error);
                 }
             }
             
-            console.log(`✅ Migration complete: ${migratedCount} migrated, ${skippedCount} skipped`);
-            
-            // Mark migration as complete
-            localStorage.setItem('markdown-editor-migrated-to-indexeddb', 'true');
-            
-            // Clear localStorage if requested (after processing all files)
+            const failed = files.length - migratedCount - skippedCount;
             let cleared = false;
-            if (clearLocalStorage && files.length > 0) {
-                try {
-                    this.storageManager.clearAllData();
-                    cleared = true;
-                    console.log('🗑️ localStorage cleared after migration');
-                } catch (error) {
-                    console.error('Failed to clear localStorage:', error);
-                }
+            if (!failed && clearLocalStorage) {
+                cleared = this.storageManager.clearMigratedFiles(localStorageData.files);
             }
+            if (failed || (clearLocalStorage && !cleared)) {
+                localStorage.removeItem('markdown-editor-migrated-to-indexeddb');
+                this.showNotification(`Migration incomplete (${failed} file writes failed); localStorage retained`, 'warning');
+                return { migrated: migratedCount, skipped: skippedCount, failed, cleared };
+            }
+            localStorage.setItem('markdown-editor-migrated-to-indexeddb', 'true');
             
             if (migratedCount > 0 || (cleared && files.length > 0)) {
                 const message = cleared 
@@ -3762,12 +3695,8 @@ class MarkdownEditor {
                     // Update preview first, then reset scroll state
                     this.updatePreview();
                     
-                    // Reset scroll state AFTER content AND preview are loaded
-                    // Use longer delay to ensure DOM is fully rendered
-                        setTimeout(() => {
-                        this.resetScrollState();
-                            this.editor.focus();
-                    }, 200);
+                    this.resetScrollState();
+                    this.editor.focus({ preventScroll: true });
                     return;
                 }
             } catch (error) {
@@ -3796,11 +3725,8 @@ class MarkdownEditor {
                 // Update preview first, then reset scroll state
                 this.updatePreview();
                 
-                // Reset scroll state AFTER content AND preview are loaded
-                    setTimeout(() => {
-                    this.resetScrollState();
-                        this.editor.focus();
-                }, 200);
+                this.resetScrollState();
+                this.editor.focus({ preventScroll: true });
                 return;
             }
         }
@@ -3811,11 +3737,8 @@ class MarkdownEditor {
         // Update preview first
         this.updatePreview();
         
-        // Reset scroll state for welcome content too (with delay for DOM)
-        setTimeout(() => {
-            this.resetScrollState();
-            this.editor.focus();
-        }, 200);
+        this.resetScrollState();
+        this.editor.focus({ preventScroll: true });
     }
     
     loadWelcomeContent() {
@@ -4024,43 +3947,41 @@ function hello() {
                 return;
             }
 
-            // Restore localStorage data (non-destructive merge: we replace the root object)
-            if (this.storageManager && payload.localStorage) {
-                this.storageManager.saveAllData(payload.localStorage);
+            const files = payload.indexedDB?.files ?? [];
+            const images = payload.indexedDB?.images ?? [];
+            if (!Array.isArray(files) || !Array.isArray(images)) throw new Error('Invalid backup collections');
+            let restored = 0;
+            let failed = 0;
+            const restore = async write => {
+                try {
+                    if (!await write()) throw new Error('Storage write unavailable or refused');
+                    restored++;
+                } catch (error) {
+                    console.warn('Backup item not restored:', error);
+                    failed++;
+                }
+            };
+            if (payload.localStorage) {
+                await restore(() => this.storageManager?.saveAllData(payload.localStorage));
+            }
+            const db = this.indexedDBManager?.isSupported ? this.indexedDBManager : null;
+            for (const f of files) {
+                await restore(() => f?.id && db?.saveFile({ ...f, name: f.name || 'Untitled.md', content: f.content || '' }));
+            }
+            for (const img of images) {
+                await restore(() => img?.id && img.dataUrl && db?.saveImage(img));
             }
 
-            // Restore IndexedDB files/images
-            if (this.indexedDBManager && this.indexedDBManager.isSupported && payload.indexedDB) {
-                const files = Array.isArray(payload.indexedDB.files) ? payload.indexedDB.files : [];
-                for (const f of files) {
-                    if (!f || !f.id) continue;
-                    await this.indexedDBManager.saveFile({
-                        ...f,
-                        // ensure minimal required fields
-                        id: f.id,
-                        name: f.name || 'Untitled.md',
-                        content: f.content || ''
-                    });
-                }
-
-                const images = Array.isArray(payload.indexedDB.images) ? payload.indexedDB.images : [];
-                for (const img of images) {
-                    if (!img || !img.id || !img.dataUrl) continue;
-                    await this.indexedDBManager.saveImage({
-                        id: img.id,
-                        alt: img.alt || '',
-                        dataUrl: img.dataUrl,
-                        fullMarkdown: img.fullMarkdown || `![${img.alt || ''}](${img.dataUrl})`,
-                        created: img.created
-                    });
-                }
+            if (restored) {
+                await this.loadSavedFile();
+                this.updatePreview();
+                this.updateStats();
             }
-
-            // Reload most recent file
-            await this.loadSavedFile();
-            this.updatePreview();
-            this.updateStats();
-            this.showNotification('Backup imported', 'success');
+            if (failed) {
+                this.showNotification(`Backup import incomplete: ${restored} restored, ${failed} not restored`, restored ? 'warning' : 'error');
+            } else {
+                this.showNotification('Backup imported', 'success');
+            }
         } catch (e) {
             console.error('Import failed:', e);
             this.showNotification('Import failed (see console)', 'error');
@@ -4138,13 +4059,11 @@ function hello() {
                         ? v.fullMarkdown
                         : `![${alt}](${dataUrl})`;
 
-                await this.indexedDBManager.saveImage({
-                    id: imageId,
-                    alt,
-                    dataUrl,
-                    fullMarkdown
-                });
-                migrated++;
+                // This non-destructive migration runs on every load; never replace a restored image.
+                if (await this.indexedDBManager.getImage(imageId)) continue;
+                if (await this.indexedDBManager.saveImage({
+                    id: imageId, alt, dataUrl, fullMarkdown, created: v.created, modified: v.modified
+                })) migrated++;
             }
 
             if (migrated > 0) {

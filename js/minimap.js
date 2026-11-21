@@ -213,6 +213,17 @@ class Minimap {
         return this._visible;
     }
 
+    /**
+     * A minimap on a document that already fits on screen is noise: no
+     * overview to give and it steals width from the text. Hide it (and its
+     * toggle) until the pane actually scrolls.
+     */
+    _syncIdle() {
+        if (!this.pane) return;
+        const fits = this.scrollEl.scrollHeight <= this.scrollEl.clientHeight + 4;
+        this.pane.classList.toggle('minimap-idle', fits);
+    }
+
     show() { this._visible = true; this.container.style.display = ''; this.render(); }
     hide() { this._visible = false; this.container.style.display = 'none'; }
     refresh() { if (this._visible) this._scheduleRender(0); }
@@ -233,6 +244,7 @@ class EditorMinimap extends Minimap {
 
     render() {
         if (!this._visible) return;
+        this._syncIdle();
         const colors = this._resolveColors();
         const text = this.scrollEl.value;
         const lines = text.split('\n');
@@ -370,6 +382,7 @@ class PreviewMinimap extends Minimap {
 
     render() {
         if (!this._visible) return;
+        this._syncIdle();
         const colors = this._resolveColors();
         const el = this.scrollEl;
         const scrollH = el.scrollHeight;

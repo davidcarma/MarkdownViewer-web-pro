@@ -98,38 +98,22 @@
     flex: 0 0 16px;
 }
 
-/* Color “tones” for toolbar icon buttons (icons use currentColor) */
-.btn-icon.btn-tone-danger {
-    color: var(--danger-color);
-    background-color: color-mix(in srgb, var(--danger-color) 12%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--danger-color) 28%, var(--border-color));
-}
-
-.btn-icon.btn-tone-danger:hover {
-    background-color: color-mix(in srgb, var(--danger-color) 18%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--danger-color) 42%, var(--border-color));
-}
-
+/* Icon “tones”. Only the primary action carries accent colour; a row of
+   rainbow-bordered buttons competes with the document itself. */
+.btn-icon.btn-tone-danger,
 .btn-icon.btn-tone-success {
-    color: var(--success-color);
-    background-color: color-mix(in srgb, var(--success-color) 12%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--success-color) 28%, var(--border-color));
-}
-
-.btn-icon.btn-tone-success:hover {
-    background-color: color-mix(in srgb, var(--success-color) 18%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--success-color) 42%, var(--border-color));
+    color: var(--text-primary);
 }
 
 .btn-icon.btn-tone-primary {
     color: var(--accent-color);
-    background-color: color-mix(in srgb, var(--accent-color) 12%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--accent-color) 28%, var(--border-color));
+    background-color: color-mix(in srgb, var(--accent-color) 10%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--accent-color) 30%, var(--border-color));
 }
 
 .btn-icon.btn-tone-primary:hover {
     background-color: color-mix(in srgb, var(--accent-color) 18%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--accent-color) 42%, var(--border-color));
+    border-color: color-mix(in srgb, var(--accent-color) 45%, var(--border-color));
 }
 
 /* Widget Toggle Button */
@@ -139,18 +123,17 @@
     padding: 0.25rem 0.5rem;
 }
 
-/* PDF Export Button - Special Red Styling */
+/* PDF Export Button - neutral until hovered, so the toolbar reads as one set */
 .btn-pdf-export {
-    border: 2px solid #dc3545;
     background-color: var(--bg-primary);
-    color: #dc3545;
+    color: var(--text-primary);
     position: relative;
 }
 
 .btn-pdf-export:hover {
-    background-color: #dc3545;
+    background-color: var(--danger-color);
     color: white;
-    border-color: #dc3545;
+    border-color: var(--danger-color);
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
 }

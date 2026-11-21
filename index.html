@@ -22,6 +22,7 @@
 </head>
 <body>
     <div class="app">
+        <a class="skip-editor" href="#editor">Skip to Markdown editor</a>
         <!-- Product Title Header -->
         <div class="product-header">
             <h1 class="product-title">
@@ -46,7 +47,7 @@
                         <line x1="16" y1="17" x2="8" y2="17"></line>
                         <polyline points="10,9 9,9 8,9"></polyline>
                     </svg>
-                    <input type="text" id="documentTitle" class="document-title-input" value="Untitled.md" placeholder="Document name" spellcheck="false" autocomplete="off">
+                    <input type="text" aria-label="Document name" id="documentTitle" class="document-title-input" value="Untitled.md" placeholder="Document name" spellcheck="false" autocomplete="off">
                 </div>
             </div>
             
@@ -69,7 +70,7 @@
                     </svg>
                 </button>
                 
-                <button class="btn btn-icon" id="openWordFile" title="Import Word Document">
+                <button class="btn btn-icon btn-secondary-action" id="openWordFile" title="Import Word Document">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14,2 14,8 20,8"></polyline>
@@ -85,7 +86,7 @@
                     </svg>
                 </button>
                 
-                <button class="btn btn-icon btn-drive" id="driveConnect" title="Google Drive" style="display: none;">
+                <button class="btn btn-icon btn-drive btn-secondary-action" id="driveConnect" title="Google Drive" style="display: none;">
                     <!-- Google Drive logo (triangle) -->
                     <svg width="18" height="18" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
                         <path class="drive-icon-green"  d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z"/>
@@ -97,7 +98,7 @@
                     </svg>
                 </button>
                 
-                <button class="btn btn-icon btn-pdf-export" id="exportToPdf" title="Export to PDF">
+                <button class="btn btn-icon btn-pdf-export btn-secondary-action" id="exportToPdf" title="Export to PDF">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14,2 14,8 20,8"></polyline>
@@ -105,7 +106,7 @@
                     </svg>
                 </button>
                 
-                <button class="btn btn-icon" id="printFile" title="Print">
+                <button class="btn btn-icon btn-secondary-action" id="printFile" title="Print">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="6,9 6,2 18,2 18,9"></polyline>
                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
@@ -115,7 +116,7 @@
                 
                 <div class="separator"></div>
                 
-                <button class="btn btn-icon" id="toggleCompact" title="Toggle Compact/Expand Mode">
+                <button class="btn btn-icon btn-secondary-action" id="toggleCompact" title="Toggle Compact/Expand Mode">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                         <polyline points="7 8 3 12 7 16"></polyline>
                         <polyline points="17 8 21 12 17 16"></polyline>
@@ -123,7 +124,7 @@
                     </svg>
                 </button>
                 
-                <button class="btn btn-icon" id="unescapeContent" title="Unescape JSON String (Ctrl+U)">
+                <button class="btn btn-icon btn-secondary-action" id="unescapeContent" title="Unescape JSON String (Ctrl+U)">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14,2 14,8 20,8"></polyline>
@@ -152,18 +153,26 @@
                     </svg>
                 </button>
                 
-                <button class="btn btn-icon" id="settingsMenu" title="Settings">
+                <button class="btn btn-icon" id="settingsMenu" aria-haspopup="dialog" aria-controls="settingsModal" title="Settings" aria-label="Settings">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="3" y1="12" x2="21" y2="12"></line>
                         <line x1="3" y1="6" x2="21" y2="6"></line>
                         <line x1="3" y1="18" x2="21" y2="18"></line>
                     </svg>
                 </button>
+
+                <button class="btn btn-icon phone-more" id="phoneMore" aria-expanded="false" aria-controls="phoneSecondary" title="More actions" aria-label="More actions">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="5" cy="12" r="1.8"></circle>
+                        <circle cx="12" cy="12" r="1.8"></circle>
+                        <circle cx="19" cy="12" r="1.8"></circle>
+                    </svg>
+                </button>
             </div>
         </header>
 
         <!-- Format toolbar -->
-        <div class="format-toolbar">
+        <div class="format-toolbar" role="group" aria-label="Markdown formatting">
             <div class="format-group">
                 <button class="btn btn-format" data-format="bold" title="Bold (Ctrl+B)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -258,6 +267,12 @@
             </div>
         </div>
 
+        <!-- Phone pane switch: one pane at a time instead of two squeezed halves -->
+        <nav class="pane-switch" aria-label="Choose pane">
+            <button type="button" class="pane-switch-btn" data-pane="write" aria-pressed="true">Write</button>
+            <button type="button" class="pane-switch-btn" data-pane="preview" aria-pressed="false">Preview</button>
+        </nav>
+
         <!-- Main content area -->
         <main class="main-content">
             <!-- File input for opening files -->
@@ -280,7 +295,8 @@
                             <span id="charCount">Characters: 0</span>
                         </div>
                     </div>
-                    <textarea id="editor" placeholder="Start typing your markdown here..."></textarea>
+                    <span class="sr-only" id="editorKeyboardHelp">Tab indents. Press Escape, then Tab to leave the editor.</span>
+                    <textarea aria-label="Markdown editor" aria-describedby="editorKeyboardHelp" id="editor" placeholder="Start typing your markdown here..."></textarea>
                 </div>
                 
                 <div class="pane-divider"></div>
@@ -296,7 +312,7 @@
                             Copy HTML
                         </button>
                     </div>
-                    <div id="preview" class="preview-content"></div>
+                    <div id="preview" role="region" aria-label="Markdown preview" tabindex="0" class="preview-content"></div>
                 </div>
             </div>
         </main>
@@ -323,9 +339,9 @@
 
     <!-- Settings Modal -->
     <div id="settingsModal" class="modal-overlay" style="display: none;">
-        <div class="modal-dialog settings-modal">
+        <div class="modal-dialog settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
             <div class="modal-header">
-                <h3>Settings</h3>
+                <h3 id="settingsTitle">Settings</h3>
             </div>
             <div class="modal-body">
                 <div class="settings-menu">
@@ -496,6 +512,8 @@
     <!-- App modules (loaded in order) -->
     <script src="js/storage-manager.js" defer></script>
     <script src="js/indexeddb-manager.js" defer></script>
+    <script src="lib/purify.min.js" defer></script>
+    <script src="js/render-boundary.js" defer></script>
     <script src="js/core.js" defer></script>
     <script src="js/events.js" defer></script>
     <script src="js/file-operations.js" defer></script>

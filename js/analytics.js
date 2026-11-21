@@ -13,6 +13,7 @@
     const CONSENT_GRANTED = 'granted';
     const CONSENT_DENIED = 'denied';
 
+    const DISABLE_KEY = 'ga-disable-' + MEASUREMENT_ID;
     let analyticsConfigured = false;
 
     function isProductionHost() {
@@ -44,9 +45,10 @@
         };
     }
 
-    function applyDeniedConsent() {
+    function applyDeniedConsent(command) {
+        window[DISABLE_KEY] = true;
         ensureGtag();
-        window.gtag('consent', 'default', {
+        window.gtag('consent', command, {
             analytics_storage: 'denied',
             ad_storage: 'denied',
             ad_user_data: 'denied',
@@ -55,6 +57,7 @@
     }
 
     function applyGrantedConsent() {
+        window[DISABLE_KEY] = false;
         ensureGtag();
         window.gtag('consent', 'update', {
             analytics_storage: 'granted',
@@ -133,10 +136,12 @@
         document.body.appendChild(banner);
 
         banner.querySelector('#analyticsAcceptBtn').addEventListener('click', function () {
+            persistConsent(CONSENT_GRANTED);
             grantConsent();
             hideBanner();
         });
         banner.querySelector('#analyticsRejectBtn').addEventListener('click', function () {
+            persistConsent(CONSENT_DENIED);
             denyConsent();
             hideBanner();
         });
@@ -158,13 +163,19 @@
     }
 
     function denyConsent() {
-        persistConsent(CONSENT_DENIED);
-        applyDeniedConsent();
+        applyDeniedConsent('update');
+        // GA can set root-path cookies on either the host or its parent domain.
+        for (const entry of document.cookie.split(';')) {
+            const name = entry.trim().split('=')[0];
+            if (!/^_ga(?:_[A-Za-z0-9]+)?$/.test(name)) continue;
+            for (const domain of ['', '; Domain=' + window.location.hostname, '; Domain=eyesondash.com']) {
+                document.cookie = name + '=; Max-Age=0; Path=/' + domain;
+            }
+        }
         updateConsentLink();
     }
 
     function grantConsent() {
-        persistConsent(CONSENT_GRANTED);
         applyGrantedConsent();
         configureAnalytics();
         loadAnalyticsScript();
@@ -187,7 +198,15 @@
             return;
         }
 
-        applyDeniedConsent();
+        applyDeniedConsent('default');
+        window.addEventListener('storage', function (event) {
+            if (event.storageArea !== localStorage || (event.key !== CONSENT_STORAGE_KEY && event.key !== null)) return;
+            const consent = getStoredConsent();
+            if (consent === CONSENT_GRANTED) grantConsent();
+            else denyConsent();
+            if (consent) hideBanner();
+            else showBanner();
+        });
         wireConsentLink();
         updateConsentLink();
 

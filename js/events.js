@@ -41,6 +41,35 @@ class EditorEvents {
         
         // Settings menu events
         onClick('settingsMenu', () => this.openSettingsModal());
+
+        // Phone "More": reveal the low-frequency file actions only when asked.
+        const phoneMore = document.getElementById('phoneMore');
+        if (phoneMore) {
+            phoneMore.addEventListener('click', () => {
+                const actions = phoneMore.closest('.toolbar-actions');
+                const open = actions.classList.toggle('secondary-open');
+                phoneMore.setAttribute('aria-expanded', String(open));
+            });
+        }
+
+        // Phone pane switch (shown up to 640px): one full-height pane at a time.
+        document.querySelectorAll('.pane-switch-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const app = document.querySelector('.app');
+                const pane = btn.dataset.pane;
+                app.dataset.mobilePane = pane;
+                document.querySelectorAll('.pane-switch-btn').forEach((other) => {
+                    other.setAttribute('aria-pressed', String(other === btn));
+                });
+                const preview = document.getElementById('preview');
+                if (pane === 'preview') {
+                    this.editor.updatePreview();
+                    preview?.focus({ preventScroll: true });
+                } else {
+                    this.editor.editor.focus({ preventScroll: true });
+                }
+            });
+        });
         onClick('closeSettingsBtn', () => this.closeSettingsModal());
         const compressionToggle = document.getElementById('imageCompressionToggle');
         if (compressionToggle) {
@@ -114,16 +143,31 @@ class EditorEvents {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            // Escape key handling
-            if (e.key === 'Escape') {
-                // Check if settings modal is open first
-                const settingsModal = document.getElementById('settingsModal');
-                if (settingsModal && settingsModal.style.display === 'flex') {
+            // Keep workspace shortcuts and Tab navigation out of the background.
+            // Escape must close Settings wherever focus sits: Safari/WebKit leaves
+            // focus on <body> after a toolbar click, so target-based checks miss it.
+            const settings = document.getElementById('settingsModal');
+            if (settings && settings.style.display === 'flex') {
+                if (e.key === 'Escape') {
                     e.preventDefault();
                     this.closeSettingsModal();
                     return;
                 }
-                
+                if (e.key === 'Tab') {
+                    const first = settings.querySelector('.settings-menu-item');
+                    const last = document.getElementById('closeSettingsBtn');
+                    if (!settings.contains(document.activeElement)) {
+                        e.preventDefault();
+                        first.focus();
+                    } else if (e.shiftKey ? e.target === first : e.target === last) {
+                        e.preventDefault();
+                        (e.shiftKey ? last : first).focus();
+                    }
+                }
+                return;
+            }
+            // Escape key handling
+            if (e.key === 'Escape') {
                 // Then check fullscreen mode
                 const app = document.querySelector('.app');
                 if (app.classList.contains('fullscreen-mode')) {
@@ -196,11 +240,15 @@ class EditorEvents {
         
         // Show modal
         modal.style.display = 'flex';
+        document.querySelector('.app').inert = true;
+        modal.querySelector('.settings-menu-item.active').focus();
     }
     
     closeSettingsModal() {
         const modal = document.getElementById('settingsModal');
         modal.style.display = 'none';
+        document.querySelector('.app').inert = false;
+        document.getElementById('settingsMenu').focus();
     }
     
     switchSettingsSection(e) {
@@ -212,7 +260,9 @@ class EditorEvents {
     switchSettingsSectionByName(sectionName) {
         // Update menu items
         document.querySelectorAll('.settings-menu-item').forEach(item => {
-            if (item.getAttribute('data-section') === sectionName) {
+            const selected = item.dataset.section === sectionName;
+            item.setAttribute('aria-pressed', String(selected));
+            if (selected) {
                 item.classList.add('active');
             } else {
                 item.classList.remove('active');
@@ -285,7 +335,9 @@ class EditorEvents {
     updateThemeSelector() {
         const currentTheme = document.documentElement.getAttribute('data-theme');
         document.querySelectorAll('.theme-option').forEach(btn => {
-            if (btn.getAttribute('data-theme') === currentTheme) {
+            const selected = btn.dataset.theme === currentTheme;
+            btn.setAttribute('aria-pressed', String(selected));
+            if (selected) {
                 btn.classList.add('active');
             } else {
                 btn.classList.remove('active');
@@ -444,6 +496,14 @@ class EditorEvents {
     }
     
     handleKeydown(e) {
+        if (e.key === 'Escape') {
+            this.allowEditorTabExit = true;
+            return;
+        }
+        if (this.allowEditorTabExit) {
+            this.allowEditorTabExit = false;
+            if (e.key === 'Tab') return;
+        }
         // ALWAYS allow native browser shortcuts with Ctrl/Cmd - don't intercept them
         if (e.ctrlKey || e.metaKey) {
             return; // Let browser handle Ctrl+A, Ctrl+C, Ctrl+V, etc.

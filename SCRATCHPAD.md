@@ -2,6 +2,18 @@
 
 ## Recent Session Notes
 
+### 2026-11-21 (review fixes and workspace pass)
+- Rendering boundary: DOMPurify + `js/render-boundary.js` for preview, copy HTML, print, PDF and Word import; remote document images no longer load on their own and open only through an explicit `noopener noreferrer` link.
+- Storage honesty: IndexedDB writes report after commit, migration keeps originals on failure, backup import reports restored/skipped counts and preserves timestamps.
+- Drive tokens live in tab session storage; analytics revoke now disables collection. Rotate the previously committed OAuth client secret on Google Cloud.
+- UI: quiet header, one accent on Save, phone Write/Preview panes with a More disclosure, minimap hidden when the document fits, toasts moved above the status bar. Escape closes Settings regardless of focus (WebKit keeps focus on body after toolbar clicks).
+- Tests: `tests/` Chromium + WebKit green (smoke, preview boundaries, storage integrity, save round-trip, workspace responsive). Firefox could not launch headless on this Mac (sandbox_extension_issue_file_to_process).
+
+### 2026-09-23 (live Drive uniqueness)
+- Published `cad0f82` to production (`99ee02c` stamp). `build-info.js` on the site shows that hash.
+- Parked the real `Markdown-pro` folder, let the picker create a fresh root, then New Folder / Save / same-name reuse all stayed in the new root.
+- Restored the original `Markdown-pro` folder. Isolated QA copy remains as `Markdown-pro-QA-20260923` (safe to delete). `gws` Drive scope was insufficient; tests used the app's `drive.file` token.
+
 ### 2026-09-23 (Drive uniqueness)
 - Drive keys items by ID. Same visible name in one parent can exist many times.
 - Old root cache skipped the name search, so extra `Markdown-pro` folders and same-name files kept appearing. The merge path parked extras in a wrapper folder instead of absorbing them.

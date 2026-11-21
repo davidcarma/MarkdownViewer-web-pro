@@ -19,3 +19,6 @@ blob-report/
 # Python
 __pycache__/
 *.pyc
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json

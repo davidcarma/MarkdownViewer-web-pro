@@ -1,0 +1,9 @@
+{
+  "version": "0.0.1",
+  "configurations": [{
+    "name": "Markdown Pro",
+    "runtimeExecutable": "node",
+    "runtimeArgs": ["node_modules/serve/build/main.js", ".", "-l", "tcp://127.0.0.1:9321"],
+    "port": 9321
+  }]
+}
