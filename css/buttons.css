@@ -98,22 +98,38 @@
     flex: 0 0 16px;
 }
 
-/* Icon “tones”. Only the primary action carries accent colour; a row of
-   rainbow-bordered buttons competes with the document itself. */
-.btn-icon.btn-tone-danger,
+/* Color “tones” for toolbar icon buttons (icons use currentColor) */
+.btn-icon.btn-tone-danger {
+    color: var(--danger-color);
+    background-color: color-mix(in srgb, var(--danger-color) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--danger-color) 28%, var(--border-color));
+}
+
+.btn-icon.btn-tone-danger:hover {
+    background-color: color-mix(in srgb, var(--danger-color) 18%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--danger-color) 42%, var(--border-color));
+}
+
 .btn-icon.btn-tone-success {
-    color: var(--text-primary);
+    color: var(--success-color);
+    background-color: color-mix(in srgb, var(--success-color) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--success-color) 28%, var(--border-color));
+}
+
+.btn-icon.btn-tone-success:hover {
+    background-color: color-mix(in srgb, var(--success-color) 18%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--success-color) 42%, var(--border-color));
 }
 
 .btn-icon.btn-tone-primary {
     color: var(--accent-color);
-    background-color: color-mix(in srgb, var(--accent-color) 10%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--accent-color) 30%, var(--border-color));
+    background-color: color-mix(in srgb, var(--accent-color) 12%, var(--bg-primary));
+    border-color: color-mix(in srgb, var(--accent-color) 28%, var(--border-color));
 }
 
 .btn-icon.btn-tone-primary:hover {
     background-color: color-mix(in srgb, var(--accent-color) 18%, var(--bg-primary));
-    border-color: color-mix(in srgb, var(--accent-color) 45%, var(--border-color));
+    border-color: color-mix(in srgb, var(--accent-color) 42%, var(--border-color));
 }
 
 /* Widget Toggle Button */

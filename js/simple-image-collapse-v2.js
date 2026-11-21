@@ -361,11 +361,17 @@ class SimpleImageCollapseV2 {
         });
     }
     
+    // Prevent recursive restoration (guard against oscillation)
+    _isRestoring = false;
+
     // Attempt to restore corrupted placeholders
     attemptPlaceholderRestore() {
+        // Guard: if we're already in the middle of a restore, skip this invocation
+        if (this._isRestoring) return;
+
         const currentContent = this.editor.editor.value;
         const cursorPos = this.editor.editor.selectionStart;
-        
+
         // Look for any corrupted placeholder patterns
         let hasCorrupted = false;
         let restoredContent = currentContent;
@@ -402,34 +408,42 @@ class SimpleImageCollapseV2 {
         
         // If we found and fixed corrupted placeholders, update the editor
         if (hasCorrupted && restoredContent !== currentContent) {
-            const textBeforeCursor = currentContent.substring(0, cursorPos);
-            const restoredTextBeforeCursor = textBeforeCursor.replace(
-                /\(\.\.\.IMG_[^)]*\.\.\.[^)]*\)/g, 
-                (match) => {
-                    // Try to find the correct placeholder for this corrupted one
-                    for (const [imageId, imageData] of this.imageStore) {
-                        if (match.includes(imageId.substring(0, 15))) {
-                            return `(...${imageId}...)`;
+            // Guard against recursive restoration (oscillation)
+            this._isRestoring = true;
+
+            try {
+                const textBeforeCursor = currentContent.substring(0, cursorPos);
+                const restoredTextBeforeCursor = textBeforeCursor.replace(
+                    /\(\.\.\.IMG_[^)]*\.\.\.[^)]*\)/g,
+                    (match) => {
+                        // Try to find the correct placeholder for this corrupted one
+                        for (const [imageId, imageData] of this.imageStore) {
+                            if (match.includes(imageId.substring(0, 15))) {
+                                return `(...${imageId}...)`;
+                            }
                         }
+                        return match;
                     }
-                    return match;
-                }
-            );
-            const newCursorPos = restoredTextBeforeCursor.length;
-            
-            this.editor.editor.value = restoredContent;
-            
-            // Restore cursor position
-            setTimeout(() => {
-                this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
-                this.editor.editor.focus();
-                this.editor.updatePreview();
-                
-                // Show a subtle notification
-                if (this.editor.showNotification) {
-                    this.editor.showNotification('🔧 Restored corrupted image placeholder', 'info');
-                }
-            }, 10);
+                );
+                const newCursorPos = restoredTextBeforeCursor.length;
+
+                this.editor.editor.value = restoredContent;
+
+                // Restore cursor position
+                setTimeout(() => {
+                    this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
+                    this.editor.editor.focus();
+                    this.editor.updatePreview();
+
+                    // Show a subtle notification
+                    if (this.editor.showNotification) {
+                        this.editor.showNotification('🔧 Restored corrupted image placeholder', 'info');
+                    }
+                }, 10);
+            } finally {
+                // Clear the guard after the restoration completes
+                this._isRestoring = false;
+            }
         }
     }
     
