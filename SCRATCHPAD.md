@@ -3,6 +3,7 @@
 ## Recent Session Notes
 
 ### 2026-11-21 (review fixes and workspace pass)
+- Drive OAuth client replaced with `1024951916599-e4764bg3bdt59n1lt7ccdgboatppfet5.apps.googleusercontent.com`; only the public client ID lives in the app, never the secret. The client-secret JSON stays outside the repo.
 - Rendering boundary: DOMPurify + `js/render-boundary.js` for preview, copy HTML, print, PDF and Word import; remote document images no longer load on their own and open only through an explicit `noopener noreferrer` link.
 - Storage honesty: IndexedDB writes report after commit, migration keeps originals on failure, backup import reports restored/skipped counts and preserves timestamps.
 - Drive tokens live in tab session storage; analytics revoke now disables collection. Rotate the previously committed OAuth client secret on Google Cloud.
