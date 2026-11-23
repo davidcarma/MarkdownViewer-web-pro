@@ -7,7 +7,13 @@ window.RenderBoundary = (() => {
         const template = document.createElement('template');
         template.innerHTML = markup;
         return DOMPurify.sanitize(template.content, {
-            RETURN_DOM_FRAGMENT: true, ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false, ...options
+            RETURN_DOM_FRAGMENT: true,
+            ALLOW_DATA_ATTR: false,
+            ALLOW_ARIA_ATTR: false,
+            // Preview images may use same-origin blob: URLs; the img pass below
+            // still restricts src to blob: or inline data:image only.
+            ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|blob):|data:image\/|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+            ...options
         });
     };
     function html(markup) {
@@ -34,7 +40,10 @@ window.RenderBoundary = (() => {
             }
             // Only embedded images are passive resources; even a relative URL can be a tracker.
             if (el.tagName === 'IMG') {
-                if (!/^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml);base64,[\w+/=\s]+$/i.test(el.getAttribute('src') || '')) {
+                const src = el.getAttribute('src') || '';
+                const embedded = /^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml);base64,[\w+/=\s]+$/i.test(src);
+                const objectUrl = /^blob:/i.test(src);
+                if (!embedded && !objectUrl) {
                     const label = `[Image not loaded: ${el.alt || 'image'}]`;
                     let url;
                     try { if (el.getAttribute('src')) url = new URL(el.getAttribute('src'), location.href); } catch (_) {}

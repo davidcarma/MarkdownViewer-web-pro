@@ -23,17 +23,12 @@ class FileBrowser {
     }
 
     async saveCurrentFile() {
-        let content = this.editor.editor.value;
-        try {
-            if (this.editor.imageCollapse && this.editor.imageCollapse.getPreviewContent) {
-                content = this.editor.imageCollapse.getPreviewContent();
-            }
-        } catch (e) {
-            console.warn('getPreviewContent failed; saving raw editor content instead:', e);
-            this.editor.showNotification('Preview expansion failed - saving raw content', 'info');
-            content = this.editor.editor.value;
-        }
-        
+        // Persist exactly what the editor holds: collapsed image placeholders,
+        // not the expanded preview. The image bytes are saved separately in
+        // IndexedDB, and expanding here made every autosave megabytes — each
+        // refresh then loaded that, re-collapsed it, and re-stored every image.
+        const content = this.editor.editor.value;
+
         const fileId = this.generateFileId(this.editor.currentFileName);
         const now = new Date().toISOString();
         const fileData = {

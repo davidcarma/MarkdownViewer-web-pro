@@ -147,15 +147,15 @@ class ImagePasteHandler {
                     const fileSizeKB = Math.round(file.size / 1024);
                     const compressionEnabled = this.editor.storageManager.getSetting('imageCompression', true);
                     
-                    // Check if image is large and should be compressed
-                    // Skip compression for PNG to preserve transparency and quality
-                    // (e.g. diagrams copied from the Mermaid viewer)
-                    const isPng = file.type === 'image/png';
-                    if (fileSizeKB > 200 && compressionEnabled && !isPng) {
-                        // Compress the image
+                    // Compress any large raster image, including opaque PNG
+                    // screenshots. GIF (animation) and SVG (vector) stay as-is.
+                    const compressible = /^image\/(jpeg|jpg|png|webp|bmp)$/i.test(file.type);
+                    if (fileSizeKB > 200 && compressionEnabled && compressible) {
+                        // Compress and downscale the image
                         const compressedDataUrl = await this.compressImage(dataUrl, file.type);
                         const compressedSizeKB = Math.round(compressedDataUrl.length * 0.75 / 1024); // Rough estimate
-                        const fileName = this.generateImageFileName('image/jpeg'); // Always JPEG after compression
+                        const compressedMime = compressedDataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+                        const fileName = this.generateImageFileName(compressedMime);
                         
                         this.insertImageAtCursor(fileName, compressedDataUrl);
                         
@@ -210,51 +210,78 @@ class ImagePasteHandler {
     async compressImage(dataUrl, originalType) {
         return new Promise((resolve, reject) => {
             const img = new Image();
-            
+
             img.onload = () => {
                 try {
-                    // Create canvas
+                    // Screenshots are usually far larger than they need to be on
+                    // screen. Cap the long edge first: quartering the pixels does
+                    // more than any quality setting.
+                    const MAX_DIMENSION = 1600;
+                    const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
+                    const width = Math.max(1, Math.round(img.width * scale));
+                    const height = Math.max(1, Math.round(img.height * scale));
+
                     const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
                     const ctx = canvas.getContext('2d');
-                    
-                    // Set canvas dimensions to image dimensions
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    
-                    // Draw image on canvas
-                    ctx.drawImage(img, 0, 0);
-                    
-                    // Compress to JPEG at 90% quality
-                    // Start with 0.9 quality and reduce if needed
-                    let quality = 0.9;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Transparency has to survive (diagrams, logos); opaque
+                    // PNG screenshots get the JPEG treatment.
+                    if (originalType === 'image/png' && this._canvasHasTransparency(ctx, width, height)) {
+                        resolve(canvas.toDataURL('image/png'));
+                        return;
+                    }
+
+                    // Start at 80% and step down until the encoded image fits
+                    // the target; never below 45% or text becomes mush.
+                    let quality = 0.8;
                     let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-                    
-                    // If still too large, reduce quality iteratively
-                    const targetSizeKB = 200;
+
+                    const targetSizeKB = 160;
                     let attempts = 0;
-                    const maxAttempts = 5;
-                    
+                    const maxAttempts = 8;
+
                     while (compressedDataUrl.length * 0.75 / 1024 > targetSizeKB && attempts < maxAttempts) {
-                        quality -= 0.1;
-                        if (quality < 0.5) quality = 0.5; // Don't go below 50%
+                        quality = Math.max(0.5, quality - 0.05);
                         compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
                         attempts++;
                     }
-                    
+
                     resolve(compressedDataUrl);
                 } catch (error) {
                     reject(error);
                 }
             };
-            
+
             img.onerror = () => {
                 reject(new Error('Failed to load image for compression'));
             };
-            
+
             img.src = dataUrl;
         });
     }
-    
+
+    _canvasHasTransparency(ctx, width, height) {
+        try {
+            const data = ctx.getImageData(0, 0, width, height).data;
+            // A stray antialiased pixel should not force a full-size PNG; only
+            // a real transparent region (over 1% of the image) does.
+            const limit = Math.max(1, Math.floor(width * height * 0.01));
+            let transparent = 0;
+            for (let i = 3; i < data.length; i += 4) {
+                if (data[i] < 250) {
+                    transparent++;
+                    if (transparent > limit) return true;
+                }
+            }
+        } catch (_) {
+            // If the canvas is unreadable, prefer preserving the original format.
+        }
+        return false;
+    }
+
     showLargeImageWarning(sizeKB) {
         // Remove any existing warning
         const existingWarning = document.querySelector('.warning-card');

@@ -9,13 +9,53 @@ class SimpleImageCollapseV2 {
         this.imageStore = new Map(); // Global store for all image data
         // Persist images in IndexedDB (NOT localStorage) so placeholders can be expanded
         // after refresh, without quota issues and without any network requests.
+        // Preview-only blob URLs, keyed by image id. Reusing them keeps the
+        // preview HTML small and lets the browser decode each image once.
+        this._previewUrlCache = new Map();
         this.setupToggle();
         this.bindInputHandler();
     }
-    
+
     // Clear all stored images (in-memory only)
     clearImageStore() {
+        for (const entry of this._previewUrlCache.values()) {
+            try { URL.revokeObjectURL(entry.url); } catch (_) { /* ignore */ }
+        }
+        this._previewUrlCache.clear();
         this.imageStore.clear();
+    }
+
+    // A short blob: URL for the preview DOM. The data URL remains the source
+    // of truth for saving and export.
+    previewUrlFor(imageData) {
+        if (!imageData || !imageData.dataUrl) return '';
+        const cached = this._previewUrlCache.get(imageData.id);
+        if (cached && cached.dataUrl === imageData.dataUrl) return cached.url;
+
+        try {
+            const match = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(imageData.dataUrl);
+            if (!match) return imageData.dataUrl;
+
+            const mime = match[1] || 'application/octet-stream';
+            let blob;
+            if (match[2]) {
+                const binary = atob(match[3]);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                blob = new Blob([bytes], { type: mime });
+            } else {
+                blob = new Blob([decodeURIComponent(match[3])], { type: mime });
+            }
+
+            if (cached && cached.url) {
+                try { URL.revokeObjectURL(cached.url); } catch (_) { /* ignore */ }
+            }
+            const url = URL.createObjectURL(blob);
+            this._previewUrlCache.set(imageData.id, { dataUrl: imageData.dataUrl, url });
+            return url;
+        } catch (_) {
+            return imageData.dataUrl;
+        }
     }
     
     setupToggle() {
@@ -74,7 +114,7 @@ class SimpleImageCollapseV2 {
     }
     
     // Expand all placeholders in content
-    expandPlaceholders(content) {
+    expandPlaceholders(content, { previewUrls = false } = {}) {
         if (!content) return content;
         
         // IMPORTANT: Avoid constructing dynamic RegExp patterns from IDs.
@@ -88,14 +128,15 @@ class SimpleImageCollapseV2 {
             (match, alt, imageId) => {
                 const imageData = this.imageStore.get(imageId);
                 if (!imageData || !imageData.dataUrl) return match;
-                return `![${alt}](${imageData.dataUrl})`;
+                const src = previewUrls ? this.previewUrlFor(imageData) : imageData.dataUrl;
+                return `![${alt}](${src})`;
             }
         );
     }
 
     // Replace any remaining placeholders with a safe, offline-friendly marker so the browser
     // never tries to request `/...IMG_...` from the network/server.
-    replaceUnknownPlaceholders(content) {
+    replaceUnknownPlaceholders(content, { previewUrls = false } = {}) {
         if (!content) return content;
         // Replace markdown image placeholders with a small inline SVG "missing image" data URL.
         const missingSvg = (alt, imageId) => {
@@ -113,10 +154,11 @@ class SimpleImageCollapseV2 {
         return content.replace(
             /!\[([^\]]*)\]\s*\(\s*\.\.\.\s*(IMG_[^.)\s]+)\s*\.\.\.\s*\)/g,
             (match, alt, imageId) => {
-                // If we have it, expand immediately to a data: URL so the preview NEVER attempts a network fetch.
+                // If we have it, expand immediately so the preview NEVER attempts a network fetch.
                 const imageData = this.imageStore.get(imageId);
                 if (imageData && imageData.dataUrl) {
-                    return `![${alt}](${imageData.dataUrl})`;
+                    const src = previewUrls ? this.previewUrlFor(imageData) : imageData.dataUrl;
+                    return `![${alt}](${src})`;
                 }
                 // Otherwise, render a safe inline placeholder (also data:), not a relative URL.
                 return `![${alt}](${missingSvg(alt, imageId)})`;
@@ -287,13 +329,16 @@ class SimpleImageCollapseV2 {
         }
     }
     
-    // Get content for preview (always expanded; never generates network image URLs)
-    getPreviewContent() {
+    // Get content for preview (always expanded; never generates network image URLs).
+    // Pass previewUrls for the on-screen preview: it uses short blob URLs so a
+    // document with many screenshots does not rebuild a multi-megabyte DOM on
+    // every render. Save/export callers keep full data URLs.
+    getPreviewContent({ previewUrls = false } = {}) {
         const currentContent = this.editor.editor.value;
         try {
-            const safeContent = this.replaceUnknownPlaceholders(currentContent);
+            const safeContent = this.replaceUnknownPlaceholders(currentContent, { previewUrls });
             if (this.isCollapsed) {
-                return this.expandPlaceholders(safeContent);
+                return this.expandPlaceholders(safeContent, { previewUrls });
             }
             return safeContent;
         } catch (e) {
@@ -364,86 +409,80 @@ class SimpleImageCollapseV2 {
     // Prevent recursive restoration (guard against oscillation)
     _isRestoring = false;
 
-    // Attempt to restore corrupted placeholders
+    // Attempt to repair malformed placeholders. Valid placeholders are never
+    // touched: rewriting an intact id can fold every image in the document
+    // onto one id (images created in the same second share a long prefix),
+    // which is the corruption this routine is meant to repair.
     attemptPlaceholderRestore() {
         // Guard: if we're already in the middle of a restore, skip this invocation
         if (this._isRestoring) return;
 
         const currentContent = this.editor.editor.value;
+        if (!currentContent || !currentContent.includes('IMG_')) return;
+
+        // One pass over `(...token...)` placeholders; the token may be
+        // truncated or wrapped in debris after a bad paste/edit.
+        const PLACEHOLDER_RE = /(\(\s*\.\.\.\s*)([^)]*?IMG_[A-Za-z0-9_]+[^)]*?)(\s*\.\.\.\s*\))/g;
+
+        const resolveToken = (rawToken) => {
+            const token = String(rawToken || '').trim();
+            if (!token) return null;
+            if (this.imageStore.has(token)) return token; // already intact
+
+            const idMatch = token.match(/IMG_[A-Za-z0-9_]+/);
+            if (!idMatch) return null;
+            // More than one id in the token: ambiguous corruption, leave it.
+            if (token.indexOf('IMG_') !== token.lastIndexOf('IMG_')) return null;
+
+            const prefix = idMatch[0];
+            let candidate = null;
+            for (const id of this.imageStore.keys()) {
+                if (!id.startsWith(prefix)) continue;
+                if (candidate) return null; // two candidates: never guess
+                candidate = id;
+            }
+            return candidate;
+        };
+
+        const repair = (text) => {
+            let changed = false;
+            const out = text.replace(PLACEHOLDER_RE, (match, open, rawToken, close) => {
+                const resolved = resolveToken(rawToken);
+                if (!resolved) return match;
+                const fixed = `${open}${resolved}${close}`;
+                if (fixed === match) return match;
+                changed = true;
+                return fixed;
+            });
+            return { text: out, changed };
+        };
+
         const cursorPos = this.editor.editor.selectionStart;
+        const repaired = repair(currentContent);
+        if (!repaired.changed || repaired.text === currentContent) return;
 
-        // Look for any corrupted placeholder patterns
-        let hasCorrupted = false;
-        let restoredContent = currentContent;
-        
-        const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Guard against recursive restoration (oscillation)
+        this._isRestoring = true;
+        try {
+            const newCursorPos = repair(currentContent.substring(0, cursorPos)).text.length;
 
-        // Check for partial image ID patterns that might be corrupted
-        for (const [imageId, imageData] of this.imageStore) {
-            const partialId = imageId.substring(0, 15);
-            const partialIdEsc = escapeRegex(partialId);
-            
-            // Look for corrupted patterns like (...IMG_123...corrupted...)
-            try {
-                const corruptedPattern = new RegExp(`\\(\\.\\.\\.${partialIdEsc}[^)]*\\.\\.\\.[^)]*\\)`, 'g');
-                if (corruptedPattern.test(currentContent)) {
-                    hasCorrupted = true;
-                    restoredContent = restoredContent.replace(corruptedPattern, `(...${imageId}...)`);
+            this.editor.recordUndoSnapshot?.(true);
+            this.editor.editor.value = repaired.text;
+
+            // Restore cursor position
+            setTimeout(() => {
+                this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
+                this.editor.editor.focus();
+                this.editor.updatePreview();
+
+                // Show a subtle notification
+                if (this.editor.showNotification) {
+                    this.editor.showNotification('🔧 Restored corrupted image placeholder', 'info');
                 }
-            } catch (e) {
-                console.warn('Corrupted placeholder restore regex failed (non-fatal):', e);
-            }
-            
-            // Also look for completely broken markdown image syntax
-            try {
-                const brokenPattern = new RegExp(`!\\[[^\\]]*\\]\\([^)]*${partialIdEsc}[^)]*\\)`, 'g');
-                if (brokenPattern.test(currentContent)) {
-                    hasCorrupted = true;
-                    restoredContent = restoredContent.replace(brokenPattern, `![${imageData.alt}](...${imageId}...)`);
-                }
-            } catch (e) {
-                console.warn('Broken placeholder restore regex failed (non-fatal):', e);
-            }
-        }
-        
-        // If we found and fixed corrupted placeholders, update the editor
-        if (hasCorrupted && restoredContent !== currentContent) {
-            // Guard against recursive restoration (oscillation)
-            this._isRestoring = true;
-
-            try {
-                const textBeforeCursor = currentContent.substring(0, cursorPos);
-                const restoredTextBeforeCursor = textBeforeCursor.replace(
-                    /\(\.\.\.IMG_[^)]*\.\.\.[^)]*\)/g,
-                    (match) => {
-                        // Try to find the correct placeholder for this corrupted one
-                        for (const [imageId, imageData] of this.imageStore) {
-                            if (match.includes(imageId.substring(0, 15))) {
-                                return `(...${imageId}...)`;
-                            }
-                        }
-                        return match;
-                    }
-                );
-                const newCursorPos = restoredTextBeforeCursor.length;
-
-                this.editor.editor.value = restoredContent;
-
-                // Restore cursor position
-                setTimeout(() => {
-                    this.editor.editor.setSelectionRange(newCursorPos, newCursorPos);
-                    this.editor.editor.focus();
-                    this.editor.updatePreview();
-
-                    // Show a subtle notification
-                    if (this.editor.showNotification) {
-                        this.editor.showNotification('🔧 Restored corrupted image placeholder', 'info');
-                    }
-                }, 10);
-            } finally {
-                // Clear the guard after the restoration completes
-                this._isRestoring = false;
-            }
+            }, 10);
+        } finally {
+            // Clear the guard after the restoration completes
+            this._isRestoring = false;
         }
     }
     

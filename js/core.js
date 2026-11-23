@@ -992,6 +992,14 @@ class MarkdownEditor {
             }
         });
         
+        // Preview images use short same-origin blob: URLs (see
+        // imageCollapse.previewUrlFor). markdown-it rejects unknown protocols.
+        const defaultValidateLink = this.md.validateLink.bind(this.md);
+        this.md.validateLink = (url) => {
+            if (/^blob:/i.test(String(url || '').trim())) return true;
+            return defaultValidateLink(url);
+        };
+
         // Add source line tracking to tokens
         // markdown-it tokens have a 'map' property: [startLine, endLine]
         this._addSourceLinePlugin();
@@ -1498,7 +1506,22 @@ class MarkdownEditor {
         console.log(`Mermaid theme updated to: ${currentTheme}`);
     }
     
+    // Coalesce rapid edits into one render. Typing in a document with many
+    // images otherwise re-parses and re-decodes the whole preview per keystroke.
+    schedulePreviewUpdate(delayMs = 150) {
+        if (this._previewDebounceTimer) clearTimeout(this._previewDebounceTimer);
+        this._previewDebounceTimer = setTimeout(() => {
+            this._previewDebounceTimer = null;
+            this.updatePreview();
+        }, delayMs);
+    }
+
     updatePreview() {
+        // A direct render supersedes any queued debounced one.
+        if (this._previewDebounceTimer) {
+            clearTimeout(this._previewDebounceTimer);
+            this._previewDebounceTimer = null;
+        }
         this._previewWork?.abort();
         this._previewWork = new AbortController();
         const { signal } = this._previewWork;
@@ -1540,7 +1563,8 @@ class MarkdownEditor {
                 markdownText = this.getLiveUnescapedContent();
             } else if (this.imageCollapse && this.imageCollapse.getPreviewContent) {
                 // Prefer imageCollapse expansion so placeholders never become network URLs.
-                markdownText = this.imageCollapse.getPreviewContent();
+                // Blob URLs keep this render cheap for documents with many screenshots.
+                markdownText = this.imageCollapse.getPreviewContent({ previewUrls: true });
             } else {
                 markdownText = rawText;
             }
@@ -3662,39 +3686,51 @@ class MarkdownEditor {
         // Try to load from IndexedDB first (preferred)
         if (this.indexedDBManager && this.indexedDBManager.isSupported) {
             try {
-                const files = await this.indexedDBManager.getAllFiles();
-                if (files.length > 0) {
-                    const activeId = this.getActiveDocumentId?.();
-                    let savedFile = null;
-                    if (activeId) {
-                        savedFile = files.find((f) => f.id === activeId) || null;
+                const activeId = this.getActiveDocumentId?.();
+                // Fast path: read only the active document. getAllFiles() returns
+                // every saved document with its full content, which is ruinous
+                // once a few screenshots are embedded.
+                let savedFile = activeId ? await this.indexedDBManager.getFile(activeId) : null;
+                if (!savedFile) {
+                    const files = await this.indexedDBManager.getAllFiles();
+                    if (files.length > 0) {
+                        if (activeId) savedFile = files.find((f) => f.id === activeId) || null;
+                        if (!savedFile) {
+                            // Fall back to most recently modified
+                            const sortedFiles = [...files].sort((a, b) => {
+                                const dateA = new Date(a.modified || a.created || 0);
+                                const dateB = new Date(b.modified || b.created || 0);
+                                return dateB - dateA;
+                            });
+                            savedFile = sortedFiles[0];
+                        }
                     }
-                    if (!savedFile) {
-                        // Fall back to most recently modified
-                        const sortedFiles = [...files].sort((a, b) => {
-                            const dateA = new Date(a.modified || a.created || 0);
-                            const dateB = new Date(b.modified || b.created || 0);
-                            return dateB - dateA;
-                        });
-                        savedFile = sortedFiles[0];
-                    }
+                }
+                if (savedFile) {
                     console.log('✅ Found saved file in IndexedDB:', savedFile.name);
                     this.setActiveDocumentId(savedFile.id);
 
-                    this.editor.value = savedFile.content || '';
+                    // Collapse embedded data URLs before they reach the textarea,
+                    // so startup never carries (or renders) the full base64.
+                    let content = savedFile.content || '';
+                    if (content.includes('data:image/') && this.imageCollapse?.collapseImages) {
+                        try {
+                            content = this.imageCollapse.collapseImages(content);
+                        } catch (e) {
+                            console.warn('Could not collapse stored images on load (non-fatal):', e);
+                        }
+                    }
+                    this.editor.value = content;
                     this.currentFileName = savedFile.name || 'Untitled.md';
                     this.currentDriveFileId = savedFile.driveFileId || null;
                     this.documentTitle.value = this.currentFileName;
                     this.fileName.textContent = this.currentFileName;
-                    this.lastSavedContent = savedFile.content || '';
+                    this.lastSavedContent = content;
                     this.setModified(false);
                     this.resetUndoHistory();
-                    
+
                     this.showNotification(`Restored: ${savedFile.name}`, 'info');
-                    
-                    // Update preview first, then reset scroll state
-                    this.updatePreview();
-                    
+
                     this.resetScrollState();
                     this.editor.focus({ preventScroll: true });
                     return;
@@ -3712,19 +3748,24 @@ class MarkdownEditor {
             if (savedFile) {
                 console.log('✅ Found saved file:', savedFile.name);
                 
-                this.editor.value = savedFile.content || '';
+                let content = savedFile.content || '';
+                if (content.includes('data:image/') && this.imageCollapse?.collapseImages) {
+                    try {
+                        content = this.imageCollapse.collapseImages(content);
+                    } catch (e) {
+                        console.warn('Could not collapse stored images on load (non-fatal):', e);
+                    }
+                }
+                this.editor.value = content;
                 this.currentFileName = savedFile.name || 'Untitled.md';
                 this.currentDriveFileId = savedFile.driveFileId || null;
                 this.documentTitle.value = this.currentFileName;
                 this.fileName.textContent = this.currentFileName;
                 this.setModified(savedFile.isModified || false);
                 this.resetUndoHistory();
-                
+
                 this.showNotification(`Restored: ${savedFile.name}`, 'info');
-                
-                // Update preview first, then reset scroll state
-                this.updatePreview();
-                
+
                 this.resetScrollState();
                 this.editor.focus({ preventScroll: true });
                 return;
@@ -4420,7 +4461,7 @@ function hello() {
             this._markEditorMetricsDirty();
             
             try {
-                this.updatePreview();
+                this.schedulePreviewUpdate();
                 this.updateStats();
                 this.setModified(true);
                 
