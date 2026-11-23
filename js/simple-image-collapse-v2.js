@@ -14,6 +14,7 @@ class SimpleImageCollapseV2 {
         this._previewUrlCache = new Map();
         this.setupToggle();
         this.bindInputHandler();
+        this.bindRecoveryButton();
     }
 
     // Clear all stored images (in-memory only)
@@ -486,6 +487,186 @@ class SimpleImageCollapseV2 {
         }
     }
     
+    // ── Image recovery ──────────────────────────────────────────────────
+    // The old repair pass could fold every placeholder onto one id. The other
+    // images are still in IndexedDB; let the user pull them back in.
+
+    bindRecoveryButton() {
+        const btn = document.getElementById('recoverImages');
+        if (btn && !btn._recoveryBound) {
+            btn._recoveryBound = true;
+            btn.addEventListener('click', () => this.showRecoveryDialog());
+        }
+    }
+
+    // Images in IndexedDB that the current document no longer references,
+    // deduplicated by data URL (repeated loads used to store copies).
+    async collectRecoverableImages() {
+        const mgr = this.editor?.indexedDBManager;
+        if (!mgr || typeof mgr.forEachImage !== 'function') return [];
+
+        const content = this.editor.editor?.value || '';
+        const referenced = new Set();
+        const re = /\(\s*\.\.\.\s*(IMG_[A-Za-z0-9_]+)[^)]*\)/g;
+        let m;
+        while ((m = re.exec(content)) !== null) referenced.add(m[1]);
+
+        // Anything already shown by a referenced image counts as present.
+        const seen = new Set();
+        for (const id of referenced) {
+            const entry = this.imageStore.get(id) || await mgr.getImage(id);
+            if (entry && entry.dataUrl) seen.add(entry.dataUrl);
+        }
+
+        const unique = [];
+        await mgr.forEachImage((entry) => {
+            if (!entry || !entry.id || !entry.dataUrl) return;
+            if (referenced.has(entry.id)) return;
+            if (seen.has(entry.dataUrl)) return; // duplicate from a repeated load
+            seen.add(entry.dataUrl);
+            unique.push({
+                id: entry.id,
+                alt: entry.alt || '',
+                dataUrl: entry.dataUrl,
+                fullMarkdown: entry.fullMarkdown || ''
+            });
+        });
+        return unique;
+    }
+
+    async showRecoveryDialog() {
+        let images = [];
+        try {
+            images = await this.collectRecoverableImages();
+        } catch (e) {
+            console.warn('Image recovery scan failed:', e);
+            this.editor.showNotification?.('Could not read stored images', 'error');
+            return;
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal-dialog recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="recoveryTitle">
+                <div class="modal-header"><h3 id="recoveryTitle">Recover stored images</h3></div>
+                <div class="modal-body">
+                    <p class="recovery-hint">These images are still saved in this browser but are not referenced by the document. Insert the ones you want to bring back.</p>
+                    <div class="recovery-toolbar">
+                        <button type="button" class="btn btn-sm" data-recovery-toggle>Select all</button>
+                        <span class="recovery-count"></span>
+                    </div>
+                    <div class="recovery-grid"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" data-recovery-cancel>Cancel</button>
+                    <button type="button" class="btn btn-primary" data-recovery-insert>Insert selected</button>
+                </div>
+            </div>`;
+
+        const grid = overlay.querySelector('.recovery-grid');
+        const countEl = overlay.querySelector('.recovery-count');
+        const insertBtn = overlay.querySelector('[data-recovery-insert]');
+        const toggleBtn = overlay.querySelector('[data-recovery-toggle]');
+
+        if (images.length === 0) {
+            grid.innerHTML = '<div class="recovery-empty">No unreferenced images found.</div>';
+            insertBtn.disabled = true;
+            toggleBtn.hidden = true;
+        } else {
+            for (const image of images) {
+                const label = document.createElement('label');
+                label.className = 'recovery-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = true;
+                checkbox.value = image.id;
+
+                const thumb = document.createElement('img');
+                thumb.src = this.previewUrlFor(image);
+                thumb.alt = image.alt || '';
+                thumb.loading = 'lazy';
+
+                const meta = document.createElement('span');
+                const sizeKB = Math.round((image.dataUrl.length * 0.75) / 1024);
+                meta.textContent = `${image.alt || 'Image'} · ${sizeKB} KB`;
+
+                label.append(checkbox, thumb, meta);
+                grid.appendChild(label);
+            }
+        }
+
+        const updateCount = () => {
+            const total = images.length;
+            const selected = overlay.querySelectorAll('.recovery-item input:checked').length;
+            countEl.textContent = `${selected} of ${total} selected`;
+            insertBtn.disabled = selected === 0;
+            toggleBtn.textContent = (total > 0 && selected === total) ? 'Select none' : 'Select all';
+        };
+        overlay.addEventListener('change', updateCount);
+        updateCount();
+
+        toggleBtn.addEventListener('click', () => {
+            const checkAll = overlay.querySelectorAll('.recovery-item input:checked').length !== images.length;
+            overlay.querySelectorAll('.recovery-item input').forEach((cb) => { cb.checked = checkAll; });
+            updateCount();
+        });
+
+        const close = () => overlay.remove();
+        overlay.querySelector('[data-recovery-cancel]').addEventListener('click', close);
+        insertBtn.addEventListener('click', () => {
+            const chosen = images.filter((image) => {
+                const cb = overlay.querySelector(`.recovery-item input[value="${image.id}"]`);
+                return cb && cb.checked;
+            });
+            this.insertRecoveredImages(chosen);
+            close();
+        });
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+        });
+        overlay.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') close();
+        });
+
+        document.body.appendChild(overlay);
+        overlay.querySelector('[data-recovery-cancel]').focus?.();
+    }
+
+    insertRecoveredImages(images) {
+        if (!images || images.length === 0) return;
+
+        const markdown = images.map((image) => {
+            if (!this.imageStore.has(image.id)) {
+                this.imageStore.set(image.id, {
+                    id: image.id,
+                    alt: image.alt || '',
+                    dataUrl: image.dataUrl,
+                    fullMarkdown: image.fullMarkdown || `![${image.alt || ''}](${image.dataUrl})`
+                });
+            }
+            return `![${image.alt || ''}](...${image.id}...)`;
+        }).join('\n\n');
+
+        const editor = this.editor.editor;
+        const value = editor.value || '';
+        const pos = typeof editor.selectionStart === 'number' ? editor.selectionStart : value.length;
+        const before = value.slice(0, pos);
+        const after = value.slice(pos);
+        const lead = before && !before.endsWith('\n') ? '\n\n' : '';
+        const trail = after && !after.startsWith('\n') ? '\n\n' : '';
+
+        this.editor.recordUndoSnapshot?.(true);
+        editor.value = `${before}${lead}${markdown}${trail}${after}`;
+        this.isCollapsed = true;
+        this.updateToggleButton();
+        this.editor.updatePreview?.();
+        this.editor.updateStats?.();
+        this.editor.setModified?.(true);
+        this.editor.autoSave?.();
+        this.editor.showNotification?.(`Restored ${images.length} image${images.length === 1 ? '' : 's'}`, 'success');
+    }
+
     // Show advanced options context menu
     showAdvancedOptions(event) {
         const menu = document.createElement('div');
@@ -503,6 +684,18 @@ class SimpleImageCollapseV2 {
             font-size: 0.875rem;
         `;
         
+        const recoverOption = document.createElement('div');
+        recoverOption.textContent = '♻️ Recover Stored Images';
+        recoverOption.style.cssText = `
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            hover: background-color: var(--bg-tertiary);
+        `;
+        recoverOption.onclick = () => {
+            document.body.removeChild(menu);
+            this.showRecoveryDialog();
+        };
+
         const restoreOption = document.createElement('div');
         restoreOption.textContent = '🔧 Restore Corrupted Images';
         restoreOption.style.cssText = `
@@ -573,6 +766,7 @@ class SimpleImageCollapseV2 {
             document.body.removeChild(menu);
         };
         
+        menu.appendChild(recoverOption);
         menu.appendChild(restoreOption);
         menu.appendChild(debugOption);
         menu.appendChild(cleanupOption);

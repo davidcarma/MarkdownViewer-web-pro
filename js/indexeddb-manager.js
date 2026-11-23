@@ -128,6 +128,44 @@ class IndexedDBManager {
     }
 
     /**
+     * Iterate image entries one at a time. A store bloated by duplicate
+     * images must never be materialised as one array.
+     * @param {(entry: Object) => void} callback
+     * @returns {Promise<number>} number of entries seen
+     */
+    async forEachImage(callback) {
+        if (!this.db) {
+            await this.init();
+        }
+        if (!this.db) {
+            throw new Error('IndexedDB unavailable');
+        }
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.imagesStoreName], 'readonly');
+            const objectStore = transaction.objectStore(this.imagesStoreName);
+            const request = objectStore.openCursor();
+            let count = 0;
+
+            request.onsuccess = () => {
+                const cursor = request.result;
+                if (!cursor) {
+                    resolve(count);
+                    return;
+                }
+                count++;
+                try {
+                    callback(cursor.value);
+                } catch (_) {
+                    // A bad record must not stop the scan.
+                }
+                cursor.continue();
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
      * Get all images from IndexedDB
      * @returns {Promise<Array>}
      */
