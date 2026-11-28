@@ -144,5 +144,5 @@ window.RenderBoundary = (() => {
             port1.close(); port2.close(); frame.remove();
         }
     }
-    return Object.freeze({ html, renderDiagram });
+    return Object.freeze({ html, renderDiagram, styleProperties: Object.freeze([...properties]) });
 })();

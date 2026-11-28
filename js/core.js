@@ -2153,15 +2153,18 @@ class MarkdownEditor {
         clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
         clone.setAttribute('xmlns:xhtml', 'http://www.w3.org/1999/xhtml');
 
+        // --- inline every computed style so the SVG is self-contained ---
+        // Must run before the background rect is inserted: the walk pairs live
+        // and clone children by index, so an extra first child would shift every
+        // pairing and paint each node with a neighbouring node's styles.
+        this._deepInlineStyles(svgEl, clone);
+
         // --- background matches the actual container (dark/light/gwyneth) ---
         const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         bg.setAttribute('width', '100%');
         bg.setAttribute('height', '100%');
         bg.setAttribute('fill', bgColor || '#ffffff');
         clone.insertBefore(bg, clone.firstChild);
-
-        // --- inline every computed style so the SVG is self-contained ---
-        this._deepInlineStyles(svgEl, clone);
 
         // --- serialize → data URL → Image → Canvas ---
         const xml = new XMLSerializer().serializeToString(clone);
@@ -2198,7 +2201,14 @@ class MarkdownEditor {
     _deepInlineStyles(live, clone) {
         try {
             const cs = window.getComputedStyle(live);
-            clone.style.cssText = cs.cssText;
+            // Chromium returns an empty cssText for computed styles, so copying
+            // cssText wiped the flattened inline styles and the clone fell back
+            // to black defaults (participant boxes and their text vanished).
+            // Copy the same property set the render boundary flattens instead.
+            for (const prop of window.RenderBoundary.styleProperties) {
+                const value = cs.getPropertyValue(prop);
+                if (value) clone.style.setProperty(prop, value);
+            }
 
             // Restore fill:none for SVG stroke-only shape elements.
             //

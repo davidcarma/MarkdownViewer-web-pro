@@ -42,6 +42,29 @@ After markdown is rendered to HTML, `js/core.js` applies:
   - Each diagram gets an inline zoom/pan toolbar and copy-image control (not a separate fullscreen modal).
 - **KaTeX**: math rendering via `katex-auto-render`. Inline math delimited by `$...$`, block math by `$$...$$`.
 
+### Copy image (PNG export)
+
+The toolbar's copy-image control (`_copyMermaidAsImage` → `_svgToBlob` in `js/core.js`) produces a 2× PNG of the live diagram and writes it to the clipboard, falling back to a `mermaid-diagram.png` download when the Clipboard API is unavailable or the page runs from `file:`.
+
+```mermaid
+flowchart TD
+    A["Live SVG (styles already flattened by RenderBoundary)"] --> B[Clone the node]
+    B --> C["Inline RenderBoundary.styleProperties on matched live/clone elements"]
+    C --> D[Prepend a background rect using the container colour]
+    D --> E[Serialize to an SVG data URL]
+    E --> F[Draw into a 2x canvas]
+    F --> G[PNG blob to the clipboard]
+    G -.->|"clipboard unavailable"| H[Download mermaid-diagram.png]
+    C -.->|"computed cssText copied instead"| X["Empty string in Chromium: black shapes, invisible labels"]
+    D -.->|"rect inserted before the style walk"| Y["Child index shift: labels painted with a neighbour line's fill and dash"]
+```
+
+**Invariants**
+
+1. Never copy `getComputedStyle(el).cssText` into the clone. Chromium returns an empty string for computed styles, which wipes the flattened inline styles and every shape falls back to black. Copy the property list exported as `RenderBoundary.styleProperties`, one `getPropertyValue` at a time.
+2. The style walk pairs live and clone children **by index**. Insert the background rect only *after* `_deepInlineStyles` has run, or each node receives its neighbour's styles (shattered text, miscoloured shapes).
+3. Stroke-only shapes keep `fill: none` from their presentation attribute; that correction runs after the property copy and must stay.
+
 ## Minimap
 
 `js/minimap.js` provides two classes:
