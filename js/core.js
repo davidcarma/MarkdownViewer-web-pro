@@ -2865,6 +2865,7 @@ class MarkdownEditor {
         const firstLine = bodyForType.split('\n').find(l => l.trim().length > 0) || '';
         const isStateDiagram = /^\s*stateDiagram/i.test(firstLine);
         const isFlowchart = /^\s*(graph|flowchart)\s/i.test(firstLine);
+        const isSequenceDiagram = /^\s*sequenceDiagram/i.test(firstLine);
 
         // stateDiagram-v2 does not support the `style` directive (flowchart-only).
         // Convert `style <id> <props>` into classDef/class pairs.
@@ -2872,14 +2873,17 @@ class MarkdownEditor {
             code = this._convertStateDiagramStyleToClassDef(code);
         }
 
-        // Process line-by-line for label quoting (stateDiagram + flowchart)
-        if (isStateDiagram || isFlowchart) {
+        // Process line-by-line for label quoting (stateDiagram + flowchart + sequence)
+        if (isStateDiagram || isFlowchart || isSequenceDiagram) {
             code = code.split('\n').map(line => {
                 if (isStateDiagram) {
                     return this._sanitizeStateDiagramLine(line);
                 }
                 if (isFlowchart) {
                     return this._sanitizeFlowchartLine(line);
+                }
+                if (isSequenceDiagram) {
+                    return this._sanitizeSequenceDiagramLine(line);
                 }
                 return line;
             }).join('\n');
@@ -2921,6 +2925,19 @@ class MarkdownEditor {
             classAssigns.push(`${indent}class ${stateId} ${className}`);
         }
         return [...out, ...classDefs, ...classAssigns].join('\n');
+    }
+
+    /**
+     * Sequence message and note text runs to end of line, but the lexer still
+     * treats a raw `;` as a statement separator. `K->>P: Save result; pack
+     * prepared separately` is split at the semicolon and the rest of the line
+     * is parsed as a new statement, which fails the whole render. Replace label
+     * semicolons with commas; the text stays readable and the line stays one.
+     */
+    _sanitizeSequenceDiagramLine(line) {
+        if (/^\s*%%/.test(line)) return line;
+        line = line.replace(/;\s*$/, '');
+        return line.replace(/;/g, ',');
     }
 
     _sanitizeStateDiagramLine(line) {

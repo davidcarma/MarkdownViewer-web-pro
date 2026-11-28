@@ -14,6 +14,7 @@ Models often emit Mermaid that breaks parsers or older lexers:
 | Ampersands | `A["Feedback & Notes"]` | `&` in labels can break SVG or parsing |
 | Forward slashes | `A["Screening / Review"]` | `/` can confuse some lexer paths |
 | Trailing semicolons | `A --> B;` | Edge-case parse issues |
+| Semicolons inside sequence labels | `K->>P: Save result; pack prepared separately` | `;` splits the message and the rest is parsed as a new statement |
 | Reserved node IDs | `end`, `class`, `style`, … | Keyword clashes |
 | Parentheses in edge labels | `-->|No (see case)|` | Parser misreads |
 | Em/en dashes | em dash where ASCII `--` was meant | Not the same token as hyphen-minus |
@@ -30,6 +31,7 @@ Before render, `sanitizeMermaidCode()` runs (in order):
 4. **Per-line LLM pass** (`_applyMermaidLLMLineSanitize`): skip diagram declaration and `%%` lines; strip trailing `;`; auto-quote bare `id[...]`, `id{...}`, `id(...)` when labels hold risky characters; escape raw `&` inside already-quoted square or curly labels as `#amp;` (Mermaid HTML entity style)
 5. State diagram: `style` → `classDef` / `class` where needed
 6. Flowchart / state line helpers: edge labels, cylinder/stadium guard so `id[("Database")]` is **not** rewritten into invalid `["("Database")"]`
+7. Sequence diagram lines: `;` inside a message or note label becomes `,` (the lexer treats it as a statement separator mid-line), and a trailing `;` is stripped
 
 ### Layer 2: Aggressive retry (render time)
 

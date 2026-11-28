@@ -94,6 +94,19 @@ sequenceDiagram
     B-->>U: Display data
 ```
 
+### 2a. Sequence Diagram - Semicolons inside labels
+
+```mermaid
+sequenceDiagram
+    participant W as Web
+    participant K as Worker
+    participant P as PostgreSQL
+    W->>K: Enqueue run
+    K->>P: Save result; pack prepared separately
+    Note over W,K: Charge settled; engine session reused
+    K-->>W: Done; no further charge
+```
+
 ## 3. Class Diagram - E-commerce System
 
 ```mermaid
